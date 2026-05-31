@@ -44,13 +44,21 @@ class FinderSyncExtension: FIFinderSync {
         return false
     }
 
+    // MARK: - 进程间通讯（IPC）
+    // 使用「命名剪贴板 (Named NSPasteboard)」作为 IPC 数据通道：
+    // · 无需 App Group 权限，在沙盒与非沙盒进程之间天然互通
+    // · 不会触发 kCFPreferencesAnyUser 相关警告
+    // · Darwin 通知用于唤醒主应用，命名剪贴板用于传递数据
+
     private static let ipcPasteboardName = NSPasteboard.Name("com.snapclick.app.ipc")
+    private static let ipcNotificationName = "com.snapclick.app.findercommand" as CFString
 
     private func sendCommand(_ command: String, selectedItems: [URL], targetDir: URL?, representedObject: Any?) {
         var payload: [String: Any] = [
             "cmd":   command,
             "items": selectedItems.map { $0.path },
-            "dir":   targetDir?.path ?? ""
+            "dir":   targetDir?.path ?? "",
+            "ts":    Date().timeIntervalSince1970
         ]
         if let dict = representedObject as? [String: String] {
             payload["dict"] = dict
@@ -58,17 +66,19 @@ class FinderSyncExtension: FIFinderSync {
             payload["str"] = str
         }
 
-        if let data = try? JSONSerialization.data(withJSONObject: payload),
-           let json = String(data: data, encoding: .utf8) {
-            let pb = NSPasteboard(name: Self.ipcPasteboardName)
-            pb.clearContents()
-            pb.setString(json, forType: .string)
-        }
+        // 序列化为 JSON 写入命名剪贴板
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: payload),
+              let jsonStr = String(data: jsonData, encoding: .utf8) else { return }
 
+        let pb = NSPasteboard(name: Self.ipcPasteboardName)
+        pb.clearContents()
+        pb.setString(jsonStr, forType: .string)
+
+        // 通过 Darwin 通知唤醒主应用读取剪贴板数据
         let center = CFNotificationCenterGetDarwinNotifyCenter()
         CFNotificationCenterPostNotification(
             center,
-            CFNotificationName("com.snapclick.app.findercommand" as CFString),
+            CFNotificationName(Self.ipcNotificationName),
             nil, nil, true
         )
     }

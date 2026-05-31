@@ -1,6 +1,6 @@
 // ColorPickerEngine.swift
 // SnapClick - 贴图取色模块
-// 屏幕取色引擎：鼠标追踪、颜色采集、放大镜截图、格式转换
+// 屏幕取色引擎：全屏捕获、鼠标追踪、颜色采集、放大镜截图、格式转换
 
 import AppKit
 import CoreGraphics
@@ -16,204 +16,243 @@ final class ColorPickerEngine: ObservableObject {
     @Published var currentColor: NSColor = .white
     /// 是否正处于取色模式
     @Published var isActive: Bool = false
-    /// 放大镜图像（鼠标周围 64×64 放大 16×）
+    /// 放大镜图像（鼠标周围像素，用于放大显示）
     @Published var magnifierImage: NSImage? = nil
     /// 颜色历史记录，最多保存 20 个
     @Published var colorHistory: [NSColor] = []
+    /// 全屏截图（在覆盖层出现前捕获，供背景显示及颜色采样）
+    @Published var fullScreenCapture: NSImage? = nil
 
     // MARK: - 私有属性
     private var mouseMonitor: Any?
     private var keyMonitor: Any?
-    private var clickMonitor: Any?
     private var localMonitors: [Any] = []
     private var overlayController: ColorPickerOverlayWindowController?
+
+    /// 存储的全屏 CGImage（用于直接像素采色，避免每帧调用 CGWindowListCreateImage）
+    private var screenCGImage: CGImage? = nil
+    private var captureScale: CGFloat = 1.0
+    private var captureScreenH: CGFloat = 0.0
 
     // MARK: - 初始化
     private init() {}
 
     // MARK: - 公开方法
 
-    /// 启动取色模式（显示全屏覆盖层，开始追踪鼠标）
-    func startPicking() {
-        guard !isActive else { return }
+    /// 启动取色模式（先截全屏，再显示覆盖层）
+    /// 返回 false 表示权限不足，调用方应提示用户授权
+    @discardableResult
+    func startPicking() -> Bool {
+        guard !isActive else { return false }
+
+        guard PermissionManager.shared.hasScreenRecordingPermission else {
+            let alert = NSAlert()
+            alert.messageText = "需要屏幕录制权限"
+            alert.informativeText = "请在系统设置 → 隐私与安全性 → 屏幕录制中授权 SnapClick。"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "去设置")
+            alert.addButton(withTitle: "取消")
+            if alert.runModal() == .alertFirstButtonReturn {
+                PermissionManager.shared.requestScreenRecordingPermission()
+            }
+            return false
+        }
+
+        captureFullScreen()
+
         isActive = true
 
-        // 显示全屏覆盖层
         let controller = ColorPickerOverlayWindowController()
         controller.showWindow(nil)
         overlayController = controller
 
-        // 全局鼠标移动监听
-        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
-            guard let self else { return }
-            let point = NSEvent.mouseLocation
-            Task { @MainActor in
-                self.currentColor = self.colorAtMouseLocation(point)
-                self.magnifierImage = self.captureMagnifierImage(at: point)
-            }
+        // 初始更新
+        let initPoint = NSEvent.mouseLocation
+        refreshAtPoint(initPoint)
+
+        // ② 全局鼠标移动监听（鼠标在覆盖层以外时也要响应）
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
+            let pt = NSEvent.mouseLocation
+            Task { @MainActor in self?.refreshAtPoint(pt) }
         }
 
-        // 本地鼠标移动监听（覆盖层自身窗口上的移动也需要响应）
-        let localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
-            guard let self else { return event }
-            let point = NSEvent.mouseLocation
-            Task { @MainActor in
-                self.currentColor = self.colorAtMouseLocation(point)
-                self.magnifierImage = self.captureMagnifierImage(at: point)
-            }
-            return event
+        // ③ 本地鼠标移动（覆盖层窗口内）
+        let localMM = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
+            let pt = NSEvent.mouseLocation
+            Task { @MainActor in self?.refreshAtPoint(pt) }
+            return event   // 不消耗事件，让 SwiftUI 也能响应
         }
 
-        // 全局鼠标点击监听（左键确认取色）
-        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] _ in
-            Task { @MainActor in
-                self?.confirmColor()
-            }
-        }
+        localMonitors = [localMM]
 
-        // 本地鼠标点击监听（覆盖层自身窗口上的点击也需要确认取色）
-        let localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
-            Task { @MainActor in
-                self?.confirmColor()
-            }
-            return nil  // 吞掉事件，防止穿透
-        }
-
-        // 将本地监听器也保存，以便后续移除
-        localMonitors = [localMouseMonitor, localClickMonitor]
-
-        // 本地按键监听（ESC 取消）
+        // ④ ESC 取消
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-            if event.keyCode == 53 { // ESC
-                Task { @MainActor in
-                    self?.stopPicking()
-                }
+            if event.keyCode == 53 {
+                Task { @MainActor in self?.stopPicking() }
                 return nil
             }
             return event
         }
+
+        return true
     }
 
-    /// 停止取色模式（隐藏覆盖层，移除所有监听器）
+    /// 停止取色模式
     func stopPicking() {
         guard isActive else { return }
         isActive = false
+        fullScreenCapture = nil
+        screenCGImage = nil
 
-        // 移除所有事件监听
         if let m = mouseMonitor { NSEvent.removeMonitor(m); mouseMonitor = nil }
         if let m = keyMonitor   { NSEvent.removeMonitor(m); keyMonitor = nil }
-        if let m = clickMonitor { NSEvent.removeMonitor(m); clickMonitor = nil }
-        for m in localMonitors { NSEvent.removeMonitor(m) }
+        for m in localMonitors  { NSEvent.removeMonitor(m) }
         localMonitors = []
 
-        // 关闭覆盖层
         overlayController?.close()
         overlayController = nil
     }
 
-    // MARK: - 私有方法
-
     /// 确认当前颜色：写入剪贴板 + 加入历史 + 关闭取色模式
-    private func confirmColor() {
-        copyToClipboard(currentColor)
+    /// （内部访问级别，供 SwiftUI 视图直接调用）
+    func confirmColor() {
+        let hex = hexString(for: currentColor)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(hex, forType: .string)
         appendHistory(currentColor)
         stopPicking()
     }
 
-    /// 将颜色 HEX 字符串写入系统剪贴板
-    private func copyToClipboard(_ color: NSColor) {
-        let hex = hexString(for: color)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(hex, forType: .string)
+    // MARK: - 私有方法
+
+    /// 刷新指定鼠标坐标处的颜色和放大镜图像
+    private func refreshAtPoint(_ point: NSPoint) {
+        currentColor = colorFromStoredImage(at: point)
+        magnifierImage = captureMagnifierImage(at: point)
     }
 
-    /// 追加颜色到历史记录（超过 20 个则丢弃最旧的）
-    private func appendHistory(_ color: NSColor) {
-        colorHistory.insert(color, at: 0)
-        if colorHistory.count > 20 {
-            colorHistory = Array(colorHistory.prefix(20))
+    /// 截取全屏图像（存入 fullScreenCapture 和 screenCGImage）
+    private func captureFullScreen() {
+        guard let screen = NSScreen.main else { return }
+        captureScale  = screen.backingScaleFactor
+        
+        // 获取所有屏幕的完整包围盒，确保多屏截取完整
+        let unionFrame = NSScreen.screens.reduce(CGRect.zero) { $0.union($1.frame) }
+        captureScreenH = unionFrame.height
+
+        // 使用 CGRect.infinite 获取完整的桌面快照
+        let cg = CGWindowListCreateImage(
+            CGRect.infinite,
+            .optionOnScreenOnly,
+            kCGNullWindowID,
+            [.bestResolution]
+        )
+        screenCGImage = cg
+        if let cg {
+            // size 应该基于 unionFrame，而不是像素大小，这样 SwiftUI 里 scaleToFill 才会对
+            fullScreenCapture = NSImage(cgImage: cg, size: unionFrame.size)
         }
     }
 
-    /// 获取指定屏幕坐标的像素颜色
-    /// - 使用 CGWindowListCreateImage 截取 1×1 区域
-    private func colorAtMouseLocation(_ point: NSPoint) -> NSColor {
-        // 将 NSPoint（左下原点）转换为 CGPoint（左上原点）
-        let screenHeight = NSScreen.main?.frame.height ?? 0
-        let cgPoint = CGPoint(x: point.x, y: screenHeight - point.y)
-        let captureRect = CGRect(x: cgPoint.x, y: cgPoint.y, width: 1, height: 1)
+    /// 从已存储的全屏 CGImage 中采样指定屏幕坐标的颜色（比实时截图更高效）
+    private func colorFromStoredImage(at point: NSPoint) -> NSColor {
+        guard let cgImg = screenCGImage else {
+            return colorAtMouseLocationFallback(point)
+        }
 
-        guard let image = CGWindowListCreateImage(
-            captureRect,
-            .optionOnScreenOnly,
-            kCGNullWindowID,
-            [.bestResolution]
+        let px = Int(point.x      * captureScale)
+        let py = Int((captureScreenH - point.y) * captureScale)   // Y 翻转（CGImage Y 向下）
+
+        guard px >= 0, py >= 0, px < cgImg.width, py < cgImg.height else {
+            return colorAtMouseLocationFallback(point)
+        }
+
+        // 裁剪 1×1 像素，绘制到已知格式的 Context 中读取 RGB
+        let cropRect = CGRect(x: CGFloat(px), y: CGFloat(py), width: 1, height: 1)
+        guard let pixel = cgImg.cropping(to: cropRect) else { return .white }
+
+        var data = [UInt8](repeating: 0, count: 4)
+        let cs = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &data, width: 1, height: 1,
+            bitsPerComponent: 8, bytesPerRow: 4, space: cs,
+            bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return .white }
 
-        guard let dataProvider = image.dataProvider,
-              let data = dataProvider.data,
-              let bytes = CFDataGetBytePtr(data) else { return .white }
+        ctx.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
 
-        let bytesPerPixel = image.bitsPerPixel / 8
-        guard bytesPerPixel >= 3 else { return .white }
-
-        let r = CGFloat(bytes[0]) / 255.0
-        let g = CGFloat(bytes[1]) / 255.0
-        let b = CGFloat(bytes[2]) / 255.0
-        let a = bytesPerPixel >= 4 ? CGFloat(bytes[3]) / 255.0 : 1.0
-
-        return NSColor(srgbRed: r, green: g, blue: b, alpha: a)
+        return NSColor(srgbRed: CGFloat(data[0]) / 255,
+                       green:    CGFloat(data[1]) / 255,
+                       blue:     CGFloat(data[2]) / 255,
+                       alpha:    1.0)
     }
 
-    /// 截取鼠标周围 64×64 区域（用于放大镜展示）
+    /// 备用：实时截取 1×1 像素获取颜色（当存储截图不可用时）
+    private func colorAtMouseLocationFallback(_ point: NSPoint) -> NSColor {
+        let screenH = NSScreen.main?.frame.height ?? 0
+        let cgY = screenH - point.y
+        let rect = CGRect(x: point.x, y: cgY, width: 1, height: 1)
+        guard let img = CGWindowListCreateImage(rect, .optionOnScreenOnly, kCGNullWindowID, [.bestResolution]),
+              let dp = img.dataProvider, let rawData = dp.data else { return .white }
+        let bytes = CFDataGetBytePtr(rawData)!
+        let bpp = img.bitsPerPixel / 8
+        guard bpp >= 3 else { return .white }
+        return NSColor(srgbRed: CGFloat(bytes[0]) / 255,
+                       green:    CGFloat(bytes[1]) / 255,
+                       blue:     CGFloat(bytes[2]) / 255,
+                       alpha:    1.0)
+    }
+
+    /// 从已存储的全屏 CGImage 中截取鼠标周围 29×21 像素区域（与放大镜网格对应）
+    /// 使用存储的截图而非实时截屏，避免截入覆盖层自身导致递归显示
     private func captureMagnifierImage(at point: NSPoint) -> NSImage? {
-        let screenHeight = NSScreen.main?.frame.height ?? 0
-        let size: CGFloat = 64
-        let half = size / 2
-        let cgY = screenHeight - point.y - half
-        let captureRect = CGRect(x: point.x - half, y: cgY, width: size, height: size)
+        guard let cgImg = screenCGImage else { return nil }
 
-        guard let cgImage = CGWindowListCreateImage(
-            captureRect,
-            .optionOnScreenOnly,
-            kCGNullWindowID,
-            [.bestResolution]
-        ) else { return nil }
+        let cols: CGFloat = 29, rows: CGFloat = 21
+        let scale = captureScale
 
-        return NSImage(cgImage: cgImage, size: NSSize(width: size, height: size))
+        let px = Int((point.x - floor(cols / 2)) * scale)
+        let py = Int((captureScreenH - point.y - floor(rows / 2)) * scale)
+        let pw = Int(cols * scale)
+        let ph = Int(rows * scale)
+
+        guard px >= 0, py >= 0,
+              px + pw <= cgImg.width,
+              py + ph <= cgImg.height else { return nil }
+
+        let cropRect = CGRect(x: CGFloat(px), y: CGFloat(py), width: CGFloat(pw), height: CGFloat(ph))
+        guard let cropped = cgImg.cropping(to: cropRect) else { return nil }
+
+        return NSImage(cgImage: cropped, size: NSSize(width: cols, height: rows))
+    }
+
+    /// 追加颜色到历史（超 20 个则丢弃最旧）
+    private func appendHistory(_ color: NSColor) {
+        colorHistory.insert(color, at: 0)
+        if colorHistory.count > 20 { colorHistory = Array(colorHistory.prefix(20)) }
     }
 
     // MARK: - 颜色格式转换
 
-    /// 返回 HEX 字符串，如 #FF5733
     func hexString(for color: NSColor) -> String {
         let c = normalized(color)
-        let r = Int(c.redComponent   * 255 + 0.5)
-        let g = Int(c.greenComponent * 255 + 0.5)
-        let b = Int(c.blueComponent  * 255 + 0.5)
-        return String(format: "#%02X%02X%02X", r, g, b)
+        return String(format: "#%02X%02X%02X",
+                      Int(c.redComponent   * 255 + 0.5),
+                      Int(c.greenComponent * 255 + 0.5),
+                      Int(c.blueComponent  * 255 + 0.5))
     }
 
-    /// 返回 RGB 字符串，如 rgb(255, 87, 51)
     func rgbString(for color: NSColor) -> String {
         let c = normalized(color)
-        let r = Int(c.redComponent   * 255 + 0.5)
-        let g = Int(c.greenComponent * 255 + 0.5)
-        let b = Int(c.blueComponent  * 255 + 0.5)
-        return "rgb(\(r), \(g), \(b))"
+        return "rgb(\(Int(c.redComponent*255+0.5)), \(Int(c.greenComponent*255+0.5)), \(Int(c.blueComponent*255+0.5)))"
     }
 
-    /// 返回 HSL 字符串，如 hsl(14°, 100%, 60%)
     func hslString(for color: NSColor) -> String {
         let c = normalized(color)
-        var h: CGFloat = 0, s: CGFloat = 0, l: CGFloat = 0
-        // 计算 HSL
-        let r = c.redComponent
-        let g = c.greenComponent
-        let b = c.blueComponent
-        let maxC = max(r, g, b)
-        let minC = min(r, g, b)
-        l = (maxC + minC) / 2
+        let r = c.redComponent, g = c.greenComponent, b = c.blueComponent
+        let maxC = max(r, g, b), minC = min(r, g, b)
+        var h: CGFloat = 0, s: CGFloat = 0
+        let l = (maxC + minC) / 2
         let delta = maxC - minC
         if delta > 0 {
             s = delta / (1 - abs(2 * l - 1))
@@ -228,21 +267,21 @@ final class ColorPickerEngine: ObservableObject {
         return String(format: "hsl(%.0f°, %.0f%%, %.0f%%)", h * 360, s * 100, l * 100)
     }
 
-    /// 返回 SwiftUI Color 字面量字符串
+    func hsbString(for color: NSColor) -> String {
+        let c = normalized(color)
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        c.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return String(format: "hsb(%.0f, %.0f%%, %.0f%%)", h * 360, s * 100, b * 100)
+    }
+
     func swiftString(for color: NSColor) -> String {
         let c = normalized(color)
         return String(format: "Color(red: %.3f, green: %.3f, blue: %.3f)",
                       c.redComponent, c.greenComponent, c.blueComponent)
     }
 
-    /// 返回 CSS 颜色字符串（同 HEX）
-    func cssString(for color: NSColor) -> String {
-        hexString(for: color)
-    }
+    func cssString(for color: NSColor) -> String { hexString(for: color) }
 
-    // MARK: - 辅助
-
-    /// 将颜色转换到 sRGB 色彩空间
     private func normalized(_ color: NSColor) -> NSColor {
         color.usingColorSpace(.sRGB) ?? color
     }

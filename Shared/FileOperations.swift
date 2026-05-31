@@ -212,19 +212,19 @@ class FileOperations {
     }
 
     func openInTerminal(directory: URL, terminalBundleID: String) {
-        guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: terminalBundleID) != nil else {
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: terminalBundleID) else {
             showAlert(title: "打开终端失败", message: "未找到对应的终端程序（\(terminalBundleID)）。")
             return
         }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-b", terminalBundleID, directory.path]
-        do {
-            try process.run()
-        } catch {
-            showAlert(title: "打开终端失败", message: "无法启动终端程序：\(error.localizedDescription)")
-        }
+        let config = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.open([directory], withApplicationAt: appURL, configuration: config, completionHandler: { _, error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.showAlert(title: "打开终端失败", message: "无法启动终端程序：\(error.localizedDescription)")
+                }
+            }
+        })
     }
 
     func airDrop(items: [URL]) {

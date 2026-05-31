@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotkeyManager.shared.registerAll()
         cacheInstalledApps()
         setupFinderCommandObserver()
+        handleFinderCommand()
 
         let settings = AppSettings.shared
         if settings.isFirstLaunch {
@@ -93,14 +94,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleFinderCommand() {
+        // 从命名剪贴板读取命令（与 FinderSync.sendCommand 配套）
         let pb = NSPasteboard(name: NSPasteboard.Name("com.snapclick.app.ipc"))
-        guard let json = pb.string(forType: .string),
-              let data = json.data(using: .utf8),
-              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let command = payload["cmd"] as? String
-        else { return }
-
+        guard let jsonStr = pb.string(forType: .string),
+              let data = jsonStr.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return
+        }
+        // 读取后清空，避免重复处理
         pb.clearContents()
+
+        processFinderPayload(payload)
+    }
+
+    private func processFinderPayload(_ payload: [String: Any]) {
+        guard let command = payload["cmd"] as? String else { return }
 
         let selectedPaths    = payload["items"] as? [String] ?? []
         let targetDirStr     = payload["dir"] as? String ?? ""
@@ -117,45 +125,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let createdURL = FileOperations.shared.createNewFile(dict: dict, in: dest) {
                     FileOperations.revealAndRenameInFinder(createdURL)
                 }
-                
+
             case "cutFiles":
                 FileOperations.shared.cutFiles(items: selectedURLs)
-                
+
             case "copyFiles":
                 FileOperations.shared.copyFiles(items: selectedURLs)
-                
+
             case "pasteFiles":
                 guard let dest = targetURL else { return }
                 FileOperations.shared.pasteFiles(to: dest)
-                
+
             case "moveToDirectory":
                 let destPath = representedString ?? "__choose__"
                 FileOperations.shared.moveOrCopy(items: selectedURLs, destPath: destPath, isCopy: false)
-                
+
             case "copyToDirectory":
                 let destPath = representedString ?? "__choose__"
                 FileOperations.shared.moveOrCopy(items: selectedURLs, destPath: destPath, isCopy: true)
-                
+
             case "copyPath":
                 let kind = representedString ?? "full"
                 FileOperations.shared.copyPath(items: selectedURLs, kind: kind)
-                
+
             case "computeHash":
                 let algo = representedString ?? "sha256"
                 FileOperations.shared.computeHash(items: selectedURLs, algo: algo)
-                
+
             case "openWithDevTool":
                 guard let bundleID = representedString else { return }
                 FileOperations.shared.openWithDevTool(items: selectedURLs, bundleID: bundleID)
-                
+
             case "openInTerminal":
                 guard let dest = targetURL else { return }
                 let terminalBundleID = representedString ?? "com.apple.Terminal"
                 FileOperations.shared.openInTerminal(directory: dest, terminalBundleID: terminalBundleID)
-                
+
             case "airDrop":
                 FileOperations.shared.airDrop(items: selectedURLs)
-                
+
             default:
                 break
             }

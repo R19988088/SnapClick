@@ -1199,12 +1199,13 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         }
     }
     
-    /// 创建红色边框指示器窗口（不影响下层窗口的鼠标事件）
+    /// 创建全屏指示器与遮罩窗口（ignoresMouseEvents 确保不影响下层窗口的鼠标事件）
     private func createBorderIndicator(rect screenRect: NSRect) {
-        let borderView = LongScreenshotBorderView(frame: NSRect(origin: .zero, size: screenRect.size))
+        let fullScreenRect = self.window?.frame ?? NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let borderView = LongScreenshotBorderView(frame: NSRect(origin: .zero, size: fullScreenRect.size), selectedRect: self.selectedRect)
         
         let window = NSWindow(
-            contentRect: screenRect,
+            contentRect: fullScreenRect,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -1213,7 +1214,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
-        window.ignoresMouseEvents = true  // 关键：不拦截鼠标事件
+        window.ignoresMouseEvents = true  // 关键：不拦截鼠标事件，允许事件穿透到下层应用
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.contentView = borderView
         window.makeKeyAndOrderFront(nil)
@@ -1520,7 +1521,9 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
 
     @objc private func pinAction() {
         if let image = getFinalImage() {
-            PinWindowManager.shared.pin(image: image, at: nil)
+            // 计算当前选区在屏幕上的精确坐标与大小，实现就地贴图
+            let rectInScreen = self.window?.convertToScreen(self.convert(self.selectedRect, to: nil)) ?? self.selectedRect
+            PinWindowManager.shared.pin(image: image, at: rectInScreen)
         }
         parentWindow?.onFinished?()
         self.window?.close()
@@ -1857,40 +1860,65 @@ class LongScreenshotThumbnailView: NSView {
 
 // MARK: - 长截图红色边框指示器
 class LongScreenshotBorderView: NSView {
+    var selectedRect: NSRect = .zero {
+        didSet {
+            needsDisplay = true
+        }
+    }
+    
+    init(frame frameRect: NSRect, selectedRect: NSRect) {
+        self.selectedRect = selectedRect
+        super.init(frame: frameRect)
+    }
+    
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+    
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         
-        let borderRect = bounds
+        // 1. 绘制四周的半透明黑色遮罩层（使用 evenOdd 挖空选区）
+        context.setFillColor(NSColor(calibratedRed: 0, green: 0, blue: 0, alpha: 0.35).cgColor)
+        let outerPath = CGMutablePath()
+        outerPath.addRect(bounds)
+        outerPath.addRect(selectedRect)
+        context.addPath(outerPath)
+        context.fillPath(using: .evenOdd)
         
-        // 绘制蓝色边框
+        // 2. 绘制选区蓝色边框
         context.setStrokeColor(NSColor.systemBlue.cgColor)
         context.setLineWidth(3)
-        context.stroke(borderRect)
+        context.stroke(selectedRect)
         
-        // 绘制四角标记
+        // 3. 绘制四角标记（基于 selectedRect 绘制）
         let cornerLength: CGFloat = 16
         let cornerWidth: CGFloat = 4
         context.setFillColor(NSColor.systemBlue.cgColor)
         
         // 左上角
-        context.fill(CGRect(x: 0, y: borderRect.height - cornerWidth, width: cornerLength, height: cornerWidth))
-        context.fill(CGRect(x: 0, y: borderRect.height - cornerLength, width: cornerWidth, height: cornerLength))
+        context.fill(CGRect(x: selectedRect.minX, y: selectedRect.maxY - cornerWidth, width: cornerLength, height: cornerWidth))
+        context.fill(CGRect(x: selectedRect.minX, y: selectedRect.maxY - cornerLength, width: cornerWidth, height: cornerLength))
         
         // 右上角
-        context.fill(CGRect(x: borderRect.width - cornerLength, y: borderRect.height - cornerWidth, width: cornerLength, height: cornerWidth))
-        context.fill(CGRect(x: borderRect.width - cornerWidth, y: borderRect.height - cornerLength, width: cornerWidth, height: cornerLength))
+        context.fill(CGRect(x: selectedRect.maxX - cornerLength, y: selectedRect.maxY - cornerWidth, width: cornerLength, height: cornerWidth))
+        context.fill(CGRect(x: selectedRect.maxX - cornerWidth, y: selectedRect.maxY - cornerLength, width: cornerWidth, height: cornerLength))
         
         // 左下角
-        context.fill(CGRect(x: 0, y: 0, width: cornerLength, height: cornerWidth))
-        context.fill(CGRect(x: 0, y: 0, width: cornerWidth, height: cornerLength))
+        context.fill(CGRect(x: selectedRect.minX, y: selectedRect.minY, width: cornerLength, height: cornerWidth))
+        context.fill(CGRect(x: selectedRect.minX, y: selectedRect.minY, width: cornerWidth, height: cornerLength))
         
         // 右下角
-        context.fill(CGRect(x: borderRect.width - cornerLength, y: 0, width: cornerLength, height: cornerWidth))
-        context.fill(CGRect(x: borderRect.width - cornerWidth, y: 0, width: cornerWidth, height: cornerLength))
+        context.fill(CGRect(x: selectedRect.maxX - cornerLength, y: selectedRect.minY, width: cornerLength, height: cornerWidth))
+        context.fill(CGRect(x: selectedRect.maxX - cornerWidth, y: selectedRect.minY, width: cornerWidth, height: cornerLength))
         
-        // 绘制状态提示条
+        // 4. 绘制状态提示条
         let statusText = "正在捕获长截图... 按 Enter 保存 | ESC 取消"
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
@@ -1899,8 +1927,8 @@ class LongScreenshotBorderView: NSView {
         let textSize = statusText.size(withAttributes: attrs)
         let padding: CGFloat = 8
         let statusBgRect = CGRect(
-            x: (borderRect.width - textSize.width - padding * 2) / 2,
-            y: borderRect.height + 4,
+            x: selectedRect.minX + (selectedRect.width - textSize.width - padding * 2) / 2,
+            y: selectedRect.maxY + 4,
             width: textSize.width + padding * 2,
             height: textSize.height + padding
         )

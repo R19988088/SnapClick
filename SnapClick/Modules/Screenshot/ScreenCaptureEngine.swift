@@ -97,6 +97,9 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     // MARK: - 区域截图
     /// 显示覆盖层让用户拖拽选区并进行就地标注，标注完成后自动保存并退出
     func captureArea() async throws {
+        // 防止重复触发，确保同时只有一个截图实例运行
+        guard !isCapturing else { return }
+
         // 权限检查：无屏幕录制权限时直接抛错，避免截出黑屏/壁纸
         guard PermissionManager.shared.hasScreenRecordingPermission else {
             throw ScreenCaptureError.permissionDenied
@@ -113,6 +116,7 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         self.overlayWindow = overlay
         overlay.mode = .areaSelection
         overlay.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
 
         try await waitForOverlayToClose(overlay)
     }
@@ -120,6 +124,9 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     // MARK: - 长截图
     /// 长截图：先选区，选区完成后直接进入滚动截图模式
     func captureLongScreenshot() async throws {
+        // 防止重复触发，确保同时只有一个截图实例运行
+        guard !isCapturing else { return }
+
         guard PermissionManager.shared.hasScreenRecordingPermission else {
             throw ScreenCaptureError.permissionDenied
         }
@@ -133,6 +140,7 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         overlay.mode = .areaSelection
         overlay.isLongScreenshotMode = true
         overlay.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
         
         try await waitForOverlayToClose(overlay)
     }
@@ -140,6 +148,9 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     // MARK: - 窗口截图
     /// 显示窗口选择覆盖层，用户点击选中窗口后就地标注
     func captureWindow() async throws {
+        // 防止重复触发，确保同时只有一个截图实例运行
+        guard !isCapturing else { return }
+
         guard PermissionManager.shared.hasScreenRecordingPermission else {
             throw ScreenCaptureError.permissionDenied
         }
@@ -160,6 +171,7 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         self.overlayWindow = overlay
         overlay.mode = .windowSelection
         overlay.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
 
         try await waitForOverlayToClose(overlay)
     }
@@ -167,6 +179,9 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     // MARK: - 全屏截图
     /// 截取主屏幕并立刻进入就地标注模式
     func captureFullScreen() async throws {
+        // 防止重复触发，确保同时只有一个截图实例运行
+        guard !isCapturing else { return }
+
         guard PermissionManager.shared.hasScreenRecordingPermission else {
             throw ScreenCaptureError.permissionDenied
         }
@@ -184,12 +199,16 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         overlay.enterFullScreenAnnotationDirectly()
         
         overlay.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
         try await waitForOverlayToClose(overlay)
     }
 
     // MARK: - 延时截图
     /// countdown 秒倒计时后执行全屏截图并立刻进入就地标注模式
     func captureWithDelay(_ seconds: Int) async throws {
+        // 防止重复触发，确保同时只有一个截图实例运行
+        guard !isCapturing else { return }
+
         guard PermissionManager.shared.hasScreenRecordingPermission else {
             throw ScreenCaptureError.permissionDenied
         }
@@ -216,6 +235,7 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         overlay.enterFullScreenAnnotationDirectly()
         
         overlay.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
         try await waitForOverlayToClose(overlay)
     }
 
@@ -269,6 +289,7 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         // 显示标注编辑器窗口
         let editorWindow = AnnotationEditorWindow(screenshot: processed)
         editorWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     // MARK: - 圆角处理
