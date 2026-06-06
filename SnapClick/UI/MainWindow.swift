@@ -30,10 +30,10 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
 /// 主设置窗口 — 使用 NavigationSplitView 提供原生侧边栏与适应性
 struct MainWindow: View {
     @State private var selectedDestination: SettingsDestination? = .general
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @ObservedObject private var languageManager = LanguageManager.shared
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(columnVisibility: .constant(.all)) {
             // ── 侧边栏 ─────────────────────────────────────────
             List(selection: $selectedDestination) {
                 Section {

@@ -86,7 +86,7 @@ final class StatusBarController: NSObject {
         // ── 截图组 ──────────────────────────────────────────────
         let areaT = parse(settings.hotkeyAreaScreenshot)
         let areaItem = makeItem(
-            title: "区域截图",
+            title: "区域截图".localized,
             symbolName: "crop",
             shortcut: areaT.shortcut,
             modifiers: areaT.modifiers,
@@ -96,7 +96,7 @@ final class StatusBarController: NSObject {
 
         let longT = parse(settings.hotkeyLongScreenshot)
         let longItem = makeItem(
-            title: "长截图",
+            title: "长截图".localized,
             symbolName: "arrow.up.and.down",
             shortcut: longT.shortcut,
             modifiers: longT.modifiers,
@@ -111,7 +111,7 @@ final class StatusBarController: NSObject {
         // ── 取色 & 贴图 ─────────────────────────────────────────
         let colorT = parse(settings.hotkeyColorPicker)
         let colorItem = makeItem(
-            title: "屏幕取色",
+            title: "屏幕取色".localized,
             symbolName: "eyedropper",
             shortcut: colorT.shortcut,
             modifiers: colorT.modifiers,
@@ -121,7 +121,7 @@ final class StatusBarController: NSObject {
 
         let pinT = parse(settings.hotkeyPin)
         let pinItem = makeItem(
-            title: "贴图",
+            title: "贴图".localized,
             symbolName: "pin",
             shortcut: pinT.shortcut,
             modifiers: pinT.modifiers,
@@ -133,7 +133,7 @@ final class StatusBarController: NSObject {
 
         // ── 设置 & 退出 ─────────────────────────────────────────
         let settingsItem = makeItem(
-            title: "设置…",
+            title: "设置…".localized,
             symbolName: "gearshape",
             shortcut: ",",
             modifiers: [.command],
@@ -144,7 +144,7 @@ final class StatusBarController: NSObject {
         menu.addItem(.separator())
 
         let quitItem = makeItem(
-            title: "退出 SnapClick",
+            title: "退出 SnapClick".localized,
             symbolName: "power",
             shortcut: "q",
             modifiers: [.command],
@@ -220,10 +220,10 @@ final class StatusBarController: NSObject {
             PinWindowManager.shared.pin(image: image)
         } else {
             let alert = NSAlert()
-            alert.messageText = "剪贴板未包含图片"
-            alert.informativeText = "请先使用 ⌘C 复制一张图片或使用截图功能，随后即可在此直接贴图。"
+            alert.messageText = "剪贴板未包含图片".localized
+            alert.informativeText = "请先使用 ⌘C 复制一张图片或使用截图功能，随后即可在此直接贴图。".localized
             alert.alertStyle = .warning
-            alert.addButton(withTitle: "好的")
+            alert.addButton(withTitle: "好的".localized)
             alert.runModal()
         }
     }
@@ -249,18 +249,18 @@ final class StatusBarController: NSObject {
 
         switch kind {
         case .screenRecording:
-            alert.messageText = "需要屏幕录制权限"
-            alert.informativeText = "请在系统设置 → 隐私与安全性 → 屏幕录制中授权 SnapClick。"
-            alert.addButton(withTitle: "去设置")
-            alert.addButton(withTitle: "取消")
+            alert.messageText = "需要屏幕录制权限".localized
+            alert.informativeText = "请在系统设置 → 隐私与安全性 → 屏幕录制中授权 SnapClick。".localized
+            alert.addButton(withTitle: "去设置".localized)
+            alert.addButton(withTitle: "取消".localized)
             if alert.runModal() == .alertFirstButtonReturn {
                 PermissionManager.shared.requestScreenRecordingPermission()
             }
         case .accessibility:
-            alert.messageText = "需要辅助功能权限"
-            alert.informativeText = "请在系统设置 → 隐私与安全性 → 辅助功能中授权 SnapClick。"
-            alert.addButton(withTitle: "去设置")
-            alert.addButton(withTitle: "取消")
+            alert.messageText = "需要辅助功能权限".localized
+            alert.informativeText = "请在系统设置 → 隐私与安全性 → 辅助功能中授权 SnapClick。".localized
+            alert.addButton(withTitle: "去设置".localized)
+            alert.addButton(withTitle: "取消".localized)
             if alert.runModal() == .alertFirstButtonReturn {
                 PermissionManager.shared.requestAccessibilityPermission()
             }

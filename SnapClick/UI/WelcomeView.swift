@@ -29,6 +29,7 @@ struct WelcomeView: View {
     let onComplete: () -> Void
 
     @ObservedObject private var permission = PermissionManager.shared
+    @ObservedObject private var languageManager = LanguageManager.shared
     @AppStorage("isFinderEnabled") private var isFinderEnabled: Bool = false
 
     private var grantedCount: Int {
@@ -76,9 +77,9 @@ struct WelcomeView: View {
 
                     // 导航伪菜单（为视觉一致性保留）
                     VStack(alignment: .leading, spacing: 6) {
-                        FakeSidebarItem(icon: "gearshape", title: "通用", isActive: true)
-                        FakeSidebarItem(icon: "folder", title: "Finder 增强")
-                        FakeSidebarItem(icon: "camera.viewfinder", title: "截图与标注")
+                        FakeSidebarItem(icon: "gearshape", title: "通用".localized, isActive: true)
+                        FakeSidebarItem(icon: "folder", title: "Finder 增强".localized)
+                        FakeSidebarItem(icon: "camera.viewfinder", title: "截图与标注".localized)
                     }
                     .padding(.top, 36)
                     .padding(.horizontal, 8)
@@ -146,8 +147,8 @@ struct WelcomeView: View {
                                     icon: "video.badge.checkmark",
                                     iconBgColor: .blue.opacity(0.12),
                                     iconColor: .blue,
-                                    title: "屏幕录制 (Screen Recording)",
-                                    description: "用于区域/窗口截图及放大镜取色",
+                                    title: "屏幕录制 (Screen Recording)".localized,
+                                    description: "用于区域/窗口截图及放大镜取色".localized,
                                     isGranted: permission.hasScreenRecordingPermission,
                                     onAuthorize: {
                                         permission.requestScreenRecordingPermission()
@@ -158,8 +159,8 @@ struct WelcomeView: View {
                                     icon: "accessibility",
                                     iconBgColor: .purple.opacity(0.12),
                                     iconColor: .purple,
-                                    title: "辅助功能 (Accessibility)",
-                                    description: "用于全局快捷键拦截与极速响应",
+                                    title: "辅助功能 (Accessibility)".localized,
+                                    description: "用于全局快捷键拦截与极速响应".localized,
                                     isGranted: permission.hasAccessibilityPermission,
                                     onAuthorize: {
                                         permission.requestAccessibilityPermission()
@@ -170,8 +171,8 @@ struct WelcomeView: View {
                                     icon: "folder.badge.gearshape",
                                     iconBgColor: .teal.opacity(0.12),
                                     iconColor: .teal,
-                                    title: "Finder 右键扩展 (Finder Extension)",
-                                    description: "直接在系统右键菜单中集成高级新建文件与复制工具",
+                                    title: "Finder 右键扩展 (Finder Extension)".localized,
+                                    description: "直接在系统右键菜单中集成高级新建文件与复制工具".localized,
                                     isGranted: isFinderEnabled,
                                     onAuthorize: {
                                         isFinderEnabled = true

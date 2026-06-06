@@ -271,7 +271,7 @@ struct MagnifierCard: View {
             .frame(width: width, height: magAreaH)
 
             // ── 底部：纯文字提示 ───────────────────────────────
-            Text("单击取色并复制到剪贴板")
+            Text("单击取色并复制到剪贴板".localized)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(Color(red: 0.25, green: 0.55, blue: 1.0).opacity(0.80))
                 .tracking(0.5)
