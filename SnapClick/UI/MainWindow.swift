@@ -242,25 +242,6 @@ private struct GeneralSettingsView: View {
                         Toggle("在菜单栏显示图标".localized, isOn: $showInMenuBar)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
-
-                        Divider().padding(.horizontal, 16)
-
-                        HStack {
-                            Text("菜单栏图标风格".localized)
-                                .font(.body)
-
-                            Spacer()
-
-                            Picker("", selection: $settings.menuBarIconStyle) {
-                                Text("默认相机".localized).tag("camera.fill")
-                                Text("圆形相机".localized).tag("camera.circle.fill")
-                                Text("镜头相机".localized).tag("camera.viewfinder")
-                            }
-                            .labelsHidden()
-                            .frame(width: 140)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
                     }
                 }
             }

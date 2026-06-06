@@ -59,10 +59,6 @@ final class AppSettings: ObservableObject {
     @AppStorage("isFirstLaunch")
     var isFirstLaunch: Bool = true
 
-    /// 菜单栏图标风格 (camera.fill / camera.circle.fill / camera.viewfinder)
-    @AppStorage("menuBarIconStyle")
-    var menuBarIconStyle: String = "camera.fill"
-
     /// 系统语言选择 — 通过 LanguageManager 桥接以触发实时刷新
     var appLanguage: String {
         get { LanguageManager.shared.appLanguage }
@@ -153,10 +149,6 @@ public final class LanguageManager: ObservableObject {
             "启动与系统": "Startup & System",
             "开机自启动": "Launch at Login",
             "在菜单栏显示图标": "Show Icon in Menu Bar",
-            "菜单栏图标风格": "Menu Bar Icon Style",
-            "默认相机": "Default Camera",
-            "圆形相机": "Circular Camera",
-            "镜头相机": "Viewfinder Camera",
             "语言与外观偏好": "Language & Appearance",
             "系统语言": "System Language",
             "应用界面及菜单的呈现语言": "Display language for the app interface and menus",
@@ -307,10 +299,6 @@ public final class LanguageManager: ObservableObject {
             "启动与系统": "起動とシステム",
             "开机自启动": "ログイン時に起動",
             "在菜单栏显示图标": "メニューバーにアイコンを表示",
-            "菜单栏图标风格": "メニューバーアイコンのスタイル",
-            "默认相机": "デフォルトカメラ",
-            "圆形相机": "円形カメラ",
-            "镜头相机": "ビューファインダー",
             "语言与外观偏好": "言語と外観",
             "系统语言": "システム言語",
             "应用界面及菜单的呈现语言": "アプリのインターフェイスとメニューの表示言語",
