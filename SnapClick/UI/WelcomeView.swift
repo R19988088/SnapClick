@@ -77,9 +77,9 @@ struct WelcomeView: View {
 
                     // 导航伪菜单（为视觉一致性保留）
                     VStack(alignment: .leading, spacing: 6) {
-                        FakeSidebarItem(icon: "gearshape", title: "通用".localized, isActive: true)
-                        FakeSidebarItem(icon: "folder", title: "Finder 增强".localized)
-                        FakeSidebarItem(icon: "camera.viewfinder", title: "截图与标注".localized)
+                        FakeSidebarItem(icon: "gearshape", title: "通用", isActive: true)
+                        FakeSidebarItem(icon: "folder", title: "Finder 增强")
+                        FakeSidebarItem(icon: "camera.viewfinder", title: "截图与标注")
                     }
                     .padding(.top, 36)
                     .padding(.horizontal, 8)
