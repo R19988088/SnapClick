@@ -46,10 +46,12 @@ final class ColorPickerOverlayWindow: NSWindow {
         ignoresMouseEvents = false
         acceptsMouseMovedEvents = true
         
-        contentViewController = NSHostingController(
+        let hostingView = NSHostingView(
             rootView: ColorPickerOverlayView()
                 .environmentObject(ColorPickerEngine.shared)
         )
+        hostingView.autoresizingMask = [.width, .height]
+        contentView = hostingView
     }
 
     override var canBecomeKey: Bool { true }
@@ -61,14 +63,9 @@ final class ColorPickerOverlayWindow: NSWindow {
 struct ColorPickerOverlayView: View {
     @EnvironmentObject private var engine: ColorPickerEngine
 
-    // 放大镜卡片尺寸
-    private let magW: CGFloat = 348
-    private let magH: CGFloat = 248
-    // 颜色信息面板尺寸
-    private let panelW: CGFloat = 348
-    private let panelH: CGFloat = 196
-    // 两卡片间距
-    private let gap: CGFloat = 10
+    // 整合后的单卡片尺寸
+    private let cardW: CGFloat = 260
+    private let cardH: CGFloat = 290
 
     var body: some View {
         GeometryReader { geo in
@@ -82,7 +79,6 @@ struct ColorPickerOverlayView: View {
                         .frame(width: geo.size.width, height: geo.size.height)
                         .clipped()
                 } else {
-                    // 如果截图失败，显示半透明黑底，以便用户知道窗口弹出了
                     Color.black.opacity(0.2).ignoresSafeArea()
                 }
 
@@ -93,55 +89,54 @@ struct ColorPickerOverlayView: View {
                         engine.confirmColor()
                     }
 
-                // ③ 放大镜卡片 + 颜色信息卡片（随鼠标移动）
-                VStack(spacing: gap) {
-                    MagnifierCard(
-                        image: engine.magnifierImage,
-                        color: engine.currentColor,
-                        width: magW,
-                        height: magH
-                    )
-                    ColorInfoCard(
-                        color: engine.currentColor,
-                        engine: engine,
-                        width: panelW,
-                        height: panelH
-                    )
-                }
+                // ③ 整合卡片（随鼠标移动）
+                MagnifierCard(
+                    image: engine.magnifierImage,
+                    color: engine.currentColor,
+                    engine: engine,
+                    width: cardW,
+                    height: cardH
+                )
                 // 不拦截下层 Color.clear 的点击事件
                 .allowsHitTesting(false)
                 .position(groupPosition(in: geo.size,
-                                        totalW: magW,
-                                        totalH: magH + gap + panelH))
+                                        totalW: cardW,
+                                        totalH: cardH,
+                                        bottomPad: 34))
             }
         }
         .ignoresSafeArea()
     }
 
-    /// 计算整体组件中心坐标（光标右下偏移，自动贴边翻转）
+    /// 计算整体组件中心坐标（默认显示在光标左上角，超出边界时自动翻转）
+    /// bottomPad: 卡片底部面板高度，用于让放大镜（而非提示文字）对齐鼠标
     private func groupPosition(in containerSize: CGSize,
                                totalW: CGFloat,
-                               totalH: CGFloat) -> CGPoint {
+                               totalH: CGFloat,
+                               bottomPad: CGFloat = 0) -> CGPoint {
         let mouse = NSEvent.mouseLocation
-        let screenH = NSScreen.main?.frame.height ?? containerSize.height
-        let mouseY = screenH - mouse.y   // AppKit Y→SwiftUI Y 翻转
+        // AppKit Y 轴（从下往上）→ SwiftUI Y 轴（从下往下）翻转
+        let mouseY = containerSize.height - mouse.y
 
-        let offsetX: CGFloat = 24
-        let offsetY: CGFloat = 24
+        // 与鼠标的间距（极致贴紧光标）
+        let offsetX: CGFloat = 1
+        let offsetY: CGFloat = 1
 
-        var x = mouse.x + offsetX
-        var y = mouseY  + offsetY
+        // 卡片底边对齐鼠标，再向上偏移 bottomPad，
+        // 使得放大镜底边（而非提示文字区）紧贴鼠标
+        var x = mouse.x - offsetX - totalW / 2
+        var y = mouseY  - offsetY - totalH / 2 + bottomPad
 
-        // 右侧超出 → 翻到光标左侧
-        if x + totalW / 2 > containerSize.width - 8 {
-            x = mouse.x - offsetX - totalW / 2
+        // 左侧超出 → 翻到光标右侧
+        if x - totalW / 2 < 8 {
+            x = mouse.x + offsetX + totalW / 2
         }
-        // 下方超出 → 翻到光标上方
-        if y + totalH / 2 > containerSize.height - 8 {
-            y = mouseY - offsetY - totalH / 2
+        // 上方超出 → 翻到光标下方
+        if y - totalH / 2 < 8 {
+            y = mouseY + offsetY + totalH / 2 - bottomPad
         }
 
-        // 最终夹紧，确保不超出屏幕
+        // 最终夹紧，确保不超出屏幕边缘
         x = max(totalW / 2 + 8, min(containerSize.width  - totalW / 2 - 8, x))
         y = max(totalH / 2 + 8, min(containerSize.height - totalH / 2 - 8, y))
 
@@ -149,73 +144,141 @@ struct ColorPickerOverlayView: View {
     }
 }
 
-// MARK: - 放大镜卡片
+// MARK: - 整合放大镜卡片（顶部色值 + 中部放大镜 + 底部提示）
 
 struct MagnifierCard: View {
     let image: NSImage?
     let color: NSColor
+    let engine: ColorPickerEngine
     let width: CGFloat
     let height: CGFloat
 
-    private let gridCols: Int = 29
-    private let gridRows: Int = 21
-    private let cornerRadius: CGFloat = 18
+    // 顶部文字区高度、底部提示区高度
+    private let topTextH: CGFloat = 104
+    private let bottomHintH: CGFloat = 34
+    private var magAreaH: CGFloat { height - topTextH - bottomHintH }
 
-    // 深蓝黑背景（仿参考图）
+    private let gridCols: Int = 25
+    private let gridRows: Int = 17
+    private let cornerRadius: CGFloat = 16
+
     private let cardBg = Color(red: 0.10, green: 0.11, blue: 0.18)
 
+    // 颜色计算属性
+    private var hex: String { engine.hexString(for: color) }
+    private var rgb: (Int, Int, Int) {
+        let c = color.usingColorSpace(.sRGB) ?? color
+        return (Int(c.redComponent   * 255 + 0.5),
+                Int(c.greenComponent * 255 + 0.5),
+                Int(c.blueComponent  * 255 + 0.5))
+    }
+    private var hsb: (Int, Int, Int) {
+        let c = color.usingColorSpace(.sRGB) ?? color
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        c.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return (Int(h * 360 + 0.5), Int(s * 100 + 0.5), Int(b * 100 + 0.5))
+    }
+
     var body: some View {
-        ZStack {
-            // 深色背景底层
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(cardBg)
+        let (r, g, b) = rgb
+        let (h, s, bri) = hsb
 
-            // 放大的像素内容（.interpolation(.none) 保持像素锐利）
-            if let img = image {
-                Image(nsImage: img)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: width, height: height)
-                    .opacity(0.72)
-                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-            }
+        VStack(spacing: 0) {
 
-            // 深色叠加（增强网格可读性）
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(cardBg.opacity(0.28))
+            // ── 顶部：左列 HEX(大字)+RGB ／ 右列 HSB ────────────
+            VStack(alignment: .leading, spacing: 0) {
+                // 第一行：HEX 标签
+                Text("HEX")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(Color(red: 0.45, green: 0.68, blue: 1.0))
+                    .padding(.bottom, 2)
 
-            // 像素网格线
-            MagnifierGrid(
-                cols: gridCols, rows: gridRows,
-                width: width, height: height,
-                cornerRadius: cornerRadius
-            )
+                // 第二行：HEX 数值（大字）
+                Text(hex)
+                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                    .foregroundColor(Color(red: 0.18, green: 0.48, blue: 1.0))
+                    .lineLimit(1)
+                    .padding(.bottom, 10)
 
-            // 中心像素高亮框（当前颜色所在的像素）
-            CenterPixelHighlight(
-                cols: gridCols, rows: gridRows,
-                width: width, height: height
-            )
+                // 第三行：RGB 标签（左） + HSB 标签（右）
+                HStack(alignment: .top, spacing: 0) {
+                    // 左列：RGB
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("RGB")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(Color(red: 0.45, green: 0.68, blue: 1.0))
+                        Text("\(r), \(g), \(b)")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundColor(Color(red: 0.18, green: 0.48, blue: 1.0))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            // 右下角 ↘ 装饰（仿参考图风格）
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Image(systemName: "arrow.down.right")
-                        .font(.system(size: 11, weight: .light))
-                        .foregroundColor(.white.opacity(0.30))
-                        .padding(10)
+                    // 右列：HSB
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("HSB")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(Color(red: 0.45, green: 0.68, blue: 1.0))
+                        Text("\(h), \(s)%, \(bri)%")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundColor(Color(red: 0.18, green: 0.48, blue: 1.0))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            .frame(height: topTextH, alignment: .bottom)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 6)
+
+            // ── 中部：放大镜像素区域 ────────────────────────────
+            ZStack {
+                // 深色底（保证网格和像素可读）
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(cardBg)
+
+                // 放大的像素内容
+                if let img = image {
+                    Image(nsImage: img)
+                        .interpolation(.none)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: width, height: magAreaH)
+                        .opacity(0.75)
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                }
+
+                // 深色叠加（增强网格可读性）
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(cardBg.opacity(0.22))
+
+                // 像素网格线
+                MagnifierGrid(
+                    cols: gridCols, rows: gridRows,
+                    width: width, height: magAreaH,
+                    cornerRadius: cornerRadius
+                )
+
+                // 中心像素高亮框
+                CenterPixelHighlight(
+                    cols: gridCols, rows: gridRows,
+                    width: width, height: magAreaH
+                )
+            }
+            .frame(width: width, height: magAreaH)
+
+            // ── 底部：纯文字提示 ───────────────────────────────
+            Text("单击取色并复制到剪贴板")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(Color(red: 0.25, green: 0.55, blue: 1.0).opacity(0.80))
+                .tracking(0.5)
+                .frame(height: bottomHintH)
+                .frame(maxWidth: .infinity)
         }
         .frame(width: width, height: height)
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.55), radius: 24, x: 0, y: 8)
     }
 }
 
@@ -274,134 +337,4 @@ struct CenterPixelHighlight: View {
     }
 }
 
-// MARK: - 颜色信息面板
 
-struct ColorInfoCard: View {
-    let color: NSColor
-    let engine: ColorPickerEngine
-    let width: CGFloat
-    let height: CGFloat
-
-    private let cornerRadius: CGFloat = 18
-    private let cardBg = Color(red: 0.09, green: 0.10, blue: 0.14)
-
-    // 计算属性
-    private var hex: String { engine.hexString(for: color) }
-    private var rgb: (Int, Int, Int) {
-        let c = color.usingColorSpace(.sRGB) ?? color
-        return (Int(c.redComponent   * 255 + 0.5),
-                Int(c.greenComponent * 255 + 0.5),
-                Int(c.blueComponent  * 255 + 0.5))
-    }
-    private var hsb: (Int, Int, Int) {
-        let c = color.usingColorSpace(.sRGB) ?? color
-        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        c.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-        return (Int(h * 360 + 0.5), Int(s * 100 + 0.5), Int(b * 100 + 0.5))
-    }
-
-    var body: some View {
-        let (r, g, b) = rgb
-        let (h, s, bri) = hsb
-
-        VStack(spacing: 0) {
-
-            // ── 顶部：大色块 + HEX ───────────────────────────────
-            HStack(alignment: .center, spacing: 14) {
-                // 色块
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(nsColor: color))
-                    .frame(width: 68, height: 68)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                    )
-                    .shadow(color: Color(nsColor: color).opacity(0.5), radius: 8, x: 0, y: 3)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("HEX VALUE")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.38))
-                        .tracking(2.2)
-
-                    Text(hex)
-                        .font(.system(size: 26, weight: .bold, design: .monospaced))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 18)
-            .padding(.bottom, 14)
-
-            // ── 分隔线 ──────────────────────────────────────────
-            Rectangle()
-                .fill(Color.white.opacity(0.08))
-                .frame(height: 1)
-                .padding(.horizontal, 18)
-
-            // ── 中部：RGB + HSB ──────────────────────────────────
-            HStack(alignment: .top, spacing: 0) {
-                // RGB 列
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("RGB")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.38))
-                        .tracking(1.5)
-                    Text("\(r), \(g), \(b)")
-                        .font(.system(size: 15, weight: .regular, design: .monospaced))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                // HSB 列
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("HSB")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.38))
-                        .tracking(1.5)
-                    Text("\(h), \(s)%, \(bri)%")
-                        .font(.system(size: 15, weight: .regular, design: .monospaced))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-
-            Spacer(minLength: 0)
-
-            // ── 底部：单击取色提示按钮 ────────────────────────────
-            HStack(spacing: 8) {
-                Image(systemName: "cursorarrow.click")
-                    .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.50))
-                Text("单击取色并复制到剪贴板")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.60))
-                    .tracking(0.8)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .background(Color.white.opacity(0.07))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal, 14)
-            .padding(.bottom, 14)
-        }
-        .frame(width: width, height: height)
-        .background(
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(cardBg)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .stroke(Color.white.opacity(0.09), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.55), radius: 24, x: 0, y: 8)
-    }
-}

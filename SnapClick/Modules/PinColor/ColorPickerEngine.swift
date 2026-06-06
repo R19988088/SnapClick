@@ -33,6 +33,8 @@ final class ColorPickerEngine: ObservableObject {
     private var screenCGImage: CGImage? = nil
     private var captureScale: CGFloat = 1.0
     private var captureScreenH: CGFloat = 0.0
+    /// 全屏截图包围盒原点（用于将 NSEvent.mouseLocation 映射到 CGImage 坐标空间）
+    private var captureUnionOrigin: CGPoint = .zero
 
     // MARK: - 初始化
     private init() {}
@@ -103,6 +105,7 @@ final class ColorPickerEngine: ObservableObject {
         isActive = false
         fullScreenCapture = nil
         screenCGImage = nil
+        captureUnionOrigin = .zero
 
         if let m = mouseMonitor { NSEvent.removeMonitor(m); mouseMonitor = nil }
         if let m = keyMonitor   { NSEvent.removeMonitor(m); keyMonitor = nil }
@@ -139,6 +142,7 @@ final class ColorPickerEngine: ObservableObject {
         // 获取所有屏幕的完整包围盒，确保多屏截取完整
         let unionFrame = NSScreen.screens.reduce(CGRect.zero) { $0.union($1.frame) }
         captureScreenH = unionFrame.height
+        captureUnionOrigin = unionFrame.origin
 
         // 使用 CGRect.infinite 获取完整的桌面快照
         let cg = CGWindowListCreateImage(
@@ -160,8 +164,10 @@ final class ColorPickerEngine: ObservableObject {
             return colorAtMouseLocationFallback(point)
         }
 
-        let px = Int(point.x      * captureScale)
-        let py = Int((captureScreenH - point.y) * captureScale)   // Y 翻转（CGImage Y 向下）
+        // 将 NSEvent.mouseLocation（全局坐标，原点在主屏左下角）映射到
+        // 全屏截图 CGImage 的像素坐标（原点在左上角）
+        let px = Int((point.x - captureUnionOrigin.x) * captureScale)
+        let py = Int((captureScreenH - (point.y - captureUnionOrigin.y)) * captureScale)
 
         guard px >= 0, py >= 0, px < cgImg.width, py < cgImg.height else {
             return colorAtMouseLocationFallback(point)
@@ -211,8 +217,9 @@ final class ColorPickerEngine: ObservableObject {
         let cols: CGFloat = 29, rows: CGFloat = 21
         let scale = captureScale
 
-        let px = Int((point.x - floor(cols / 2)) * scale)
-        let py = Int((captureScreenH - point.y - floor(rows / 2)) * scale)
+        // 使用与 colorFromStoredImage 一致的坐标映射逻辑
+        let px = Int(((point.x - captureUnionOrigin.x) - floor(cols / 2)) * scale)
+        let py = Int(((captureScreenH - (point.y - captureUnionOrigin.y)) - floor(rows / 2)) * scale)
         let pw = Int(cols * scale)
         let ph = Int(rows * scale)
 

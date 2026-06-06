@@ -19,34 +19,14 @@ struct RightClickSettingsView: View {
             // ── 顶部 Tab 导航栏 ──────────────────────────────────────────
             HStack {
                 Spacer()
-                HStack(spacing: 2) {
+                Picker("", selection: $selectedTab) {
                     ForEach(SettingsTab.allCases) { tab in
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                selectedTab = tab
-                            }
-                        }) {
-                            Text(tab.title.localized)
-                                .font(.system(size: 13, weight: selectedTab == tab ? .bold : .medium))
-                                .foregroundColor(selectedTab == tab ? .primary : .secondary)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 6)
-                                .background(
-                                    ZStack {
-                                        if selectedTab == tab {
-                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                .fill(Color(nsColor: .controlBackgroundColor))
-                                                .shadow(color: Color.black.opacity(0.08), radius: 2, x: 0, y: 1)
-                                        }
-                                    }
-                                )
-                        }
-                        .buttonStyle(.plain)
+                        Text(tab.title.localized).tag(tab)
                     }
                 }
-                .padding(4)
-                .background(Color.primary.opacity(0.05))
-                .cornerRadius(8)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 420)
                 Spacer()
             }
             .padding(.vertical, 14)
@@ -110,16 +90,15 @@ private struct FavoriteDirectoriesSection: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("常用目录 (Common Directories)".localized)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.primary)
-                    
+                        .font(.headline)
+
                     Text("从右键菜单快速访问常用文件夹。".localized)
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                
+
                 Spacer()
-                
+
                 HStack(spacing: 12) {
                     Button("恢复默认".localized) {
                         mgr.favorites.removeAll()
@@ -129,10 +108,8 @@ private struct FavoriteDirectoriesSection: View {
                         }
                     }
                     .buttonStyle(.borderless)
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    
-                    Button(action: {
+
+                    Button {
                         let panel = NSOpenPanel()
                         panel.canChooseDirectories   = true
                         panel.canChooseFiles          = false
@@ -141,20 +118,12 @@ private struct FavoriteDirectoriesSection: View {
                         if panel.runModal() == .OK, let url = panel.url {
                             mgr.add(name: url.lastPathComponent, path: url.path)
                         }
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 10, weight: .bold))
-                            Text("添加目录".localized)
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.blue)
-                        .cornerRadius(6)
+                    } label: {
+                        Label("添加目录".localized, systemImage: "plus")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .accessibilityLabel(Text("添加常用目录"))
                 }
             }
             .padding(.horizontal, 20)
@@ -166,13 +135,13 @@ private struct FavoriteDirectoriesSection: View {
                 // 表头
                 HStack(spacing: 16) {
                     Text("名称".localized)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
                         .frame(width: 140, alignment: .leading)
                     
                     Text("路径".localized)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     
                     Text("") // 占位给操作按钮
@@ -180,7 +149,7 @@ private struct FavoriteDirectoriesSection: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(Color.primary.opacity(0.04))
+                .background(Color(nsColor: .separatorColor).opacity(0.04))
                 
                 Divider()
                 
@@ -190,8 +159,8 @@ private struct FavoriteDirectoriesSection: View {
                         HStack {
                             Spacer()
                             Text("暂无常用目录，请点击上方按钮添加".localized)
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                                 .padding(.vertical, 32)
                             Spacer()
                         }
@@ -201,22 +170,22 @@ private struct FavoriteDirectoriesSection: View {
                                 // 图标与名称
                                 HStack(spacing: 8) {
                                     Image(systemName: iconForFolder(fav.name))
-                                        .font(.system(size: 13))
-                                        .foregroundColor(.blue)
+                                        .font(.body)
+                                        .foregroundStyle(.blue)
                                         .frame(width: 18)
                                     
                                     if editingID == fav.id {
                                         TextField("目录名称", text: $editName)
                                             .textFieldStyle(.roundedBorder)
-                                            .font(.system(size: 12))
+                                            .font(.caption)
                                             .onSubmit {
                                                 mgr.rename(id: fav.id, newName: editName)
                                                 editingID = nil
                                             }
                                     } else {
                                         Text(fav.name)
-                                            .font(.system(size: 13, weight: .medium))
-                                            .foregroundColor(.primary)
+                                            .font(.body.weight(.medium))
+                                            .foregroundStyle(.primary)
                                     }
                                 }
                                 .frame(width: 140, alignment: .leading)
@@ -224,7 +193,7 @@ private struct FavoriteDirectoriesSection: View {
                                 // 路径
                                 Text(fav.path)
                                     .font(.system(size: 12, design: .monospaced))
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -247,7 +216,7 @@ private struct FavoriteDirectoriesSection: View {
                                         }) {
                                             Image(systemName: "xmark")
                                                 .font(.system(size: 11, weight: .bold))
-                                                .foregroundColor(.secondary)
+                                                .foregroundStyle(.secondary)
                                         }
                                         .buttonStyle(.plain)
                                     } else {
@@ -256,8 +225,8 @@ private struct FavoriteDirectoriesSection: View {
                                             editName = fav.name
                                         }) {
                                             Image(systemName: "pencil")
-                                                .font(.system(size: 11))
-                                                .foregroundColor(.secondary)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
                                         }
                                         .buttonStyle(.plain)
                                         
@@ -265,7 +234,7 @@ private struct FavoriteDirectoriesSection: View {
                                             mgr.remove(id: fav.id)
                                         }) {
                                             Image(systemName: "minus.circle.fill")
-                                                .font(.system(size: 12))
+                                                .font(.caption)
                                                 .foregroundColor(.red)
                                         }
                                         .buttonStyle(.plain)
@@ -285,7 +254,7 @@ private struct FavoriteDirectoriesSection: View {
             .cornerRadius(12)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.08), lineWidth: 1)
             )
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
@@ -325,29 +294,24 @@ private struct NewFileTemplatesSection: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("新建常用文件 (New File Templates)".localized)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.primary)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
                     
                     Text("新建常用文件，这些文件将显示在右键菜单中。".localized)
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 
                 Spacer()
                 
                 HStack(spacing: 8) {
-                    Button(action: {
+                    Button {
                         isAddingCustom = true
-                    }) {
+                    } label: {
                         Label("添加".localized, systemImage: "plus")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.blue)
-                            .cornerRadius(6)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                     .popover(isPresented: $isAddingCustom, arrowEdge: .top) {
                         AddTemplatePopover(name: $customName, ext: $customExt) {
                             mgr.addCustom(name: customName, ext: customExt)
@@ -358,19 +322,14 @@ private struct NewFileTemplatesSection: View {
                             isAddingCustom = false
                         }
                     }
-                    
-                    Button(action: {
+
+                    Button {
                         mgr.presentImportPanel()
-                    }) {
+                    } label: {
                         Label("导入".localized, systemImage: "square.and.arrow.down")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.secondary.opacity(0.1))
-                            .cornerRadius(6)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
             }
             .padding(.horizontal, 20)
@@ -394,11 +353,11 @@ private struct NewFileTemplatesSection: View {
                     Text("操作".localized)
                         .frame(width: 40, alignment: .center)
                 }
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.secondary)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(Color.primary.opacity(0.04))
+                .background(Color(nsColor: .separatorColor).opacity(0.04))
                 
                 Divider()
                 
@@ -415,20 +374,20 @@ private struct NewFileTemplatesSection: View {
                                 RoundedRectangle(cornerRadius: 6)
                                     .fill(iconBackgroundColor(for: tpl.ext).opacity(0.15))
                                 Image(systemName: iconName(for: tpl.ext))
-                                    .font(.system(size: 12))
+                                    .font(.caption)
                                     .foregroundColor(iconBackgroundColor(for: tpl.ext))
                             }
                             .frame(width: 28, height: 28)
                             .padding(.horizontal, 2)
                             
                             Text(tpl.name)
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.primary)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             
                             Text(".\(tpl.ext)")
                                 .font(.system(size: 12, design: .monospaced))
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                                 .frame(width: 80, alignment: .leading)
                             
                             Toggle("", isOn: Binding(get: { tpl.inMainMenu ?? false }, set: { _ in mgr.toggleMainMenu(id: tpl.id) }))
@@ -447,8 +406,8 @@ private struct NewFileTemplatesSection: View {
                                 .frame(width: 40, alignment: .center)
                             } else {
                                 Text("内置".localized)
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                                     .frame(width: 40, alignment: .center)
                             }
                         }
@@ -463,7 +422,7 @@ private struct NewFileTemplatesSection: View {
             .cornerRadius(12)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.08), lineWidth: 1)
             )
             .padding(.horizontal, 20)
             
@@ -475,7 +434,7 @@ private struct NewFileTemplatesSection: View {
                 Spacer()
             }
             .toggleStyle(.checkbox)
-            .font(.system(size: 12))
+            .font(.caption)
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
             
@@ -486,8 +445,8 @@ private struct NewFileTemplatesSection: View {
                 Text("Pro Tip:".localized).fontWeight(.bold)
                 Text("在 Finder 中按住 Option (⌥) 键右击，可查看系统原生右键菜单。".localized)
             }
-            .font(.system(size: 11))
-            .foregroundColor(.secondary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
             .padding(.all, 10)
             .background(Color.yellow.opacity(0.08))
             .cornerRadius(8)
@@ -580,12 +539,12 @@ private struct DevToolsSection: View {
             // 标题
             VStack(alignment: .leading, spacing: 4) {
                 Text("开发者工具".localized)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.primary)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
                 
                 Text("已安装的工具会自动显示在\"用…打开\"子菜单中，无需手动配置。".localized)
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -612,7 +571,7 @@ private struct DevToolsSection: View {
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(tool.name).fontWeight(.medium)
-                                    .font(.system(size: 13))
+                                    .font(.body)
                                 Text(tool.bundleID)
                                     .font(.system(size: 11, design: .monospaced))
                                     .foregroundStyle(.tertiary)
@@ -623,11 +582,11 @@ private struct DevToolsSection: View {
                             if installed {
                                 Label("已安装".localized, systemImage: "checkmark.circle.fill")
                                     .foregroundStyle(.green)
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(.caption.weight(.semibold))
                             } else {
                                 Label("未安装".localized, systemImage: "xmark.circle")
                                     .foregroundStyle(.secondary)
-                                    .font(.system(size: 12))
+                                    .font(.caption)
                             }
                         }
                         .padding(.horizontal, 16)
@@ -642,7 +601,7 @@ private struct DevToolsSection: View {
             .cornerRadius(12)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.08), lineWidth: 1)
             )
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
@@ -650,11 +609,11 @@ private struct DevToolsSection: View {
             // 说明
             HStack {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text("如需添加更多工具，请确保对应应用已通过 App Store 或官网安装。".localized)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Spacer()
             }
             .padding(.horizontal, 20)

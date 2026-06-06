@@ -95,7 +95,7 @@ struct PinColorSettingsView: View {
             GroupBox(label: Label("颜色历史（最近 20 个）", systemImage: "clock.arrow.circlepath")) {
                 if engine.colorHistory.isEmpty {
                     Text("暂无历史记录".localized)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding()
                 } else {
@@ -108,11 +108,10 @@ struct PinColorSettingsView: View {
 
                     HStack {
                         Spacer()
-                        Button("清空历史") {
+                        Button("清空历史", role: .destructive) {
                             engine.colorHistory.removeAll()
                         }
                         .buttonStyle(.borderless)
-                        .foregroundColor(.red)
                     }
                 }
             }
@@ -139,8 +138,7 @@ struct PinColorSettingsView: View {
                 HStack(spacing: 12) {
                     Button("显示全部") { pinManager.showAll() }
                     Button("隐藏全部") { pinManager.hideAll() }
-                    Button("关闭全部") { pinManager.closeAll() }
-                        .foregroundColor(.red)
+                    Button("关闭全部", role: .destructive) { pinManager.closeAll() }
                 }
                 .padding(.vertical, 4)
             }
@@ -149,7 +147,7 @@ struct PinColorSettingsView: View {
             GroupBox(label: Label("贴图历史库（最近 \(pinManager.pinHistory.count) 张）", systemImage: "photo.stack")) {
                 if pinManager.pinHistory.isEmpty {
                     Text("暂无历史记录".localized)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding()
                 } else {
@@ -165,11 +163,10 @@ struct PinColorSettingsView: View {
 
                     HStack {
                         Spacer()
-                        Button("清空历史") {
+                        Button("清空历史", role: .destructive) {
                             pinManager.clearHistory()
                         }
                         .buttonStyle(.borderless)
-                        .foregroundColor(.red)
                     }
                 }
             }
@@ -198,8 +195,8 @@ struct ColorHistoryCell: View {
 
             if isHovered {
                 Text("复制".localized)
-                    .font(.system(size: 9))
-                    .foregroundColor(.white)
+                    .font(.caption2)
+                    .foregroundStyle(.white)
                     .shadow(radius: 1)
             }
         }
@@ -273,13 +270,13 @@ struct ShortcutDisplayField: View {
         HStack(spacing: 4) {
             ForEach(Array(shortcut.enumerated()), id: \.offset) { _, char in
                 Text(String(char))
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.body.weight(.medium))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background(Color(nsColor: .windowBackgroundColor))
                     .overlay(
                         RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color.secondary.opacity(0.5), lineWidth: 1)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
                     )
                     .cornerRadius(4)
             }
