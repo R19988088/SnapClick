@@ -3,39 +3,43 @@ import AppKit
 
 // MARK: - 主设置页
 
-/// 右键菜单增强设置页（精简布局重构版）
+/// 右键菜单增强设置页（重构版 — 匹配 Stitch 设计图）
 struct RightClickSettingsView: View {
 
     // MARK: - 状态
     @StateObject private var favMgr = FavoriteDirectoriesManager.shared
     @StateObject private var tplMgr = NewFileTemplateManager.shared
 
-    /// 当前选中的 Tab
     @State private var selectedTab: SettingsTab = .directories
 
     var body: some View {
         VStack(spacing: 0) {
-            
-            // ── 顶部 Tab 导航栏 ──────────────────────────────────────────
-            HStack {
-                Spacer()
-                Picker("", selection: $selectedTab) {
-                    ForEach(SettingsTab.allCases) { tab in
-                        Text(tab.title.localized).tag(tab)
+
+            // ── 顶部 Tab 导航栏（Full Bleed 样式）──────────────────────────
+            HStack(spacing: 0) {
+                ForEach(SettingsTab.allCases) { tab in
+                    TabButton(tab: tab, isSelected: selectedTab == tab) {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            selectedTab = tab
+                        }
                     }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 420)
-                Spacer()
             }
-            .padding(.vertical, 14)
-            .background(Color(nsColor: .windowBackgroundColor))
-            
-            Divider()
-            
+            .padding(.horizontal, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(red: 241/255, green: 245/255, blue: 249/255))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(DT.cardBorder, lineWidth: 0.75)
+                    )
+            )
+            .frame(maxWidth: 480)
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, 20)
+
             // ── 内容工作区 ──────────────────────────────────────────────
-            VStack(spacing: 0) {
+            Group {
                 switch selectedTab {
                 case .directories:
                     FavoriteDirectoriesSection(mgr: favMgr)
@@ -45,10 +49,11 @@ struct RightClickSettingsView: View {
                     DevToolsSection()
                 }
             }
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
     }
 
-    // MARK: - Tab 标签枚举
+    // MARK: - Tab 枚举
     enum SettingsTab: String, CaseIterable, Hashable, Identifiable {
         case directories = "directories"
         case templates   = "templates"
@@ -58,9 +63,9 @@ struct RightClickSettingsView: View {
 
         var title: String {
             switch self {
-            case .directories: return "常用目录"
-            case .templates:   return "新建文件模板"
-            case .devTools:    return "开发者工具"
+            case .directories: return "常用目录".localized
+            case .templates:   return "新建文件模板".localized
+            case .devTools:    return "开发者工具".localized
             }
         }
 
@@ -74,244 +79,312 @@ struct RightClickSettingsView: View {
     }
 }
 
-// MARK: - 常用目录设置区
+// MARK: - Tab 按钮
+
+private struct TabButton: View {
+    let tab: RightClickSettingsView.SettingsTab
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: 11.5, weight: isSelected ? .semibold : .regular))
+                Text(tab.title)
+                    .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
+            }
+            .foregroundStyle(isSelected ? .white : Color(red: 71/255, green: 85/255, blue: 105/255))
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(isSelected ? DT.accent : Color.clear)
+                    .padding(2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - 常用目录
 
 private struct FavoriteDirectoriesSection: View {
     @ObservedObject var mgr: FavoriteDirectoriesManager
 
-    /// 正在编辑的条目 ID
     @State private var editingID: String?
-    @State private var editName:  String = ""
+    @State private var editName: String = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 16) {
 
-            // 标题与操作区
+            // 标题 + 操作按钮
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("常用目录 (Common Directories)".localized)
-                        .font(.headline)
-
+                    Text("常用目录".localized)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
                     Text("从右键菜单快速访问常用文件夹。".localized)
-                        .font(.caption)
+                        .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                 }
-
                 Spacer()
-
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Button("恢复默认".localized) {
                         mgr.favorites.removeAll()
-                        ["桌面":"Desktop","文稿":"Documents","下载":"Downloads",
-                         "图片":"Pictures"].forEach { name, folder in
+                        [("桌面", "Desktop"), ("文稿", "Documents"),
+                         ("下载", "Downloads"), ("图片", "Pictures")].forEach { name, folder in
                             mgr.add(name: name.localized, path: "\(NSHomeDirectory())/\(folder)")
                         }
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
 
                     Button {
                         let panel = NSOpenPanel()
-                        panel.canChooseDirectories   = true
-                        panel.canChooseFiles          = false
+                        panel.canChooseDirectories = true
+                        panel.canChooseFiles = false
                         panel.allowsMultipleSelection = false
                         panel.prompt = "选择目录".localized
                         if panel.runModal() == .OK, let url = panel.url {
                             mgr.add(name: url.lastPathComponent, path: url.path)
                         }
                     } label: {
-                        Label("添加目录".localized, systemImage: "plus")
+                        Label("添加路径".localized, systemImage: "plus")
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                    .accessibilityLabel(Text("添加常用目录"))
+                    .tint(DT.accent)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
 
-            // 目录列表表格卡片
-            VStack(spacing: 0) {
-                // 表头
-                HStack(spacing: 16) {
-                    Text("名称".localized)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 140, alignment: .leading)
-                    
-                    Text("路径".localized)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    Text("") // 占位给操作按钮
-                        .frame(width: 60)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(nsColor: .separatorColor).opacity(0.04))
-                
-                Divider()
-                
-                // 表身 (展开模式，不包含内部滚动条，随页面滚动)
+            // 目录表格
+            DesignCard {
                 VStack(spacing: 0) {
+                    // 表头
+                    HStack(spacing: 16) {
+                        Text("名称".localized)
+                            .frame(width: 130, alignment: .leading)
+                        Text("路径".localized)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("操作".localized)
+                            .frame(width: 60, alignment: .center)
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+                    .padding(.horizontal, DT.rowPadH)
+                    .padding(.vertical, 8)
+                    .background(Color(red: 248/255, green: 250/255, blue: 252/255))
+
+                    Divider().opacity(0.5)
+
                     if mgr.favorites.isEmpty {
                         HStack {
                             Spacer()
-                            Text("暂无常用目录，请点击上方按钮添加".localized)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.vertical, 32)
+                            VStack(spacing: 8) {
+                                Image(systemName: "folder.badge.questionmark")
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(Color(red: 203/255, green: 213/255, blue: 225/255))
+                                Text("暂无常用目录，请点击上方按钮添加".localized)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 28)
                             Spacer()
                         }
                     } else {
                         ForEach(mgr.favorites) { fav in
-                            HStack(spacing: 16) {
-                                // 图标与名称
-                                HStack(spacing: 8) {
-                                    Image(systemName: iconForFolder(fav.name))
-                                        .font(.body)
-                                        .foregroundStyle(.blue)
-                                        .frame(width: 18)
-                                    
-                                    if editingID == fav.id {
-                                        TextField("目录名称", text: $editName)
-                                            .textFieldStyle(.roundedBorder)
-                                            .font(.caption)
-                                            .onSubmit {
-                                                mgr.rename(id: fav.id, newName: editName)
-                                                editingID = nil
-                                            }
-                                    } else {
-                                        Text(fav.name)
-                                            .font(.body.weight(.medium))
-                                            .foregroundStyle(.primary)
-                                    }
-                                }
-                                .frame(width: 140, alignment: .leading)
-                                
-                                // 路径
-                                Text(fav.path)
-                                    .font(.system(size: 12, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                
-                                // 操作
-                                HStack(spacing: 10) {
-                                    if editingID == fav.id {
-                                        Button(action: {
-                                            mgr.rename(id: fav.id, newName: editName)
-                                            editingID = nil
-                                        }) {
-                                            Image(systemName: "checkmark")
-                                                .font(.system(size: 11, weight: .bold))
-                                                .foregroundColor(.green)
-                                        }
-                                        .buttonStyle(.plain)
-                                        
-                                        Button(action: {
-                                            editingID = nil
-                                        }) {
-                                            Image(systemName: "xmark")
-                                                .font(.system(size: 11, weight: .bold))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .buttonStyle(.plain)
-                                    } else {
-                                        Button(action: {
-                                            editingID = fav.id
-                                            editName = fav.name
-                                        }) {
-                                            Image(systemName: "pencil")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .buttonStyle(.plain)
-                                        
-                                        Button(action: {
-                                            mgr.remove(id: fav.id)
-                                        }) {
-                                            Image(systemName: "minus.circle.fill")
-                                                .font(.caption)
-                                                .foregroundColor(.red)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .frame(width: 60, alignment: .trailing)
+                            DirectoryRow(
+                                fav: fav,
+                                isEditing: editingID == fav.id,
+                                editName: $editName,
+                                onStartEdit: {
+                                    editingID = fav.id
+                                    editName = fav.name
+                                },
+                                onCommitEdit: {
+                                    mgr.rename(id: fav.id, newName: editName)
+                                    editingID = nil
+                                },
+                                onCancelEdit: { editingID = nil },
+                                onDelete: { mgr.remove(id: fav.id) }
+                            )
+                            if fav.id != mgr.favorites.last?.id {
+                                Divider().padding(.horizontal, DT.rowPadH).opacity(0.4)
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            
-                            Divider()
                         }
                     }
                 }
             }
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.08), lineWidth: 1)
-            )
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-        }
-    }
 
-    private func iconForFolder(_ name: String) -> String {
-        let lowercase = name.lowercased()
-        if lowercase.contains("desktop") || lowercase.contains("桌面") {
-            return "desktopcomputer"
-        } else if lowercase.contains("document") || lowercase.contains("文稿") {
-            return "doc.text.fill"
-        } else if lowercase.contains("download") || lowercase.contains("下载") {
-            return "arrow.down.circle.fill"
-        } else if lowercase.contains("picture") || lowercase.contains("图片") {
-            return "photo.fill"
-        } else {
-            return "folder.fill"
+            // 自动整理提示卡
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color(red: 59/255, green: 130/255, blue: 246/255).opacity(0.1))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: "arrow.up.arrow.down.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(DT.accent)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("自动整理".localized)
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("让 SnapClick 根据文件类型自动分类新下载到对应目录。".localized)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Toggle("", isOn: .constant(false))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
+            .padding(.horizontal, DT.rowPadH)
+            .padding(.vertical, DT.rowPadV)
+            .background(
+                RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
+                    .fill(Color(red: 239/255, green: 246/255, blue: 255/255))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
+                            .stroke(Color(red: 191/255, green: 219/255, blue: 254/255), lineWidth: 0.75)
+                    )
+            )
         }
     }
 }
 
-// MARK: - 新建文件模板设置区
+// MARK: - 目录行组件
+
+private struct DirectoryRow: View {
+    let fav: FavoriteDirectory
+    let isEditing: Bool
+    @Binding var editName: String
+    let onStartEdit: () -> Void
+    let onCommitEdit: () -> Void
+    let onCancelEdit: () -> Void
+    let onDelete: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 16) {
+            // 图标 + 名称
+            HStack(spacing: 8) {
+                Image(systemName: iconForFolder(fav.name))
+                    .font(.system(size: 14))
+                    .foregroundStyle(DT.accent)
+                    .frame(width: 18)
+
+                if isEditing {
+                    TextField("目录名称", text: $editName)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12))
+                        .onSubmit { onCommitEdit() }
+                } else {
+                    Text(fav.name)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                }
+            }
+            .frame(width: 130, alignment: .leading)
+
+            // 路径
+            Text(fav.path)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 操作按钮
+            HStack(spacing: 12) {
+                if isEditing {
+                    Button { onCommitEdit() } label: {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.green)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { onCancelEdit() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button { onStartEdit() } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 12))
+                            .foregroundStyle(isHovered ? DT.accent : Color.secondary.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { onDelete() } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(isHovered ? Color.red : Color.red.opacity(0.5))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(width: 60, alignment: .center)
+        }
+        .padding(.horizontal, DT.rowPadH)
+        .padding(.vertical, DT.rowPadV)
+        .background(isHovered ? Color(red: 248/255, green: 250/255, blue: 252/255) : Color.clear)
+        .onHover { isHovered = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovered)
+    }
+
+    private func iconForFolder(_ name: String) -> String {
+        let l = name.lowercased()
+        if l.contains("desktop") || l.contains("桌面") { return "desktopcomputer" }
+        if l.contains("document") || l.contains("文稿") { return "doc.text.fill" }
+        if l.contains("download") || l.contains("下载") { return "arrow.down.circle.fill" }
+        if l.contains("picture") || l.contains("图片") { return "photo.fill" }
+        return "folder.fill"
+    }
+}
+
+// MARK: - 新建文件模板
 
 private struct NewFileTemplatesSection: View {
     @ObservedObject var mgr: NewFileTemplateManager
     @ObservedObject private var settings = AppSettings.shared
 
     @State private var isAddingCustom = false
-    @State private var customName     = ""
-    @State private var customExt      = ""
+    @State private var customName = ""
+    @State private var customExt = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            
-            // 标题与操作区
+        VStack(alignment: .leading, spacing: 16) {
+
+            // 标题 + 操作
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("新建常用文件 (New File Templates)".localized)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    
+                    Text("新建文件模板".localized)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
                     Text("新建常用文件，这些文件将显示在右键菜单中。".localized)
-                        .font(.caption)
+                        .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                 }
-                
                 Spacer()
-                
                 HStack(spacing: 8) {
+                    Button("恢复默认".localized) {}
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
                     Button {
                         isAddingCustom = true
                     } label: {
-                        Label("添加".localized, systemImage: "plus")
+                        Label("添加模板".localized, systemImage: "plus")
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .tint(DT.accent)
                     .popover(isPresented: $isAddingCustom, arrowEdge: .top) {
                         AddTemplatePopover(name: $customName, ext: $customExt) {
                             mgr.addCustom(name: customName, ext: customExt)
@@ -322,195 +395,221 @@ private struct NewFileTemplatesSection: View {
                             isAddingCustom = false
                         }
                     }
-
-                    Button {
-                        mgr.presentImportPanel()
-                    } label: {
-                        Label("导入".localized, systemImage: "square.and.arrow.down")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
-            
-            // 表格容器 (展开模式，随页面滚动)
-            VStack(spacing: 0) {
-                // 表格头部
-                HStack(spacing: 12) {
-                    Text("") // 占位Checkbox
-                        .frame(width: 24)
-                    Text("图标".localized)
-                        .frame(width: 32, alignment: .center)
-                    Text("显示名称".localized)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("后缀".localized)
-                        .frame(width: 80, alignment: .leading)
-                    Text("主菜单".localized)
-                        .frame(width: 60, alignment: .center)
-                    Text("操作".localized)
-                        .frame(width: 40, alignment: .center)
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(nsColor: .separatorColor).opacity(0.04))
-                
-                Divider()
-                
-                // 表格内容
+
+            // 模板表格
+            DesignCard {
                 VStack(spacing: 0) {
+                    // 表头
+                    HStack(spacing: 12) {
+                        Text("").frame(width: 24)   // checkbox 占位
+                        Text("").frame(width: 28)   // 图标占位
+                        Text("名称".localized)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("后缀".localized)
+                            .frame(width: 80, alignment: .leading)
+                        Text("主菜单".localized)
+                            .frame(width: 60, alignment: .center)
+                        Text("操作".localized)
+                            .frame(width: 40, alignment: .center)
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+                    .padding(.horizontal, DT.rowPadH)
+                    .padding(.vertical, 8)
+                    .background(Color(red: 248/255, green: 250/255, blue: 252/255))
+
+                    Divider().opacity(0.5)
+
                     ForEach(mgr.templates) { tpl in
-                        HStack(spacing: 12) {
-                            Toggle("", isOn: Binding(get: { tpl.isEnabled }, set: { _ in mgr.toggleEnabled(id: tpl.id) }))
-                                .labelsHidden()
-                                .toggleStyle(.checkbox)
-                                .frame(width: 24)
-                            
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(iconBackgroundColor(for: tpl.ext).opacity(0.15))
-                                Image(systemName: iconName(for: tpl.ext))
-                                    .font(.caption)
-                                    .foregroundColor(iconBackgroundColor(for: tpl.ext))
-                            }
-                            .frame(width: 28, height: 28)
-                            .padding(.horizontal, 2)
-                            
-                            Text(tpl.name)
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(.primary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            
-                            Text(".\(tpl.ext)")
-                                .font(.system(size: 12, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 80, alignment: .leading)
-                            
-                            Toggle("", isOn: Binding(get: { tpl.inMainMenu ?? false }, set: { _ in mgr.toggleMainMenu(id: tpl.id) }))
-                                .labelsHidden()
-                                .toggleStyle(.checkbox)
-                                .frame(width: 60, alignment: .center)
-                            
-                            if !tpl.isBuiltin {
-                                Button(action: {
-                                    mgr.remove(id: tpl.id)
-                                }) {
-                                    Image(systemName: "trash")
-                                        .foregroundColor(.red.opacity(0.8))
-                                }
-                                .buttonStyle(.plain)
-                                .frame(width: 40, alignment: .center)
-                            } else {
-                                Text("内置".localized)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 40, alignment: .center)
-                            }
+                        TemplateRow(tpl: tpl, mgr: mgr)
+                        if tpl.id != mgr.templates.last?.id {
+                            Divider().padding(.horizontal, DT.rowPadH).opacity(0.4)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        
-                        Divider()
                     }
                 }
             }
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.08), lineWidth: 1)
-            )
-            .padding(.horizontal, 20)
-            
-            // 底部控制选项与提示
-            HStack(spacing: 24) {
-                Toggle("显示图标".localized, isOn: $settings.templateShowIcons)
-                Toggle("开启提示音".localized, isOn: $settings.templateSoundEffects)
-                Toggle("自动打开".localized, isOn: $settings.templateAutoOpen)
-                Spacer()
-            }
-            .toggleStyle(.checkbox)
-            .font(.caption)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
-            
-            // Pro Tip
-            HStack(spacing: 10) {
-                Image(systemName: "lightbulb.fill")
-                    .foregroundColor(.yellow)
-                Text("Pro Tip:".localized).fontWeight(.bold)
-                Text("在 Finder 中按住 Option (⌥) 键右击，可查看系统原生右键菜单。".localized)
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.all, 10)
-            .background(Color.yellow.opacity(0.08))
-            .cornerRadius(8)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-        }
-    }
 
-    private func iconName(for ext: String) -> String {
-        switch ext.lowercased() {
-        case "txt":              return "doc.text.fill"
-        case "md":               return "text.badge.checkmark"
-        case "html", "htm":      return "globe"
-        case "css":              return "paintbrush.fill"
-        case "js", "ts":         return "bolt.fill"
-        case "py":               return "terminal.fill"
-        case "sh", "bash", "zsh": return "dollarsign.square.fill"
-        case "json", "yaml","yml": return "curlybraces"
-        case "docx", "doc":      return "doc.richtext.fill"
-        case "xlsx", "xls":      return "tablecells.fill"
-        case "pptx", "ppt":      return "chart.pie.fill"
-        default:                 return "doc.fill"
-        }
-    }
-    
-    private func iconBackgroundColor(for ext: String) -> Color {
-        switch ext.lowercased() {
-        case "txt":              return .gray
-        case "md":               return .purple
-        case "html", "htm":      return .orange
-        case "css":              return .blue
-        case "js", "ts":         return .yellow
-        case "py":               return .green
-        case "sh", "bash", "zsh": return .black
-        case "json", "yaml","yml": return .pink
-        case "docx", "doc":      return .blue
-        case "xlsx", "xls":      return .green
-        case "pptx", "ppt":      return .red
-        default:                 return .blue
+            // 菜单行为选项（卡片式）
+            VStack(alignment: .leading, spacing: 10) {
+                Text("菜单行为".localized)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+
+                DesignCard {
+                    ToggleRow(
+                        title: "显示图标".localized,
+                        description: "在右键菜单中显示文件类型图标".localized,
+                        isOn: $settings.templateShowIcons
+                    )
+                    CardDivider()
+                    ToggleRow(
+                        title: "创建提示音".localized,
+                        description: "文件创建成功时播放提示音效".localized,
+                        isOn: $settings.templateSoundEffects
+                    )
+                    CardDivider()
+                    ToggleRow(
+                        title: "自动打开文件".localized,
+                        description: "新建后自动在对应应用中打开".localized,
+                        isOn: $settings.templateAutoOpen
+                    )
+                }
+            }
         }
     }
 }
 
+// MARK: - 模板行
+
+private struct TemplateRow: View {
+    let tpl: FileTemplate
+    let mgr: NewFileTemplateManager
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Toggle("", isOn: Binding(
+                get: { tpl.isEnabled },
+                set: { _ in mgr.toggleEnabled(id: tpl.id) }
+            ))
+            .labelsHidden()
+            .toggleStyle(.checkbox)
+            .frame(width: 24)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(iconColor(for: tpl.ext).opacity(0.12))
+                Image(systemName: iconName(for: tpl.ext))
+                    .font(.system(size: 12))
+                    .foregroundStyle(iconColor(for: tpl.ext))
+            }
+            .frame(width: 28, height: 28)
+
+            Text(tpl.name)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(tpl.isEnabled
+                                 ? Color(red: 15/255, green: 23/255, blue: 42/255)
+                                 : Color.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(".\(tpl.ext)")
+                .font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 80, alignment: .leading)
+
+            Toggle("", isOn: Binding(
+                get: { tpl.inMainMenu ?? false },
+                set: { _ in mgr.toggleMainMenu(id: tpl.id) }
+            ))
+            .labelsHidden()
+            .toggleStyle(.checkbox)
+            .frame(width: 60, alignment: .center)
+
+            Group {
+                if !tpl.isBuiltin {
+                    Button { mgr.remove(id: tpl.id) } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12))
+                            .foregroundStyle(isHovered ? Color.red : Color.red.opacity(0.4))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text("内置".localized)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(Color(red: 241/255, green: 245/255, blue: 249/255))
+                        )
+                }
+            }
+            .frame(width: 40, alignment: .center)
+        }
+        .padding(.horizontal, DT.rowPadH)
+        .padding(.vertical, 8)
+        .background(isHovered ? Color(red: 248/255, green: 250/255, blue: 252/255) : Color.clear)
+        .onHover { isHovered = $0 }
+        .animation(.easeOut(duration: 0.1), value: isHovered)
+    }
+
+    private func iconName(for ext: String) -> String {
+        switch ext.lowercased() {
+        case "txt":                return "doc.text.fill"
+        case "md":                 return "text.badge.checkmark"
+        case "html", "htm":        return "globe"
+        case "css":                return "paintbrush.fill"
+        case "js", "ts":           return "bolt.fill"
+        case "py":                 return "terminal.fill"
+        case "sh", "bash", "zsh":  return "dollarsign.square.fill"
+        case "json", "yaml", "yml":return "curlybraces"
+        case "docx", "doc":        return "doc.richtext.fill"
+        case "xlsx", "xls":        return "tablecells.fill"
+        case "pptx", "ppt":        return "chart.pie.fill"
+        default:                   return "doc.fill"
+        }
+    }
+
+    private func iconColor(for ext: String) -> Color {
+        switch ext.lowercased() {
+        case "txt":                return .gray
+        case "md":                 return .purple
+        case "html", "htm":        return .orange
+        case "css":                return .blue
+        case "js", "ts":           return .yellow
+        case "py":                 return .green
+        case "sh", "bash", "zsh":  return .black
+        case "json", "yaml", "yml":return .pink
+        case "docx", "doc":        return .blue
+        case "xlsx", "xls":        return .green
+        case "pptx", "ppt":        return .red
+        default:                   return .blue
+        }
+    }
+}
+
+// MARK: - 添加模板弹出框
+
 private struct AddTemplatePopover: View {
     @Binding var name: String
-    @Binding var ext:  String
-    let onAdd:    () -> Void
+    @Binding var ext: String
+    let onAdd: () -> Void
     let onCancel: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("添加自定义模板".localized)
-                .font(.headline)
-            TextField("模板名称（如 Vue 组件）".localized, text: $name)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 220)
-            TextField("扩展名（如 vue）".localized, text: $ext)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 220)
+                .font(.system(size: 14, weight: .semibold))
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("模板名称".localized)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("如：Vue 组件", text: $name)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("文件扩展名".localized)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("如：vue", text: $ext)
+                    .textFieldStyle(.roundedBorder)
+            }
+
             HStack {
-                Spacer()
                 Button("取消".localized, action: onCancel)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                Spacer()
                 Button("添加".localized, action: onAdd)
                     .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(DT.accent)
                     .disabled(name.isEmpty || ext.isEmpty)
             }
         }
@@ -519,106 +618,148 @@ private struct AddTemplatePopover: View {
     }
 }
 
-// MARK: - 开发者工具设置区
+// MARK: - 开发者工具
 
 private struct DevToolsSection: View {
 
-    /// 候选工具列表
-    private let tools: [(name: String, bundleID: String, icon: String)] = [
-        ("Terminal",     "com.apple.Terminal",        "terminal.fill"),
-        ("iTerm2",       "com.googlecode.iterm2",     "terminal"),
-        ("VS Code",      "com.microsoft.VSCode",      "chevron.left.forwardslash.chevron.right"),
-        ("Xcode",        "com.apple.dt.Xcode",        "hammer.fill"),
-        ("Sublime Text", "com.sublimetext.4",         "square.and.pencil"),
-        ("TextEdit",     "com.apple.TextEdit",        "doc.text"),
+    private let tools: [(name: String, bundleID: String, icon: String, subtitle: String)] = [
+        ("Terminal",     "com.apple.Terminal",        "terminal.fill",                      "macOS 内置"),
+        ("iTerm2",       "com.googlecode.iterm2",     "terminal",                           "iterm2.com"),
+        ("VS Code",      "com.microsoft.VSCode",      "chevron.left.forwardslash.chevron.right", "code.visualstudio.com"),
+        ("Xcode",        "com.apple.dt.Xcode",        "hammer.fill",                        "developer.apple.com"),
+        ("Sublime Text", "com.sublimetext.4",         "square.and.pencil",                  "sublimetext.com"),
+        ("TextEdit",     "com.apple.TextEdit",        "doc.text",                           "macOS 内置"),
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 16) {
 
-            // 标题
-            VStack(alignment: .leading, spacing: 4) {
-                Text("开发者工具".localized)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                
-                Text("已安装的工具会自动显示在\"用…打开\"子菜单中，无需手动配置。".localized)
-                    .font(.caption)
+            // 说明
+            HStack(spacing: 10) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DT.accent)
+                Text("已安装的工具会自动显示在「用…打开」子菜单中，无需手动配置。".localized)
+                    .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(red: 239/255, green: 246/255, blue: 255/255))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color(red: 191/255, green: 219/255, blue: 254/255), lineWidth: 0.75)
+                    )
+            )
 
-            // 工具列表 (展开模式，随页面滚动)
-            VStack(spacing: 0) {
+            // 工具列表
+            DesignCard {
                 VStack(spacing: 0) {
+                    // 表头
+                    HStack {
+                        Text("应用".localized)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("状态".localized)
+                            .frame(width: 90, alignment: .trailing)
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+                    .padding(.horizontal, DT.rowPadH)
+                    .padding(.vertical, 8)
+                    .background(Color(red: 248/255, green: 250/255, blue: 252/255))
+
+                    Divider().opacity(0.5)
+
                     ForEach(tools, id: \.bundleID) { tool in
                         let installed = NSWorkspace.shared.urlForApplication(withBundleIdentifier: tool.bundleID) != nil
-                        
-                        HStack(spacing: 12) {
-                            // 应用图标
-                            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: tool.bundleID) {
-                                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
-                                    .resizable()
-                                    .frame(width: 24, height: 24)
-                            } else {
-                                Image(systemName: tool.icon)
-                                    .font(.system(size: 14))
-                                    .frame(width: 24, height: 24)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(tool.name).fontWeight(.medium)
-                                    .font(.body)
-                                Text(tool.bundleID)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
-                            }
-
-                            Spacer()
-
-                            if installed {
-                                Label("已安装".localized, systemImage: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                                    .font(.caption.weight(.semibold))
-                            } else {
-                                Label("未安装".localized, systemImage: "xmark.circle")
-                                    .foregroundStyle(.secondary)
-                                    .font(.caption)
-                            }
+                        DevToolRow(tool: tool, installed: installed)
+                        if tool.bundleID != tools.last?.bundleID {
+                            Divider().padding(.horizontal, DT.rowPadH).opacity(0.4)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .opacity(installed ? 1.0 : 0.5)
-                        
-                        Divider()
                     }
                 }
             }
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.08), lineWidth: 1)
-            )
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
-
-            // 说明
-            HStack {
-                Image(systemName: "info.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("如需添加更多工具，请确保对应应用已通过 App Store 或官网安装。".localized)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
         }
+    }
+}
+
+// MARK: - 开发者工具行
+
+private struct DevToolRow: View {
+    let tool: (name: String, bundleID: String, icon: String, subtitle: String)
+    let installed: Bool
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 14) {
+            // 应用图标
+            Group {
+                if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: tool.bundleID) {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+                        .resizable()
+                        .frame(width: 28, height: 28)
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color(red: 241/255, green: 245/255, blue: 249/255))
+                            .frame(width: 28, height: 28)
+                        Image(systemName: tool.icon)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tool.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(installed
+                                    ? Color(red: 15/255, green: 23/255, blue: 42/255)
+                                    : Color.secondary)
+                Text(tool.bundleID)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+            }
+
+            Spacer()
+
+            if installed {
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(DT.successGreen)
+                    Text("已安装".localized)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(DT.successGreen)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(DT.successGreen.opacity(0.1))
+                        .overlay(Capsule().stroke(DT.successGreen.opacity(0.2), lineWidth: 0.75))
+                )
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "xmark.circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Text("未安装".localized)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, DT.rowPadH)
+        .padding(.vertical, DT.rowPadV)
+        .opacity(installed ? 1.0 : 0.55)
+        .background(isHovered && installed ? Color(red: 248/255, green: 250/255, blue: 252/255) : Color.clear)
+        .onHover { if installed { isHovered = $0 } }
+        .animation(.easeOut(duration: 0.1), value: isHovered)
     }
 }
 
@@ -626,4 +767,5 @@ private struct DevToolsSection: View {
 
 #Preview {
     RightClickSettingsView()
+        .frame(width: 600, height: 500)
 }

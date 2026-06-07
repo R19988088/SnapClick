@@ -82,6 +82,10 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    /// 外观模式（"light" / "dark" / "auto"）
+    @AppStorage("appAppearance")
+    var appAppearance: String = "auto"
+
     private func updateLaunchAtLogin() {
         if #available(macOS 13.0, *) {
             do {
@@ -285,6 +289,34 @@ public final class LanguageManager: ObservableObject {
 
             // 取色器
             "单击取色并复制到剪贴板": "Click to pick color and copy to clipboard",
+
+            // 侧边栏 - 新增
+            "Finder 右键": "Finder Right-Click",
+            "请从左侧选择设置项": "Select a setting from the sidebar",
+
+            // 截图设置 - 新增
+            "截图外观": "Screenshot Appearance",
+            "窗口透明": "Window Transparency",
+            "保留截图原始透明度": "Preserve original transparency in screenshots",
+            "储存设置": "Storage",
+
+            // 快捷键 - 新增
+            "快速编辑": "Quick Edit",
+            "打开标注编辑": "Open annotation editor",
+            "点击录制": "Click to Record",
+
+            // 关于页 - 新增
+            "官方网站": "Official Website",
+            "检查更新": "Check for Updates",
+            "高性能屏幕录制，支持音频路由与 GIF 导出。": "High-performance screen recording with audio routing & GIF export.",
+
+            // 右键菜单 - 新增
+            "菜单行为": "Menu Behavior",
+
+            // 取色 & 贴图 - 新增
+            "按下快捷键后，将鼠标悬停在目标颜色上并单击即可拾取，支持屏幕任意位置。": "After pressing the shortcut, hover over the target color and click to pick. Works anywhere on screen.",
+            "从剪贴板抓取图片并钉在屏幕上": "Grab image from clipboard and pin it on screen",
+            "使用贴图功能钉上图片后将在此显示最近记录": "Recently pinned images will appear here",
         ],
         "ja": [
             "SnapClick": "SnapClick",
@@ -431,6 +463,34 @@ public final class LanguageManager: ObservableObject {
 
             // カラーピッカー
             "单击取色并复制到剪贴板": "クリックして色を取得しクリップボードにコピー",
+
+            // サイドバー - 新增
+            "Finder 右键": "Finder 右クリック",
+            "请从左侧选择设置项": "左のサイドバーから設定を選択",
+
+            // スクリーンショット設定 - 新增
+            "截图外观": "スクリーンショットの外観",
+            "窗口透明": "ウィンドウ透明度",
+            "保留截图原始透明度": "スクリーンショットの元の透明度を保持",
+            "储存设置": "保存設定",
+
+            // ショートカット - 新增
+            "快速编辑": "クイック編集",
+            "打开标注编辑": "注釈エディタを開く",
+            "点击录制": "クリックして録画",
+
+            // 情報ページ - 新增
+            "官方网站": "公式サイト",
+            "检查更新": "アップデートを確認",
+            "高性能屏幕录制，支持音频路由与 GIF 导出。": "高性能な画面録画、オーディオルーティングと GIF エクスポートをサポート。",
+
+            // 右クリックメニュー - 新增
+            "菜单行为": "メニュー動作",
+
+            // カラーピッカー & ピン留め - 新增
+            "按下快捷键后，将鼠标悬停在目标颜色上并单击即可拾取，支持屏幕任意位置。": "ショートカットキーを押した後、対象の色にカーソルを合わせてクリックで取得。画面のどこでも可能。",
+            "从剪贴板抓取图片并钉在屏幕上": "クリップボードから画像を取得して画面にピン留め",
+            "使用贴图功能钉上图片后将在此显示最近记录": "ピン留め機能で画像を固定すると、ここに最近の記録が表示されます",
         ]
     ]
 
