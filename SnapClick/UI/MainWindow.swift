@@ -5,13 +5,13 @@ import AppKit
 
 enum DT {
     // 颜色
-    static let sidebarBg        = Color(red: 240/255, green: 243/255, blue: 247/255)
+    static let sidebarBg        = Color.dynamic(light: Color(red: 240/255, green: 243/255, blue: 247/255), dark: Color(red: 30/255, green: 30/255, blue: 30/255))
     static let sidebarSelected  = Color(red: 59/255,  green: 130/255, blue: 246/255)
     static let accent           = Color(red: 59/255,  green: 130/255, blue: 246/255)
-    static let contentBg        = Color.white
-    static let cardBg           = Color(red: 249/255, green: 250/255, blue: 251/255)
-    static let cardBorder       = Color(red: 226/255, green: 232/255, blue: 240/255)
-    static let groupLabel       = Color(red: 148/255, green: 163/255, blue: 184/255)
+    static let contentBg        = Color.dynamic(light: .white, dark: Color(red: 24/255, green: 24/255, blue: 24/255))
+    static let cardBg           = Color.dynamic(light: Color(red: 249/255, green: 250/255, blue: 251/255), dark: Color(red: 38/255, green: 38/255, blue: 38/255))
+    static let cardBorder       = Color.dynamic(light: Color(red: 226/255, green: 232/255, blue: 240/255), dark: Color(red: 55/255, green: 65/255, blue: 81/255))
+    static let groupLabel       = Color.dynamic(light: Color(red: 148/255, green: 163/255, blue: 184/255), dark: Color(red: 107/255, green: 114/255, blue: 128/255))
     static let successGreen     = Color(red: 34/255,  green: 197/255, blue: 94/255)
     static let warningOrange    = Color(red: 249/255, green: 115/255, blue: 22/255)
 
@@ -27,6 +27,7 @@ enum DT {
 enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
     case general     = "general"
     case screenshot  = "screenshot"
+    case recording   = "recording"
     case pinAndColor = "pinAndColor"
     case contextMenu = "contextMenu"
     case about       = "about"
@@ -37,6 +38,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .general:     return "通用".localized
         case .screenshot:  return "截图与标注".localized
+        case .recording:   return "屏幕录制".localized
         case .pinAndColor: return "贴图 & 取色".localized
         case .contextMenu: return "Finder 右键".localized
         case .about:       return "关于".localized
@@ -47,6 +49,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .general:     return "gearshape"
         case .screenshot:  return "camera.viewfinder"
+        case .recording:   return "record.circle"
         case .pinAndColor: return "pin.circle"
         case .contextMenu: return "folder.badge.gearshape"
         case .about:       return "info.circle"
@@ -68,12 +71,12 @@ private struct SidebarNavItem: View {
             HStack(spacing: 10) {
                 Image(systemName: dest.symbolName)
                     .font(.system(size: 13.5, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? .white : Color(red: 71/255, green: 85/255, blue: 105/255))
+                    .foregroundStyle(isSelected ? .white : .customSecondaryText)
                     .frame(width: 18)
 
                 Text(dest.localizedTitle)
                     .font(.system(size: 13.5, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? .white : Color(red: 30/255, green: 41/255, blue: 59/255))
+                    .foregroundStyle(isSelected ? .white : .customMediumText)
 
                 Spacer()
             }
@@ -101,7 +104,7 @@ struct SettingsPageHeader: View {
     var body: some View {
         Text(title)
             .font(.system(size: 20, weight: .bold))
-            .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+            .foregroundStyle(.customPrimaryText)
     }
 }
 
@@ -153,7 +156,7 @@ struct SectionLabel: View {
                 .foregroundStyle(color)
             Text(title)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color(red: 30/255, green: 41/255, blue: 59/255))
+                .foregroundStyle(.customMediumText)
         }
     }
 }
@@ -219,7 +222,7 @@ private struct SidebarView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("SnapClick".localized)
                         .font(.system(size: 13.5, weight: .bold))
-                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                        .foregroundStyle(.customPrimaryText)
                     Text("v1.0.2".localized)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(DT.groupLabel)
@@ -276,6 +279,8 @@ private struct DetailView: View {
                             GeneralSettingsView(selectedDestination: $selectedDestination)
                         case .screenshot:
                             ScreenshotSettingsView()
+                        case .recording:
+                            RecordingSettingsView()
                         case .pinAndColor:
                             PinColorSettingsView()
                         case .contextMenu:
@@ -371,9 +376,9 @@ private struct GeneralSettingsView: View {
                     )
                     CardDivider()
                     ToggleRow(
-                        title: "在菜单栏显示图标".localized,
-                        description: "在右上角菜单栏显示快捷入口".localized,
-                        isOn: $settings.showInMenuBar
+                        title: "在程序坞中显示图标".localized,
+                        description: "在下方程序坞中显示应用图标".localized,
+                        isOn: $settings.showInDock
                     )
                 }
             }
@@ -389,7 +394,7 @@ private struct GeneralSettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("系统语言".localized)
                                     .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                                    .foregroundStyle(.customPrimaryText)
                                 Text("界面及菜单呈现语言".localized)
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
@@ -407,7 +412,7 @@ private struct GeneralSettingsView: View {
                             .padding(.vertical, 6)
                             .background(
                                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(Color(red: 241/255, green: 245/255, blue: 249/255))
+                                    .fill(.customControlBg)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 7, style: .continuous)
                                             .stroke(DT.cardBorder, lineWidth: 0.5)
@@ -421,7 +426,7 @@ private struct GeneralSettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("外观模式".localized)
                                     .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                                    .foregroundStyle(.customPrimaryText)
                                 Text("界面颜色主题偏好".localized)
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
@@ -442,7 +447,7 @@ private struct GeneralSettingsView: View {
                             }
                             .background(
                                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(Color(red: 241/255, green: 245/255, blue: 249/255))
+                                    .fill(.customControlBg)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 7, style: .continuous)
                                             .stroke(DT.cardBorder, lineWidth: 0.5)
@@ -454,9 +459,6 @@ private struct GeneralSettingsView: View {
                     .padding(DT.rowPadH)
                 }
             }
-
-            // ── 云同步横幅 ──────────────────────────────────────────
-            CloudSyncBanner()
         }
     }
 }
@@ -487,7 +489,7 @@ private struct PermissionRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                    .foregroundStyle(.customPrimaryText)
                 Text(description)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -545,7 +547,7 @@ struct ToggleRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                    .foregroundStyle(.customPrimaryText)
                 Text(description)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -576,7 +578,7 @@ private struct AppearanceModeButton: View {
                 Text(label)
                     .font(.system(size: 12, weight: .medium))
             }
-            .foregroundStyle(isSelected ? .white : Color(red: 71/255, green: 85/255, blue: 105/255))
+            .foregroundStyle(isSelected ? .white : .customSecondaryText)
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
             .background(
@@ -585,78 +587,6 @@ private struct AppearanceModeButton: View {
             )
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - 云同步横幅
-
-private struct CloudSyncBanner: View {
-    var body: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("同步设置到云端".localized)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
-                Text("通过 iCloud 在所有 macOS 设备间同步 SnapClick 配置。".localized)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Color(red: 71/255, green: 85/255, blue: 105/255))
-                    .lineSpacing(2)
-
-                Button("启用 iCloud 同步".localized) {
-                    // 未来功能
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .tint(DT.accent)
-                .padding(.top, 4)
-            }
-
-            Spacer()
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 186/255, green: 230/255, blue: 253/255),
-                                Color(red: 199/255, green: 210/255, blue: 254/255)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 64, height: 64)
-
-                Image(systemName: "cloud.fill")
-                    .font(.system(size: 30))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color(red: 59/255, green: 130/255, blue: 246/255),
-                                     Color(red: 99/255, green: 102/255, blue: 241/255)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            }
-        }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 239/255, green: 246/255, blue: 255/255),
-                            Color(red: 238/255, green: 242/255, blue: 255/255)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
-                        .stroke(Color(red: 191/255, green: 219/255, blue: 254/255), lineWidth: 0.75)
-                )
-        )
     }
 }
 
@@ -751,7 +681,7 @@ private struct ScreenshotSettingsView: View {
                                     .padding(.vertical, 6)
                                     .background(
                                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                            .fill(Color(red: 241/255, green: 245/255, blue: 249/255))
+                                            .fill(.customControlBg)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                                                     .stroke(DT.cardBorder, lineWidth: 0.5)
@@ -803,30 +733,42 @@ private struct ScreenshotSettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 SectionLabel(title: "快捷键".localized, icon: "keyboard", color: .indigo)
 
-                HStack(spacing: 12) {
-                    ShortcutCard(
-                        icon: "crop",
-                        iconColor: .blue,
-                        title: "区域截图".localized,
-                        subtitle: "选取矩形区域".localized,
-                        hotkey: $settings.hotkeyAreaScreenshot
-                    )
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        ShortcutCard(
+                            icon: "crop",
+                            iconColor: .blue,
+                            title: "区域截图".localized,
+                            subtitle: "选取矩形区域".localized,
+                            hotkey: $settings.hotkeyAreaScreenshot
+                        )
 
-                    ShortcutCard(
-                        icon: "arrow.up.and.down",
-                        iconColor: .purple,
-                        title: "长截图".localized,
-                        subtitle: "滚动截取全屏".localized,
-                        hotkey: $settings.hotkeyLongScreenshot
-                    )
+                        ShortcutCard(
+                            icon: "macwindow",
+                            iconColor: .teal,
+                            title: "窗口截图".localized,
+                            subtitle: "选取目标窗口".localized,
+                            hotkey: $settings.hotkeyWindowScreenshot
+                        )
+                    }
 
-                    ShortcutCard(
-                        icon: "wand.and.stars",
-                        iconColor: .orange,
-                        title: "快速编辑".localized,
-                        subtitle: "打开标注编辑".localized,
-                        hotkey: .constant("")
-                    )
+                    HStack(spacing: 12) {
+                        ShortcutCard(
+                            icon: "arrow.up.and.down",
+                            iconColor: .purple,
+                            title: "长截图".localized,
+                            subtitle: "滚动截取全屏".localized,
+                            hotkey: $settings.hotkeyLongScreenshot
+                        )
+
+                        ShortcutCard(
+                            icon: "wand.and.stars",
+                            iconColor: .orange,
+                            title: "快速编辑".localized,
+                            subtitle: "打开标注编辑".localized,
+                            hotkey: .constant("")
+                        )
+                    }
                 }
             }
         }
@@ -948,12 +890,12 @@ private struct FormatBadge: View {
         Button(action: action) {
             Text(format)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(isSelected ? .white : Color(red: 71/255, green: 85/255, blue: 105/255))
+                .foregroundStyle(isSelected ? .white : .customSecondaryText)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isSelected ? DT.accent : Color(red: 241/255, green: 245/255, blue: 249/255))
+                        .fill(isSelected ? DT.accent : .customControlBg)
                         .overlay(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .stroke(isSelected ? DT.accent : DT.cardBorder, lineWidth: 0.75)
@@ -991,7 +933,7 @@ private struct ShortcutCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                        .foregroundStyle(.customPrimaryText)
                     Text(subtitle)
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
@@ -1041,7 +983,7 @@ struct HotkeyRecorderView: View {
             .frame(height: 28)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isRecording ? DT.accent.opacity(0.08) : Color(red: 241/255, green: 245/255, blue: 249/255))
+                    .fill(isRecording ? DT.accent.opacity(0.08) : .customControlBg)
                     .overlay(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .stroke(isRecording ? DT.accent.opacity(0.4) : DT.cardBorder, lineWidth: 0.75)
@@ -1118,7 +1060,7 @@ struct KeyBadge: View {
     var body: some View {
         Text(displayKey)
             .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            .foregroundStyle(Color(red: 30/255, green: 41/255, blue: 59/255))
+            .foregroundStyle(.customMediumText)
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(
@@ -1163,14 +1105,16 @@ private struct AboutView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("SnapClick")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                        .foregroundStyle(.customPrimaryText)
                     Text("版本 1.0.2".localized)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
 
                     HStack(spacing: 10) {
                         Button("官方网站".localized) {
-                            // 打开网站
+                            if let url = URL(string: "http://111.229.220.48/") {
+                                NSWorkspace.shared.open(url)
+                            }
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -1259,7 +1203,7 @@ private struct FeatureCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                        .foregroundStyle(.customPrimaryText)
                     Text(description)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
@@ -1273,4 +1217,643 @@ private struct FeatureCard: View {
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .onHover { isHovered = $0 }
     }
+}
+
+// MARK: - 屏幕录制设置页
+
+private struct RecordingSettingsView: View {
+    @ObservedObject private var settings = AppSettings.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+
+            // ── 仿选区交互态预览卡 ───────────────────────────────────
+            RecordingPreviewCard()
+
+            // ── 录制范围 ─────────────────────────────────────────────
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(title: "录制范围".localized, icon: "viewfinder.rectangular", color: .red)
+
+                HStack(spacing: 12) {
+                    RecordingModeCard(
+                        icon: "crop",
+                        iconColor: .red,
+                        title: "选区录制".localized,
+                        subtitle: "单击选取录制区域".localized,
+                        isSelected: true
+                    )
+                    RecordingModeCard(
+                        icon: "display",
+                        iconColor: Color(red: 99/255, green: 102/255, blue: 241/255),
+                        title: "全屏录制".localized,
+                        subtitle: "立即录制全屏".localized,
+                        isSelected: false
+                    )
+                    RecordingModeCard(
+                        icon: "macwindow",
+                        iconColor: .teal,
+                        title: "应用窗口".localized,
+                        subtitle: "选取目标窗口".localized,
+                        isSelected: false
+                    )
+                }
+            }
+
+            // ── 两列布局 ─────────────────────────────────────────────
+            HStack(alignment: .top, spacing: 16) {
+
+                // 左列 — 视频参数
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionLabel(title: "视频参数".localized, icon: "film.stack", color: .indigo)
+
+                    DesignCard {
+                        VStack(spacing: 0) {
+
+                            // 分辨率
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("分辨率".localized)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.customPrimaryText)
+                                    Text("Recording Resolution")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Picker("", selection: $settings.recordResolution) {
+                                    Text("与选区匹配".localized).tag("与选区匹配")
+                                    Text("1080p HD").tag("1080p")
+                                    Text("4K UHD").tag("4K")
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .frame(width: 110)
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.vertical, DT.rowPadV)
+
+                            CardDivider()
+
+                            // 帧率
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("帧率".localized)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.customPrimaryText)
+                                    Text("Frame Rate (FPS)")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                HStack(spacing: 0) {
+                                    ForEach([30, 60, 120], id: \.self) { fps in
+                                        Button {
+                                            settings.recordFPS = fps
+                                        } label: {
+                                            Text("\(fps)")
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .foregroundStyle(settings.recordFPS == fps ? .white : .customSecondaryText)
+                                                .frame(width: 36, height: 26)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                        .fill(settings.recordFPS == fps ? DT.accent : Color.clear)
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(3)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .fill(.customControlBg)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                                .stroke(DT.cardBorder, lineWidth: 0.5)
+                                        )
+                                )
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.vertical, DT.rowPadV)
+
+                            CardDivider()
+
+                            // 视频格式
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("视频格式".localized)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.customPrimaryText)
+                                    Text("Output Format")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                HStack(spacing: 6) {
+                                    ForEach(["MOV", "MP4"], id: \.self) { fmt in
+                                        FormatBadge(format: fmt, isSelected: settings.recordFormat == fmt) {
+                                            settings.recordFormat = fmt
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.vertical, DT.rowPadV)
+
+                            CardDivider()
+
+                            // 编解码
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("编解码".localized)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.customPrimaryText)
+                                    Text("Video Codec")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                HStack(spacing: 6) {
+                                    ForEach(["H.264", "HEVC"], id: \.self) { codec in
+                                        FormatBadge(format: codec, isSelected: settings.recordCodec == codec) {
+                                            settings.recordCodec = codec
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.vertical, DT.rowPadV)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                // 右列 — 音频 & 高级
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionLabel(title: "音频与高级".localized, icon: "waveform.circle", color: .orange)
+
+                    DesignCard {
+                        VStack(spacing: 0) {
+
+                            // 系统声音
+                            ToggleRow(
+                                title: "系统声音".localized,
+                                description: "录制系统内部声音（macOS 13+）".localized,
+                                isOn: $settings.recordSystemAudio
+                            )
+
+                            CardDivider()
+
+                            // 麦克风
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("麦克风".localized)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.customPrimaryText)
+                                    Text("Microphone Input")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Picker("", selection: $settings.recordMicrophone) {
+                                    Text("无".localized).tag("无")
+                                    Text("内置麦克风").tag("内置麦克风")
+                                    Text("外置 USB").tag("外置 USB")
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .frame(width: 110)
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.vertical, DT.rowPadV)
+
+                            CardDivider()
+
+                            // 定时录制
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("定时录制".localized)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.customPrimaryText)
+                                    Text("Countdown Timer")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Picker("", selection: $settings.recordTimer) {
+                                    Text("关闭".localized).tag(0)
+                                    Text("3 秒").tag(3)
+                                    Text("5 秒").tag(5)
+                                    Text("10 秒").tag(10)
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .frame(width: 80)
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.vertical, DT.rowPadV)
+
+                            CardDivider()
+
+                            // 鼠标高亮
+                            ToggleRow(
+                                title: "鼠标高亮".localized,
+                                description: "录制时高亮显示鼠标光标位置".localized,
+                                isOn: $settings.recordHighlightCursor
+                            )
+
+                            CardDivider()
+
+                            // 保存位置
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("保存位置".localized)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 8) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "folder.fill")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(.red)
+                                        Text(URL(fileURLWithPath: settings.recordSavePath).lastPathComponent)
+                                            .font(.system(size: 12))
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .fill(.customControlBg)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                    .stroke(DT.cardBorder, lineWidth: 0.5)
+                                            )
+                                    )
+
+                                    Button("更改…".localized) {
+                                        let panel = NSOpenPanel()
+                                        panel.canChooseFiles = false
+                                        panel.canChooseDirectories = true
+                                        panel.allowsMultipleSelection = false
+                                        if panel.runModal() == .OK, let url = panel.url {
+                                            settings.recordSavePath = url.path
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.top, DT.rowPadV)
+                            .padding(.bottom, DT.rowPadV)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            // ── 快捷键 ───────────────────────────────────────────────
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(title: "快捷键".localized, icon: "keyboard", color: .indigo)
+
+                HStack(spacing: 12) {
+                    ShortcutCard(
+                        icon: "crop",
+                        iconColor: .red,
+                        title: "选区录制".localized,
+                        subtitle: "选取矩形录制区域".localized,
+                        hotkey: $settings.hotkeyRecordArea
+                    )
+                    ShortcutCard(
+                        icon: "display",
+                        iconColor: Color(red: 99/255, green: 102/255, blue: 241/255),
+                        title: "全屏录制".localized,
+                        subtitle: "立即录制全屏".localized,
+                        hotkey: $settings.hotkeyRecordScreen
+                    )
+                    // 占位，保持三列对齐
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 录制预览卡（仿 Stitch 选区交互态）
+
+private struct RecordingPreviewCard: View {
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            // 背景：暗色桌面蒙层
+            RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 30/255, green: 27/255, blue: 75/255),
+                            Color(red: 49/255, green: 46/255, blue: 129/255)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
+                        .stroke(Color(red: 67/255, green: 56/255, blue: 202/255).opacity(0.4), lineWidth: 0.75)
+                )
+
+            // 半透明遮罩（模拟桌面被蒙住）
+            RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
+                .fill(Color.black.opacity(0.35))
+
+            VStack(spacing: 0) {
+                // 顶部标签行
+                HStack {
+                    Label("录制预览".localized, systemImage: "record.circle.fill")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(Color(red: 252/255, green: 165/255, blue: 165/255))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(Color.red.opacity(0.15))
+                                .overlay(Capsule().stroke(Color.red.opacity(0.3), lineWidth: 0.5))
+                        )
+                    Spacer()
+                    // 录制状态点
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 6, height: 6)
+                            .scaleEffect(pulse ? 1.3 : 1.0)
+                            .animation(
+                                Animation.easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+                                value: pulse
+                            )
+                        Text("REC")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Color.red)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+
+                // 选区演示区
+                Spacer()
+
+                ZStack {
+                    // 选区边框（蓝色，仿 Stitch 样式）
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .stroke(Color(red: 0, green: 112/255, blue: 235/255), lineWidth: 1.5)
+                        .frame(width: 200, height: 76)
+
+                    // 尺寸 Tooltip（左上角）
+                    VStack {
+                        HStack {
+                            Text("1920 × 1080")
+                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(Color(red: 0, green: 112/255, blue: 235/255))
+                                )
+                                .offset(x: 0, y: -13)
+                            Spacer()
+                        }
+                        Spacer()
+                    }
+                    .frame(width: 200, height: 76)
+
+                    // 四角手柄
+                    SelectionHandlesView(width: 200, height: 76)
+                }
+
+                Spacer()
+
+                // 底部浮动控制条（仿 Stitch 样式）
+                HStack(spacing: 16) {
+                    // 分辨率标签
+                    VStack(spacing: 3) {
+                        Text("RESOLUTION")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.5))
+                        Text("4K UHD")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+
+                    RecordingPreviewDivider()
+
+                    // 帧率标签
+                    VStack(spacing: 3) {
+                        Text("FPS")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.5))
+                        Text("60 fps")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+
+                    RecordingPreviewDivider()
+
+                    // 麦克风图标
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.7))
+
+                    RecordingPreviewDivider()
+
+                    // 系统声音图标
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(red: 0, green: 112/255, blue: 235/255))
+
+                    RecordingPreviewDivider()
+
+                    // 定时图标
+                    HStack(spacing: 3) {
+                        Image(systemName: "timer")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.7))
+                        Text("Off")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+
+                    Spacer()
+
+                    // 录制按钮（红色）
+                    ZStack {
+                        Circle()
+                            .stroke(Color.white.opacity(0.2), lineWidth: 2.5)
+                            .frame(width: 32, height: 32)
+                        Circle()
+                            .fill(Color(red: 186/255, green: 26/255, blue: 26/255))
+                            .frame(width: 26, height: 26)
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 12, height: 12)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(.black.opacity(0.7))
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(.ultraThinMaterial)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 0.75)
+                        )
+                )
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+            }
+        }
+        .frame(height: 200)
+        .onAppear { pulse = true }
+        .clipShape(RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous))
+    }
+}
+
+// MARK: - 选区控制手柄
+
+private struct SelectionHandlesView: View {
+    let width: CGFloat
+    let height: CGFloat
+
+    private let handleSize: CGFloat = 6
+    private let handleColor = Color(red: 0, green: 112/255, blue: 235/255)
+
+    var body: some View {
+        ZStack {
+            // 四角
+            handle(x: -(width / 2), y: -(height / 2))
+            handle(x:  (width / 2), y: -(height / 2))
+            handle(x: -(width / 2), y:  (height / 2))
+            handle(x:  (width / 2), y:  (height / 2))
+            // 四边中点
+            handle(x: 0,            y: -(height / 2))
+            handle(x: 0,            y:  (height / 2))
+            handle(x: -(width / 2), y: 0)
+            handle(x:  (width / 2), y: 0)
+        }
+    }
+
+    private func handle(x: CGFloat, y: CGFloat) -> some View {
+        Rectangle()
+            .fill(handleColor)
+            .frame(width: handleSize, height: handleSize)
+            .overlay(
+                Rectangle()
+                    .stroke(Color.white, lineWidth: 0.75)
+            )
+            .offset(x: x, y: y)
+    }
+}
+
+// MARK: - 录制预览分隔线
+
+private struct RecordingPreviewDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.12))
+            .frame(width: 1, height: 20)
+    }
+}
+
+// MARK: - 录制模式卡片
+
+private struct RecordingModeCard: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String
+    let isSelected: Bool
+
+    @State private var hovered = false
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(isSelected ? iconColor.opacity(0.15) : iconColor.opacity(0.08))
+                    .frame(width: 38, height: 38)
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(iconColor)
+            }
+
+            VStack(spacing: 2) {
+                Text(title)
+                    .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? .customPrimaryText : .customSecondaryText)
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
+                .fill(isSelected
+                      ? DT.cardBg
+                      : (hovered ? Color.black.opacity(0.03) : DT.cardBg))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
+                        .stroke(isSelected ? iconColor.opacity(0.5) : DT.cardBorder, lineWidth: isSelected ? 1.5 : 0.75)
+                )
+        )
+        .onHover { hovered = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovered)
+    }
+}
+
+
+// MARK: - Color Extension for Dynamic Dark Mode
+extension Color {
+    static func dynamic(light: Color, dark: Color) -> Color {
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            if appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua {
+                return NSColor(dark)
+            } else {
+                return NSColor(light)
+            }
+        })
+    }
+    
+    static let customPrimaryText = Color.dynamic(
+        light: Color(red: 15/255, green: 23/255, blue: 42/255),
+        dark: Color(red: 243/255, green: 244/255, blue: 246/255)
+    )
+    static let customMediumText = Color.dynamic(
+        light: Color(red: 30/255, green: 41/255, blue: 59/255),
+        dark: Color(red: 229/255, green: 231/255, blue: 235/255)
+    )
+    static let customSecondaryText = Color.dynamic(
+        light: Color(red: 71/255, green: 85/255, blue: 105/255),
+        dark: Color(red: 156/255, green: 163/255, blue: 175/255)
+    )
+    static let customControlBg = Color.dynamic(
+        light: Color(red: 241/255, green: 245/255, blue: 249/255),
+        dark: Color(red: 45/255, green: 45/255, blue: 45/255)
+    )
+}
+
+extension ShapeStyle where Self == Color {
+    static var customPrimaryText: Color { Color.customPrimaryText }
+    static var customMediumText: Color { Color.customMediumText }
+    static var customSecondaryText: Color { Color.customSecondaryText }
+    static var customControlBg: Color { Color.customControlBg }
 }
