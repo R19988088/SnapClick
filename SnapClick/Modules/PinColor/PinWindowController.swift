@@ -69,7 +69,14 @@ final class PinWindowController: NSWindowController {
 
 final class PinPanel: NSPanel {
 
+    /// 初始内容尺寸，用于计算图片纵横比
+    private let initialContentSize: CGSize
+    /// 缩放范围限制（相对于初始尺寸）
+    private let minScale: CGFloat = 0.1
+    private let maxScale: CGFloat = 8.0
+
     init(contentRect: CGRect) {
+        self.initialContentSize = contentRect.size
         super.init(
             contentRect: contentRect,
             // 无边框、可调整大小、非激活面板
@@ -94,6 +101,51 @@ final class PinPanel: NSPanel {
 
     // 允许成为 key window 以便响应快捷键
     override var canBecomeKey: Bool { true }
+
+    // MARK: - 滚轮缩放
+
+    override func scrollWheel(with event: NSEvent) {
+        // 取 deltaY，触控板会启用 hasPreciseScrollingDeltas
+        let rawDelta: CGFloat
+        if event.hasPreciseScrollingDeltas {
+            rawDelta = event.scrollingDeltaY / 200.0
+        } else {
+            rawDelta = event.scrollingDeltaY / 20.0
+        }
+
+        guard rawDelta != 0 else { return }
+
+        let factor = 1.0 + rawDelta
+        let currentFrame = frame
+
+        let aspect = initialContentSize.height > 0
+            ? initialContentSize.width / initialContentSize.height
+            : 1.0
+
+        var newWidth = currentFrame.width * factor
+        let minWidth = max(50, initialContentSize.width * minScale)
+        let maxWidth = initialContentSize.width * maxScale
+        newWidth = min(max(newWidth, minWidth), maxWidth)
+        let newHeight = aspect > 0 ? newWidth / aspect : currentFrame.height
+
+        // 以鼠标位置为锚点缩放
+        let mouseInScreen = NSEvent.mouseLocation
+        let anchorX: CGFloat
+        let anchorY: CGFloat
+        if currentFrame.width > 0 && currentFrame.height > 0 {
+            anchorX = (mouseInScreen.x - currentFrame.origin.x) / currentFrame.width
+            anchorY = (mouseInScreen.y - currentFrame.origin.y) / currentFrame.height
+        } else {
+            anchorX = 0.5
+            anchorY = 0.5
+        }
+
+        let newOriginX = mouseInScreen.x - anchorX * newWidth
+        let newOriginY = mouseInScreen.y - anchorY * newHeight
+
+        let newFrame = NSRect(x: newOriginX, y: newOriginY, width: newWidth, height: newHeight)
+        setFrame(newFrame, display: true, animate: false)
+    }
 }
 
 // MARK: - 贴图内容 SwiftUI 视图

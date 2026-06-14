@@ -11,13 +11,16 @@ final class StatusBarController: NSObject {
 
     private var statusItem: NSStatusItem
     private weak var appDelegate: AppDelegate?
+    
+    private var recordingTimer: Timer?
+    private var flashState: Bool = false
 
     // MARK: 初始化
 
     init(appDelegate: AppDelegate) {
         self.appDelegate = appDelegate
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         super.init()
 
@@ -28,6 +31,9 @@ final class StatusBarController: NSObject {
         NotificationCenter.default.addObserver(self, selector: #selector(defaultsChanged), name: UserDefaults.didChangeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(languageChanged), name: .appLanguageDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(visibilityChanged), name: .showInMenuBarDidChange, object: nil)
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(handleRecordingStart), name: .recordingDidStart, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleRecordingStop), name: .recordingDidStop, object: nil)
     }
     
     @objc private func defaultsChanged() {
@@ -109,6 +115,16 @@ final class StatusBarController: NSObject {
         )
         menu.addItem(areaItem)
 
+        let windowT = parse(settings.hotkeyWindowScreenshot)
+        let windowItem = makeItem(
+            title: "窗口截图".localized,
+            symbolName: "macwindow.badge.plus",
+            shortcut: windowT.shortcut,
+            modifiers: windowT.modifiers,
+            action: #selector(windowScreenshot)
+        )
+        menu.addItem(windowItem)
+
         let longT = parse(settings.hotkeyLongScreenshot)
         let longItem = makeItem(
             title: "长截图".localized,
@@ -118,6 +134,38 @@ final class StatusBarController: NSObject {
             action: #selector(longScreenshot)
         )
         menu.addItem(longItem)
+
+        menu.addItem(.separator())
+
+        // ── 屏幕录制组 ───────────────────────────────────────────
+        let recAreaT = parse(settings.hotkeyRecordArea)
+        let recAreaItem = makeItem(
+            title: "选区录制".localized,
+            symbolName: "record.circle",
+            shortcut: recAreaT.shortcut,
+            modifiers: recAreaT.modifiers,
+            action: #selector(recordArea)
+        )
+        menu.addItem(recAreaItem)
+
+        let recScreenT = parse(settings.hotkeyRecordScreen)
+        let recScreenItem = makeItem(
+            title: "全屏录制".localized,
+            symbolName: "display",
+            shortcut: recScreenT.shortcut,
+            modifiers: recScreenT.modifiers,
+            action: #selector(recordScreen)
+        )
+        menu.addItem(recScreenItem)
+
+        let recWindowItem = makeItem(
+            title: "窗口录制".localized,
+            symbolName: "macwindow",
+            shortcut: "",
+            modifiers: [],
+            action: #selector(recordWindow)
+        )
+        menu.addItem(recWindowItem)
 
         menu.addItem(.separator())
 
@@ -168,7 +216,8 @@ final class StatusBarController: NSObject {
         menu.addItem(quitItem)
 
         statusItem.menu = menu
-
+        menu.delegate = self
+        
         // 将所有 target 指向 self
         for item in menu.items {
             item.target = self
@@ -213,6 +262,18 @@ final class StatusBarController: NSObject {
         }
     }
 
+    @objc private func windowScreenshot() {
+        Task { @MainActor in
+            do {
+                try await ScreenCaptureEngine.shared.captureWindow()
+            } catch ScreenCaptureError.permissionDenied {
+                showPermissionAlert(for: .screenRecording)
+            } catch {
+                print("[StatusBar] 窗口截图出错: \(error)")
+            }
+        }
+    }
+
     @objc private func longScreenshot() {
         Task { @MainActor in
             do {
@@ -247,6 +308,56 @@ final class StatusBarController: NSObject {
         appDelegate?.openSettings()
     }
 
+    @objc private func recordArea() {
+        guard PermissionManager.shared.hasScreenRecordingPermission else {
+            showPermissionAlert(for: .screenRecording)
+            return
+        }
+        // 退出菜单后稍延启动，避免菜单动画与选区覆盖
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            Task { @MainActor in
+                do {
+                    try await ScreenRecordingEngine.shared.startAreaRecording()
+                } catch {
+                    print("[状态栏] 选区录制出错: \(error)")
+                }
+            }
+        }
+    }
+
+    @objc private func recordScreen() {
+        guard PermissionManager.shared.hasScreenRecordingPermission else {
+            showPermissionAlert(for: .screenRecording)
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            Task { @MainActor in
+                do {
+                    try await ScreenRecordingEngine.shared.startFullScreenRecording()
+                } catch {
+                    print("[状态栏] 全屏录制出错: \(error)")
+                }
+            }
+        }
+    }
+
+    @objc private func recordWindow() {
+        guard PermissionManager.shared.hasScreenRecordingPermission else {
+            showPermissionAlert(for: .screenRecording)
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            Task { @MainActor in
+                do {
+                    try await ScreenRecordingEngine.shared.startWindowRecording()
+                } catch {
+                    print("[状态栏] 窗口录制出错: \(error)")
+                }
+            }
+        }
+    }
+
+
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
     }
@@ -279,6 +390,160 @@ final class StatusBarController: NSObject {
             if alert.runModal() == .alertFirstButtonReturn {
                 PermissionManager.shared.requestAccessibilityPermission()
             }
+        }
+    }
+    
+    // MARK: - 录屏控制状态与菜单更新
+    
+    private func setupRecordingMenu() {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.delegate = self
+        
+        let engine = ScreenRecordingEngine.shared
+        let statusText = engine.isPaused ? "录制已暂停".localized : "正在录制屏幕...".localized
+        let statusItem = NSMenuItem(title: statusText, action: nil, keyEquivalent: "")
+        statusItem.isEnabled = false
+        menu.addItem(statusItem)
+        
+        menu.addItem(.separator())
+        
+        // 暂停/继续
+        let pauseTitle = engine.isPaused ? "继续录制".localized : "暂停录制".localized
+        let pauseSymbol = engine.isPaused ? "play.fill" : "pause.fill"
+        let pauseItem = makeItem(
+            title: pauseTitle,
+            symbolName: pauseSymbol,
+            shortcut: "",
+            modifiers: [],
+            action: #selector(toggleRecordingPause)
+        )
+        menu.addItem(pauseItem)
+        
+        // 停止并保存
+        let stopItem = makeItem(
+            title: "停止并保存".localized,
+            symbolName: "stop.fill",
+            shortcut: "",
+            modifiers: [],
+            action: #selector(stopRecordingAndSave)
+        )
+        menu.addItem(stopItem)
+        
+        // 取消录制
+        let cancelItem = makeItem(
+            title: "取消录制".localized,
+            symbolName: "trash",
+            shortcut: "",
+            modifiers: [],
+            action: #selector(cancelRecording)
+        )
+        menu.addItem(cancelItem)
+        
+        self.statusItem.menu = menu
+        
+        for item in menu.items {
+            item.target = self
+        }
+    }
+    
+    @objc private func handleRecordingStart() {
+        setupRecordingMenu()
+        
+        recordingTimer?.invalidate()
+        recordingTimer = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(updateRecordingStatus), userInfo: nil, repeats: true)
+        
+        updateRecordingStatus()
+    }
+    
+    @objc private func handleRecordingStop() {
+        recordingTimer?.invalidate()
+        recordingTimer = nil
+        
+        if let button = statusItem.button {
+            button.title = ""
+            setupIcon()
+        }
+        
+        setupMenu()
+    }
+    
+    @objc private func updateRecordingStatus() {
+        guard let button = statusItem.button else { return }
+        let engine = ScreenRecordingEngine.shared
+        
+        let durationStr = formatDuration(engine.recordingDuration)
+        button.title = " " + durationStr
+        
+        flashState.toggle()
+        
+        // 设置图标
+        let config = NSImage.SymbolConfiguration(paletteColors: [.systemRed])
+        if engine.isPaused {
+            // 暂停状态使用 pause.circle.fill，红色常亮不闪烁
+            if let pauseImage = NSImage(systemSymbolName: "pause.circle.fill", accessibilityDescription: nil) {
+                button.image = pauseImage.withSymbolConfiguration(config)
+            }
+        } else {
+            // 录制状态使用 dot.circle.fill 和 circle 交替闪烁
+            let symbolName = flashState ? "dot.circle.fill" : "circle"
+            if let recImage = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) {
+                button.image = recImage.withSymbolConfiguration(config)
+            }
+        }
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let mins = Int(duration) / 60
+        let secs = Int(duration) % 60
+        return String(format: "%02d:%02d", mins, secs)
+    }
+    
+    @objc private func toggleRecordingPause() {
+        let engine = ScreenRecordingEngine.shared
+        if engine.isPaused {
+            engine.resumeRecording()
+        } else {
+            engine.pauseRecording()
+        }
+        setupRecordingMenu()
+    }
+    
+    @objc private func stopRecordingAndSave() {
+        Task { @MainActor in
+            do {
+                let fileURL = try await ScreenRecordingEngine.shared.stopRecording()
+                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+            } catch {
+                print("[状态栏] 停止录屏失败: \(error)")
+            }
+        }
+    }
+    
+    @objc private func cancelRecording() {
+        let alert = NSAlert()
+        alert.messageText = "确定要取消录制吗？".localized
+        alert.informativeText = "取消录制将不会保存本次录制的视频文件，并且无法恢复。".localized
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "确定取消".localized)
+        alert.addButton(withTitle: "继续录制".localized)
+        
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task { @MainActor in
+                do {
+                    try await ScreenRecordingEngine.shared.cancelRecording()
+                } catch {
+                    print("[状态栏] 取消录像失败: \(error)")
+                }
+            }
+        }
+    }
+}
+
+extension StatusBarController: NSMenuDelegate {
+    func menuWillOpen(_ menu: NSMenu) {
+        if ScreenRecordingEngine.shared.isRecording {
+            setupRecordingMenu()
         }
     }
 }

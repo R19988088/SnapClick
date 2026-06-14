@@ -17,14 +17,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupFinderCommandObserver()
         handleFinderCommand()
 
+        // 初始化并监听程序坞图标状态
+        updateActivationPolicy()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateActivationPolicy),
+            name: .showInDockDidChange,
+            object: nil
+        )
+
         let settings = AppSettings.shared
         if settings.isFirstLaunch {
             showWelcomeWindow()
         }
     }
 
+    @objc private func updateActivationPolicy() {
+        let showInDock = AppSettings.shared.showInDock
+        if showInDock {
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            NSApp.setActivationPolicy(.accessory)
+        }
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openSettings()
+        return true
     }
 
     func openSettings() {

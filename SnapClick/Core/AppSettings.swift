@@ -42,6 +42,10 @@ final class AppSettings: ObservableObject {
     @AppStorage("hotkeyAreaScreenshot")
     var hotkeyAreaScreenshot: String = "ctrl+shift+a"
 
+    /// 窗口截图快捷键
+    @AppStorage("hotkeyWindowScreenshot")
+    var hotkeyWindowScreenshot: String = "ctrl+shift+w"
+
     /// 长截图快捷键
     @AppStorage("hotkeyLongScreenshot")
     var hotkeyLongScreenshot: String = "ctrl+shift+l"
@@ -75,10 +79,17 @@ final class AppSettings: ObservableObject {
     }
 
     /// 在菜单栏显示图标
-    @AppStorage("showInMenuBar")
     var showInMenuBar: Bool = true {
         didSet {
             NotificationCenter.default.post(name: .showInMenuBarDidChange, object: nil)
+        }
+    }
+
+    /// 在程序坞中显示图标
+    @AppStorage("showInDock")
+    var showInDock: Bool = false {
+        didSet {
+            NotificationCenter.default.post(name: .showInDockDidChange, object: nil)
         }
     }
 
@@ -110,6 +121,52 @@ final class AppSettings: ObservableObject {
 
     @AppStorage("templateAutoOpen")
     var templateAutoOpen: Bool = false
+
+    // MARK: 屏幕录制设置
+
+    /// 录制文件保存路径（默认桌面）
+    @AppStorage("recordSavePath")
+    var recordSavePath: String = "~/Desktop"
+
+    /// 录制格式（MOV / MP4）
+    @AppStorage("recordFormat")
+    var recordFormat: String = "MOV"
+
+    /// 视频编解码（H.264 / HEVC）
+    @AppStorage("recordCodec")
+    var recordCodec: String = "H.264"
+
+    /// 帧率（30 / 60 / 120）
+    @AppStorage("recordFPS")
+    var recordFPS: Int = 60
+
+    /// 分辨率（与选区匹配 / 1080p / 4K）
+    @AppStorage("recordResolution")
+    var recordResolution: String = "与选区匹配"
+
+    /// 录制系统音频
+    @AppStorage("recordSystemAudio")
+    var recordSystemAudio: Bool = true
+
+    /// 麦克风设备名称（"无" 表示不录麦克风）
+    @AppStorage("recordMicrophone")
+    var recordMicrophone: String = "无"
+
+    /// 定时录制秒数（默认 3 秒）
+    @AppStorage("recordTimer")
+    var recordTimer: Int = 3
+
+    /// 鼠标高亮
+    @AppStorage("recordHighlightCursor")
+    var recordHighlightCursor: Bool = false
+
+    /// 区域录制快捷键
+    @AppStorage("hotkeyRecordArea")
+    var hotkeyRecordArea: String = "ctrl+shift+r"
+
+    /// 全屏录制快捷键
+    @AppStorage("hotkeyRecordScreen")
+    var hotkeyRecordScreen: String = "ctrl+shift+f"
 }
 
 // MARK: - LanguageManager
@@ -184,6 +241,8 @@ public final class LanguageManager: ObservableObject {
             "启动与系统": "Startup & System",
             "开机自启动": "Launch at Login",
             "在菜单栏显示图标": "Show Icon in Menu Bar",
+            "在程序坞中显示图标": "Show Icon in Dock",
+            "在下方程序坞中显示应用图标": "Show the application icon in the Dock",
             "语言与外观偏好": "Language & Appearance",
             "系统语言": "System Language",
             "应用界面及菜单的呈现语言": "Display language for the app interface and menus",
@@ -191,7 +250,12 @@ public final class LanguageManager: ObservableObject {
             "English (US)": "English (US)",
             "日本語": "Japanese",
             "全局快捷键": "Global Shortcuts",
-            "区域截图": "Area Screenshot",
+            "截图": "Screenshot",
+            "区域截图": "Screenshot",
+            "窗口截图": "Window Screenshot",
+            "点击截取窗口 · 拖拽选择区域": "Click to capture window · Drag to select area",
+            "点击确认 · Enter 确定  |  ESC 取消": "Click to confirm · Press Enter  |  ESC Cancel",
+            "选取目标窗口": "Select target window",
             "长截图": "Long Screenshot",
             "屏幕取色": "Color Picker",
             "贴图": "Pin Image",
@@ -317,6 +381,38 @@ public final class LanguageManager: ObservableObject {
             "按下快捷键后，将鼠标悬停在目标颜色上并单击即可拾取，支持屏幕任意位置。": "After pressing the shortcut, hover over the target color and click to pick. Works anywhere on screen.",
             "从剪贴板抓取图片并钉在屏幕上": "Grab image from clipboard and pin it on screen",
             "使用贴图功能钉上图片后将在此显示最近记录": "Recently pinned images will appear here",
+
+            // 屏幕录制 - 新增
+            "屏幕录制": "Screen Recording",
+            "录制预览": "Recording Preview",
+            "录制范围": "Recording Area",
+            "选区录制": "Area Selection",
+            "全屏录制": "Full Screen",
+            "应用窗口": "App Window",
+            "视频参数": "Video Settings",
+            "分辨率": "Resolution",
+            "与选区匹配": "Match Selection",
+            "帧率": "Frame Rate",
+            "视频格式": "Format",
+            "编解码": "Codec",
+            "音频与高级": "Audio & Advanced",
+            "系统声音": "System Audio",
+            "录制系统内部声音（macOS 13+）": "Record internal system audio (macOS 13+)",
+            "麦克风": "Microphone",
+            "定时录制": "Countdown Timer",
+            "关闭": "Off",
+            "鼠标高亮": "Highlight Cursor",
+            "录制时高亮显示鼠标光标位置": "Highlight mouse cursor during recording",
+            "保存位置": "Save Location",
+            "区域录制": "Area Record",
+            "选取矩形录制区域": "Select rectangular area to record",
+            "全屏开始": "Record Full Screen",
+            "立即录制全屏": "Start full-screen recording immediately",
+            "选区录制快捷键": "Area Recording Shortcut",
+            "全屏录制快捷键": "Full Screen Shortcut",
+            "单击选取录制区域": "Click to select recording area",
+            "高帧率（流畅）": "High FPS (Smooth)",
+            "无损": "Lossless",
         ],
         "ja": [
             "SnapClick": "SnapClick",
@@ -362,6 +458,8 @@ public final class LanguageManager: ObservableObject {
             "启动与系统": "起動とシステム",
             "开机自启动": "ログイン時に起動",
             "在菜单栏显示图标": "メニューバーにアイコンを表示",
+            "在程序坞中显示图标": "ドックにアイコンを表示",
+            "在下方程序坞中显示应用图标": "ドックにアプリのアイコンを表示する",
             "语言与外观偏好": "言語と外観",
             "系统语言": "システム言語",
             "应用界面及菜单的呈现语言": "アプリのインターフェイスとメニューの表示言語",
@@ -369,7 +467,12 @@ public final class LanguageManager: ObservableObject {
             "English (US)": "英語 (米国)",
             "日本語": "日本語",
             "全局快捷键": "グローバルショートカット",
-            "区域截图": "領域スクリーンショット",
+            "截图": "スクリーンショット",
+            "区域截图": "スクリーンショット",
+            "窗口截图": "ウィンドウスクリーンショット",
+            "点击截取窗口 · 拖拽选择区域": "クリックでウィンドウキャプチャ · ドラッグで領域選択",
+            "点击确认 · Enter 确定  |  ESC 取消": "クリックで確認 · Enterで決定  |  ESC キャンセル",
+            "选取目标窗口": "対象ウィンドウを選択",
             "长截图": "ロングスクリーンショット",
             "屏幕取色": "カラーピッカー",
             "贴图": "ピン留め",
@@ -491,6 +594,38 @@ public final class LanguageManager: ObservableObject {
             "按下快捷键后，将鼠标悬停在目标颜色上并单击即可拾取，支持屏幕任意位置。": "ショートカットキーを押した後、対象の色にカーソルを合わせてクリックで取得。画面のどこでも可能。",
             "从剪贴板抓取图片并钉在屏幕上": "クリップボードから画像を取得して画面にピン留め",
             "使用贴图功能钉上图片后将在此显示最近记录": "ピン留め機能で画像を固定すると、ここに最近の記録が表示されます",
+
+            // 画面録画 - 新增
+            "屏幕录制": "画面録画",
+            "录制预览": "録画プレビュー",
+            "录制范围": "録画範囲",
+            "选区录制": "範囲選択",
+            "全屏录制": "全画面",
+            "应用窗口": "アプリウィンドウ",
+            "视频参数": "映像設定",
+            "分辨率": "解像度",
+            "与选区匹配": "選択範囲に合わせる",
+            "帧率": "フレームレート",
+            "视频格式": "フォーマット",
+            "编解码": "コーデック",
+            "音频与高级": "オーディオと詳細",
+            "系统声音": "システムオーディオ",
+            "录制系统内部声音（macOS 13+）": "システム内部音声を録音（macOS 13+）",
+            "麦克风": "マイク",
+            "定时录制": "カウントダウン",
+            "关闭": "オフ",
+            "鼠标高亮": "カーソル強調",
+            "录制时高亮显示鼠标光标位置": "録画中にマウスカーソルを強調表示",
+            "保存位置": "保存場所",
+            "区域录制": "範囲録画",
+            "选取矩形录制区域": "録画する矩形領域を選択",
+            "全屏开始": "全画面録画",
+            "立即录制全屏": "全画面録画をすぐに開始",
+            "选区录制快捷键": "範囲録画ショートカット",
+            "全屏录制快捷键": "全画面録画ショートカット",
+            "单击选取录制区域": "クリックして録画範囲を選択",
+            "高帧率（流畅）": "高フレームレート（スムーズ）",
+            "无损": "ロスレス",
         ]
     ]
 
@@ -509,6 +644,7 @@ public final class LanguageManager: ObservableObject {
 public extension Notification.Name {
     static let appLanguageDidChange = Notification.Name("AppLanguageDidChange")
     static let showInMenuBarDidChange = Notification.Name("ShowInMenuBarDidChange")
+    static let showInDockDidChange = Notification.Name("ShowInDockDidChange")
 }
 
 // MARK: - String Extension

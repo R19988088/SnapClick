@@ -10,6 +10,7 @@ import Vision
 enum CaptureOverlayMode {
     case areaSelection    // 区域选择模式（拖拽）
     case windowSelection  // 窗口选择模式（点击）
+    case combined         // 智能模式：悬停高亮窗口，拖拽选区，点击捕获窗口
 }
 
 // MARK: - 全屏覆盖层窗口
@@ -99,6 +100,12 @@ class CaptureOverlayWindow: NSWindow {
     func enterFullScreenAnnotationDirectly() {
         overlayView.enterFullScreenAnnotationDirectly()
     }
+
+    /// 最后一次拖拽完成的选区（供录制引擎读取）
+    var lastSelectedRect: CGRect? {
+        let r = overlayView.selectedRect
+        return (r.width > 10 && r.height > 10) ? r : nil
+    }
 }
 
 // MARK: - 覆盖层视图
@@ -123,7 +130,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     private var startPoint:    NSPoint = .zero
     private var currentPoint:  NSPoint = .zero
     private var isDragging:    Bool    = false
-    private var selectedRect:  NSRect  = .zero
+    var selectedRect:  NSRect  = .zero
 
     // 拖拽与缩放
     enum DragHandle {
@@ -145,6 +152,10 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     private var isAnnotating = false
     fileprivate var canvas: AnnotationCanvas?
     private var editorToolbar: NSVisualEffectView?
+    
+    // 智能模式：窗口已选中等待确认（点击窗口后进入此状态，可调整选区，按 Enter 或双击确认）
+    private var isWindowSelectedPending = false
+    private var pendingSelectedWindow: SCWindow?
     
     // MARK: - 长截图属性
     private let stitchingManager = StitchingManager()
@@ -204,12 +215,12 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         // 2. 绘制半透明暗化遮罩
         context.setFillColor(NSColor(calibratedRed: 0, green: 0, blue: 0, alpha: 0.35).cgColor)
 
-        if mode == .areaSelection && (isDragging || isAnnotating || isScrollingCaptureActive) {
+        if (mode == .areaSelection || mode == .combined) && (isDragging || isAnnotating || isScrollingCaptureActive || isWindowSelectedPending) {
             // 区域选择或正在就地标注：只在选区外侧暗化
             let outerPath = CGMutablePath()
             outerPath.addRect(bounds)
             
-            let rectToClear = isAnnotating ? selectedRect : normalizedSelectedRect()
+            let rectToClear = isAnnotating || isWindowSelectedPending ? selectedRect : normalizedSelectedRect()
             outerPath.addRect(rectToClear)
 
             context.addPath(outerPath)
@@ -224,10 +235,16 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
                 drawSelectionBorder(context: context)
                 drawSizeAnnotation(context: context)
             }
-        } else if mode == .windowSelection {
+
+            if isWindowSelectedPending, let win = pendingSelectedWindow {
+                drawWindowTooltip(window: win, rect: selectedRect, context: context)
+                drawWindowConfirmHint(context: context)
+            }
+        } else if mode == .windowSelection || mode == .combined {
             context.fill(bounds)
             if let win = hoveredWindow {
                 drawWindowHighlight(window: win, context: context)
+                drawWindowTooltip(window: win, rect: winToViewRect(win), context: context)
             }
         } else {
             // 未开始拖拽且未标注：整体半透明暗化
@@ -237,7 +254,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         // 3. 拖拽选择阶段（放大镜功能已按需求移除）
 
         // 4. 绘制顶部操作提示（未进入标注且未在长截图捕获时）
-        if !isAnnotating && !isScrollingCaptureActive {
+        if !isAnnotating && !isScrollingCaptureActive && !isWindowSelectedPending {
             drawHint(context: context)
         }
     }
@@ -325,31 +342,27 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
 
     // MARK: - 绘制窗口高亮
     private func drawWindowHighlight(window: SCWindow, context: CGContext) {
-        let screenHeight = bounds.height
-        let winFrame = window.frame
-        let viewRect = CGRect(
-            x:      winFrame.origin.x,
-            y:      screenHeight - winFrame.origin.y - winFrame.height,
-            width:  winFrame.width,
-            height: winFrame.height
-        )
+        let viewRect = winToViewRect(window)
 
         context.clear(viewRect)
         backgroundImage.draw(
             in:   viewRect,
             from: CGRect(
-                x:      winFrame.origin.x,
-                y:      winFrame.origin.y,
-                width:  winFrame.width,
-                height: winFrame.height
+                x:      viewRect.origin.x,
+                y:      bounds.height - viewRect.origin.y - viewRect.height,
+                width:  viewRect.width,
+                height: viewRect.height
             ),
             operation: .sourceOver,
             fraction:  1.0
         )
 
-        context.setStrokeColor(NSColor.systemBlue.cgColor)
+        context.setFillColor(NSColor(red: 0.12, green: 0.56, blue: 1.0, alpha: 0.08).cgColor)
+        context.fill(viewRect)
+
+        context.setStrokeColor(NSColor(red: 0.12, green: 0.56, blue: 1.0, alpha: 1.0).cgColor)
         context.setLineWidth(3)
-        context.stroke(viewRect.insetBy(dx: 1.5, dy: 1.5))
+        context.stroke(viewRect)
     }
 
     // MARK: - 绘制放大镜
@@ -402,6 +415,8 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         let hint: String
         if isLongScreenshotMode {
             hint = "拖拽选择要长截图的区域  |  ESC 取消"
+        } else if mode == .combined {
+            hint = "点击截取窗口 · 拖拽选择区域  |  ESC 取消"
         } else {
             hint = mode == .areaSelection ? "拖拽选择截图区域  |  ESC 取消" : "点击选择要截图的窗口  |  ESC 取消"
         }
@@ -579,7 +594,14 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             }
         }
         
-        guard !isAnnotating else { return } // 正在就地标注时，截获鼠标逻辑不在此处处理
+        guard !isAnnotating else { return }
+
+        if isWindowSelectedPending {
+            isWindowSelectedPending = false
+            pendingSelectedWindow = nil
+            enterInPlaceAnnotationMode()
+            return
+        }
 
         switch mode {
         case .areaSelection:
@@ -588,17 +610,15 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             isDragging   = true
             needsDisplay = true
 
+        case .combined:
+            startPoint   = loc
+            currentPoint = loc
+            isDragging   = true
+            needsDisplay = true
+
         case .windowSelection:
             if let win = windowAtPoint(loc) {
-                let screenHeight = bounds.height
-                let winFrame = win.frame
-                let viewRect = CGRect(
-                    x:      winFrame.origin.x,
-                    y:      screenHeight - winFrame.origin.y - winFrame.height,
-                    width:  winFrame.width,
-                    height: winFrame.height
-                )
-                selectedRect = viewRect.intersection(bounds)
+                selectedRect = winToViewRect(win).intersection(bounds)
                 enterInPlaceAnnotationMode()
             } else {
                 onCancelled?()
@@ -671,7 +691,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             return
         }
         
-        guard mode == .areaSelection && !isAnnotating else { return }
+        guard (mode == .areaSelection || mode == .combined) && !isAnnotating else { return }
         currentPoint = convert(event.locationInWindow, from: nil)
         magnifierCenter = currentPoint
         needsDisplay = true
@@ -683,9 +703,22 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             return
         }
         
-        guard mode == .areaSelection && isDragging && !isAnnotating else { return }
+        guard (mode == .areaSelection || mode == .combined) && isDragging && !isAnnotating else { return }
         isDragging = false
         let rect = normalizedSelectedRect()
+
+        // 智能模式：拖拽距离太小视为点击，选中悬停窗口等待确认
+        if mode == .combined && rect.width < 10 && rect.height < 10 {
+            if let win = hoveredWindow {
+                selectedRect = winToViewRect(win).intersection(bounds)
+                pendingSelectedWindow = win
+                isWindowSelectedPending = true
+                needsDisplay = true
+            } else {
+                needsDisplay = true
+            }
+            return
+        }
 
         if rect.width < 10 || rect.height < 10 {
             needsDisplay = true
@@ -695,10 +728,8 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         selectedRect = rect
         
         if isLongScreenshotMode {
-            // 长截图模式：选区后直接进入滚动截图，不进入标注模式
             enterScrollingCaptureMode()
         } else {
-            // 🌟 正式进入就地标注模式，不退出窗口，不弹窗！
             enterInPlaceAnnotationMode()
         }
     }
@@ -723,8 +754,22 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         let loc = convert(event.locationInWindow, from: nil)
         magnifierCenter = loc
 
-        if mode == .windowSelection {
+        if isWindowSelectedPending {
+            if selectedRect.contains(loc) {
+                NSCursor.pointingHand.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+            return
+        }
+
+        if mode == .windowSelection || mode == .combined {
             hoveredWindow = windowAtPoint(loc)
+            if hoveredWindow != nil {
+                NSCursor.pointingHand.set()
+            } else {
+                NSCursor.arrow.set()
+            }
         }
         needsDisplay = true
     }
@@ -1606,6 +1651,13 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
 
     // MARK: - 键盘派发
     func handleKeyDown(event: NSEvent) {
+        if isWindowSelectedPending && event.keyCode == 36 {
+            isWindowSelectedPending = false
+            pendingSelectedWindow = nil
+            enterInPlaceAnnotationMode()
+            return
+        }
+        
         guard isAnnotating else { return }
         
         if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "z" {
@@ -1630,10 +1682,75 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     private func windowAtPoint(_ viewPoint: NSPoint) -> SCWindow? {
         let screenHeight = bounds.height
         let screenPoint = CGPoint(x: viewPoint.x, y: screenHeight - viewPoint.y)
-        return availableWindows.first { window in
+        var bestWindow: SCWindow?
+        for window in availableWindows {
             let frame = window.frame
-            return frame.contains(screenPoint)
+            if frame.contains(screenPoint) {
+                bestWindow = window
+            }
         }
+        return bestWindow
+    }
+
+    private func winToViewRect(_ win: SCWindow) -> CGRect {
+        let screenHeight = bounds.height
+        let winFrame = win.frame
+        return CGRect(
+            x:      winFrame.origin.x,
+            y:      screenHeight - winFrame.origin.y - winFrame.height,
+            width:  winFrame.width,
+            height: winFrame.height
+        )
+    }
+
+    private func drawWindowTooltip(window: SCWindow, rect: CGRect, context: CGContext) {
+        let appName = window.owningApplication?.applicationName ?? ""
+        let winTitle = window.title ?? ""
+        let text = appName + (winTitle.isEmpty ? "" : " - \(winTitle)")
+
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .bold),
+            .foregroundColor: NSColor.white
+        ]
+        let attrStr = NSAttributedString(string: text, attributes: attrs)
+        let textSize = attrStr.size()
+        let maxTextWidth = min(textSize.width, rect.width - 20)
+        let displaySize = CGSize(width: maxTextWidth, height: textSize.height)
+
+        let padding: CGFloat = 6
+        let boxRect = CGRect(
+            x: rect.minX + 8,
+            y: rect.maxY + 6,
+            width: displaySize.width + padding * 2,
+            height: displaySize.height + padding * 2
+        )
+
+        context.setFillColor(NSColor(red: 0.12, green: 0.56, blue: 1.0, alpha: 1.0).cgColor)
+        let path = CGPath(roundedRect: boxRect, cornerWidth: 4, cornerHeight: 4, transform: nil)
+        context.addPath(path)
+        context.fillPath()
+
+        attrStr.draw(in: boxRect.insetBy(dx: padding, dy: padding))
+    }
+
+    private func drawWindowConfirmHint(context: CGContext) {
+        let text = "点击确认 · Enter 确定  |  ESC 取消".localized
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: NSColor.white
+        ]
+        let attrStr = NSAttributedString(string: text, attributes: attrs)
+        let textSize = attrStr.size()
+        let x = (bounds.width - textSize.width) / 2
+        let y = (bounds.height - textSize.height) / 2
+
+        context.setFillColor(NSColor(white: 0, alpha: 0.5).cgColor)
+        let boxRect = CGRect(x: x - 15, y: y - 10, width: textSize.width + 30, height: textSize.height + 20)
+        let path = CGPath(roundedRect: boxRect, cornerWidth: 8, cornerHeight: 8, transform: nil)
+        context.addPath(path)
+        context.fillPath()
+
+        attrStr.draw(at: CGPoint(x: x, y: y))
     }
 }
 

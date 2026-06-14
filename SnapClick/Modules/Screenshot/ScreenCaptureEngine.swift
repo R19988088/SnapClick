@@ -94,13 +94,11 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         return content
     }
 
-    // MARK: - 区域截图
-    /// 显示覆盖层让用户拖拽选区并进行就地标注，标注完成后自动保存并退出
-    func captureArea() async throws {
-        // 防止重复触发，确保同时只有一个截图实例运行
+    // MARK: - 智能截图（区域 + 窗口合一）
+    /// 显示覆盖层：悬停高亮窗口，拖拽选区，点击截取窗口
+    func capture() async throws {
         guard !isCapturing else { return }
 
-        // 权限检查：无屏幕录制权限时直接抛错，避免截出黑屏/壁纸
         guard PermissionManager.shared.hasScreenRecordingPermission else {
             throw ScreenCaptureError.permissionDenied
         }
@@ -108,10 +106,36 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         isCapturing = true
         defer { isCapturing = false }
 
-        // 先获取一张全屏底图用于覆盖层背景
+        let content = try await refreshContent()
         let backgroundImage = try await captureFullScreenRaw()
 
-        // 创建并显示覆盖层窗口
+        let windows = content.windows.filter {
+            $0.isOnScreen && $0.frame.width > 50 && $0.frame.height > 50
+        }
+
+        let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage,
+                                           windows: windows)
+        self.overlayWindow = overlay
+        overlay.mode = .combined
+        overlay.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        try await waitForOverlayToClose(overlay)
+    }
+
+    // MARK: - 区域截图
+    func captureArea() async throws {
+        guard !isCapturing else { return }
+
+        guard PermissionManager.shared.hasScreenRecordingPermission else {
+            throw ScreenCaptureError.permissionDenied
+        }
+
+        isCapturing = true
+        defer { isCapturing = false }
+
+        let backgroundImage = try await captureFullScreenRaw()
+
         let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage)
         self.overlayWindow = overlay
         overlay.mode = .areaSelection
@@ -146,9 +170,7 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     }
 
     // MARK: - 窗口截图
-    /// 显示窗口选择覆盖层，用户点击选中窗口后就地标注
     func captureWindow() async throws {
-        // 防止重复触发，确保同时只有一个截图实例运行
         guard !isCapturing else { return }
 
         guard PermissionManager.shared.hasScreenRecordingPermission else {
@@ -161,7 +183,6 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         let content = try await refreshContent()
         let backgroundImage = try await captureFullScreenRaw()
 
-        // 过滤掉自身窗口
         let windows = content.windows.filter {
             $0.isOnScreen && $0.frame.width > 50 && $0.frame.height > 50
         }

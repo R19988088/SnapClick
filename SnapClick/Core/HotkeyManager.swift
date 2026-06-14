@@ -39,13 +39,22 @@ final class HotkeyManager: ObservableObject {
         
         let settings = AppSettings.shared
         
-        // 解析并注册各个功能的快捷键
         register(settings.hotkeyAreaScreenshot, name: "区域截图") {
             Task {
                 do {
                     try await ScreenCaptureEngine.shared.captureArea()
                 } catch {
                     print("区域截图失败: \(error.localizedDescription)")
+                }
+            }
+        }
+
+        register(settings.hotkeyWindowScreenshot, name: "窗口截图") {
+            Task {
+                do {
+                    try await ScreenCaptureEngine.shared.captureWindow()
+                } catch {
+                    print("窗口截图失败: \(error.localizedDescription)")
                 }
             }
         }
@@ -63,7 +72,6 @@ final class HotkeyManager: ObservableObject {
                 }
             }
         }
-        
         register(settings.hotkeyPin, name: "剪贴板贴图") {
             if let image = NSImage(pasteboard: NSPasteboard.general) {
                 PinWindowManager.shared.pin(image: image)
@@ -78,10 +86,31 @@ final class HotkeyManager: ObservableObject {
             }
         }
         
+        register(settings.hotkeyRecordArea, name: "区域录屏") {
+            Task { @MainActor in
+                do {
+                    try await ScreenRecordingEngine.shared.startAreaRecording()
+                } catch {
+                    print("区域录屏失败: \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        register(settings.hotkeyRecordScreen, name: "全屏录屏") {
+            Task { @MainActor in
+                do {
+                    try await ScreenRecordingEngine.shared.startFullScreenRecording()
+                } catch {
+                    print("全屏录屏失败: \(error.localizedDescription)")
+                }
+            }
+        }
+        
         if eventTap == nil {
             startListening()
         }
     }
+
     
     // MARK: - 快捷键解析与添加
     
