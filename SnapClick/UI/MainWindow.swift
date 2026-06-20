@@ -333,10 +333,7 @@ private struct SidebarView: View {
         .background(
             Group {
                 if settings.enableGlassEffect {
-                    Color.dynamic(
-                        light: Color.white.opacity(0.04),
-                        dark: Color.black.opacity(0.02)
-                    )
+                    Color(red: 194/255, green: 193/255, blue: 193/255).opacity(0.5)
                 } else {
                     Color.dynamic(
                         light: Color(white: 0.94),
@@ -400,10 +397,7 @@ private struct DetailView: View {
         .background(
             Group {
                 if settings.enableGlassEffect {
-                    Color.dynamic(
-                        light: Color.white.opacity(0.35),
-                        dark: Color.black.opacity(0.25)
-                    )
+                    Color(red: 210/255, green: 209/255, blue: 208/255).opacity(0.5)
                 } else {
                     Color.dynamic(
                         light: Color(white: 0.98),
@@ -422,7 +416,6 @@ private struct GeneralSettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var permMgr = PermissionManager.shared
     @Binding var selectedDestination: SettingsDestination?
-    @AppStorage("isFinderEnabled") private var isFinderEnabled: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -459,15 +452,37 @@ private struct GeneralSettingsView: View {
                         iconColor: Color(red: 20/255, green: 184/255, blue: 166/255),
                         title: "Finder 扩展".localized,
                         description: "右键菜单与图标覆盖所需".localized,
-                        isGranted: isFinderEnabled,
+                        isGranted: permMgr.hasFinderExtensionPermission,
                         actionLabel: "去启用".localized,
-                        onAction: {
-                            isFinderEnabled = true
-                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.extensions?FinderSync") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
+                        onAction: { permMgr.requestFinderExtensionPermission() }
                     )
+                }
+
+                // 重新检测按钮
+                HStack {
+                    Spacer()
+                    Button {
+                        permMgr.refreshAllPermissions()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 11, weight: .medium))
+                                .rotationEffect(.degrees(permMgr.isRefreshing ? 360 : 0))
+                                .animation(
+                                    permMgr.isRefreshing
+                                        ? .linear(duration: 0.7).repeatForever(autoreverses: false)
+                                        : .default,
+                                    value: permMgr.isRefreshing
+                                )
+                            Text(permMgr.isRefreshing ? "检测中…".localized : "重新检测".localized)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .animation(.none, value: permMgr.isRefreshing)
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(permMgr.isRefreshing ? DT.accent.opacity(0.7) : .secondary)
+                    .disabled(permMgr.isRefreshing)
+                    .padding(.top, 2)
                 }
             }
 

@@ -60,10 +60,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func openSettings() {
+        print("[诊断] AppDelegate.openSettings 调用, settingsWindow == nil ? \(settingsWindow == nil)")
         if settingsWindow == nil {
             let hostingView = NSHostingView(rootView: MainWindow()
                 .environmentObject(ColorPickerEngine.shared)
                 .environmentObject(PinWindowManager.shared))
+            hostingView.wantsLayer = true
+            hostingView.layer?.backgroundColor = .clear
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 880, height: 600),
                 styleMask: [.titled, .closable, .resizable, .miniaturizable, .fullSizeContentView],
@@ -87,6 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyGlassEffect(to: settingsWindow)
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        print("[诊断] settingsWindow.frame = \(String(describing: settingsWindow?.frame)), isVisible = \(String(describing: settingsWindow?.isVisible)), screen = \(String(describing: settingsWindow?.screen))")
     }
 
     func closeSettings() {
@@ -111,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.isOpaque = true
             window.backgroundColor = .windowBackgroundColor
         }
+        print("[诊断玻璃] enableGlassEffect=\(AppSettings.shared.enableGlassEffect) isOpaque=\(window.isOpaque) bg=\(String(describing: window.backgroundColor)) contentView=\(String(describing: type(of: window.contentView)))")
     }
 
     @objc private func handleGlassEffectChanged() {
@@ -246,6 +251,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.welcomeWindow?.close()
             self.welcomeWindow = nil
         })
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = .clear
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 560),

@@ -305,6 +305,7 @@ final class StatusBarController: NSObject {
     }
 
     @objc private func openSettings() {
+        print("[诊断] StatusBar openSettings 被点击, appDelegate = \(String(describing: appDelegate))")
         appDelegate?.openSettings()
     }
 

@@ -42,6 +42,7 @@ Carthage/Checkouts/
 *~
 .idea/
 .vscode/
+.claude/
 
 # User-specific
 *.xcuserstate
@@ -73,4 +74,9 @@ test_plan.sh
 build/
 dmg_temp/
 *.dmg
+website/
+*.zip
+.csdn-article-*.md
+.juejin-article-*.md
+.release-notes-*.md
 

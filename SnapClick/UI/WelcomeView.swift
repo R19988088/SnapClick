@@ -24,7 +24,7 @@ struct WelcomeView: View {
         ZStack {
             // ── 统一底面背景（毛玻璃或纯色） ────────────────────────────────
             if settings.enableGlassEffect {
-                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+                VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
                     .ignoresSafeArea()
             } else {
                 Color.dynamic(
@@ -212,9 +212,7 @@ struct WelcomeView: View {
                                     isGranted: isFinderEnabled,
                                     onAuthorize: {
                                         isFinderEnabled = true
-                                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.extensions?FinderSync") {
-                                            NSWorkspace.shared.open(url)
-                                        }
+                                        PermissionManager.shared.requestFinderExtensionPermission()
                                     }
                                 )
                             }
@@ -252,10 +250,7 @@ struct WelcomeView: View {
                 .background(
                     Group {
                         if settings.enableGlassEffect {
-                            Color.dynamic(
-                                light: Color.white.opacity(0.35),
-                                dark: Color.black.opacity(0.25)
-                            )
+                            Color(red: 160/255, green: 161/255, blue: 162/255).opacity(0.5)
                         }
                     }
                 )
