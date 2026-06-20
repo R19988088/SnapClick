@@ -19,9 +19,7 @@ enum MenuBuilder {
         }
 
         if hasSelection {
-            menu.addItem(.separator())
             menu.addItem(makeFavoriteDirsItem(target: target))
-            menu.addItem(.separator())
             menu.addItem(makeCopyPathItem(target: target))
         }
 
@@ -71,40 +69,26 @@ enum MenuBuilder {
     }
 
     private static func makeOpenInTerminalItem(target: AnyObject) -> NSMenuItem? {
-        let terminals = cachedTerminals()
-
-        guard !terminals.isEmpty else {
-            let item = NSMenuItem(title: "在终端中打开", action: #selector(FinderSyncExtension.openInTerminal(_:)), keyEquivalent: "")
-            item.target = target
-            MenuBuilder.setRepresentedObject("com.apple.Terminal", for: item)
-            item.image = sfSymbol("terminal.fill", size: 14)
-            return item
+        var terminals = cachedTerminals()
+        if terminals.isEmpty {
+            terminals = [["name": "Terminal", "bundleID": "com.apple.Terminal"]]
         }
 
-        if terminals.count == 1 {
-            let term = terminals[0]
-            let item = NSMenuItem(title: "在 \(term["name"] ?? "Terminal") 中打开", action: #selector(FinderSyncExtension.openInTerminal(_:)), keyEquivalent: "")
-            item.target = target
-            MenuBuilder.setRepresentedObject(term["bundleID"] ?? "com.apple.Terminal", for: item)
-            item.image = sfSymbol("terminal.fill", size: 14)
-            return item
-        } else {
-            let item = NSMenuItem(title: "在终端中打开", action: nil, keyEquivalent: "")
-            item.image = sfSymbol("terminal.fill", size: 14)
+        let item = NSMenuItem(title: "在终端中打开", action: nil, keyEquivalent: "")
+        item.image = sfSymbol("terminal.fill", size: 14)
 
-            let subMenu = NSMenu(title: "在终端中打开")
-            for term in terminals {
-                let name = term["name"] ?? "Terminal"
-                let bundleID = term["bundleID"] ?? "com.apple.Terminal"
-                let mi = NSMenuItem(title: name, action: #selector(FinderSyncExtension.openInTerminal(_:)), keyEquivalent: "")
-                mi.target = target
-                MenuBuilder.setRepresentedObject(bundleID, for: mi)
-                mi.image = sfSymbol("terminal.fill", size: 14)
-                subMenu.addItem(mi)
-            }
-            item.submenu = subMenu
-            return item
+        let subMenu = NSMenu(title: "在终端中打开")
+        for term in terminals {
+            let name = term["name"] ?? "Terminal"
+            let bundleID = term["bundleID"] ?? "com.apple.Terminal"
+            let mi = NSMenuItem(title: name, action: #selector(FinderSyncExtension.openInTerminal(_:)), keyEquivalent: "")
+            mi.target = target
+            MenuBuilder.setRepresentedObject(bundleID, for: mi)
+            mi.image = sfSymbol("terminal.fill", size: 14)
+            subMenu.addItem(mi)
         }
+        item.submenu = subMenu
+        return item
     }
 
     private static func makeFavoriteDirsItem(target: AnyObject) -> NSMenuItem {

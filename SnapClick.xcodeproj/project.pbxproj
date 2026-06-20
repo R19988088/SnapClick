@@ -35,6 +35,7 @@
 		C14E9B6617CB509E5887A7AF /* PinWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B618C795C91C6275CCF7FE7 /* PinWindowController.swift */; };
 		C2D695438119EE4EDAF01453 /* FavoriteDirectoriesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC9274894385E7870B9B740 /* FavoriteDirectoriesManager.swift */; };
 		CB9D56AFEB620999E3FDA6E8 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356B4D9A7F2536E337434D86 /* PermissionManager.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* UpdateChecker.swift */; };
 		CDD10FAA8245BB8A646015CD /* SnapClickApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 444974DA6DAF9FA9AA13F497 /* SnapClickApp.swift */; };
 		DAE84CA4381EAB3D3131755B /* ColorPickerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E726F4FECD04F3A4B58A14 /* ColorPickerEngine.swift */; };
 		DC7E5D9B626A8FC5EB0A1F1C /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49AECAC44BA8CFCA81B4F3F1 /* WelcomeView.swift */; };
@@ -77,6 +78,7 @@
 		24C46AC68C3BABB8B159D58F /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
 		24DA6EBCC16BC194C262297E /* PinWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinWindowManager.swift; sourceTree = "<group>"; };
 		356B4D9A7F2536E337434D86 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		444974DA6DAF9FA9AA13F497 /* SnapClickApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapClickApp.swift; sourceTree = "<group>"; };
 		49AECAC44BA8CFCA81B4F3F1 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		51A2065576FD6FDA4A762340 /* ScreenRecordingEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScreenRecordingEngine.swift; path = ScreenRecordingEngine.swift; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 				6B99FD79048A7735A9956942 /* AppSettings.swift */,
 				0433B561482FC0EC58A4A1B6 /* HotkeyManager.swift */,
 				356B4D9A7F2536E337434D86 /* PermissionManager.swift */,
+				A1B2C3D4E5F60718293A4B5D /* UpdateChecker.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -357,6 +360,7 @@
 				2A1C62886ACA6FD00DB9BD98 /* MainWindow.swift in Sources */,
 				EBEC4CB0B57FD5A9A7172FC9 /* NewFileTemplateManager.swift in Sources */,
 				CB9D56AFEB620999E3FDA6E8 /* PermissionManager.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* UpdateChecker.swift in Sources */,
 				80E8D8DD13F0D17352FA9DC5 /* PinColorSettingsView.swift in Sources */,
 				C14E9B6617CB509E5887A7AF /* PinWindowController.swift in Sources */,
 				9365899555B15A4038717ADA /* PinWindowManager.swift in Sources */,
@@ -445,7 +449,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -511,7 +515,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

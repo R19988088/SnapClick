@@ -80,17 +80,14 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
             throw ScreenRecordingError.permissionDenied
         }
 
-        // 先截取底图供覆盖层显示
-        guard let cgImage = CGDisplayCreateImage(CGMainDisplayID()) else {
-            throw ScreenRecordingError.noScreenAvailable
-        }
-        let scale = NSScreen.main?.backingScaleFactor ?? 1.0
-        let bgImage = NSImage(cgImage: cgImage,
-                              size: NSSize(width: CGFloat(cgImage.width) / scale,
-                                           height: CGFloat(cgImage.height) / scale))
+        let screen = activeScreen()
+        let bgImage = try await captureScreen(screen)
 
         // 显示专属选区覆盖层等待用户拖拽和配置参数
-        let (selectedRect, selectedWindow) = try await showSelectionOverlay(background: bgImage)
+        let (selectedRect, selectedWindow) = try await showSelectionOverlay(
+            background: bgImage,
+            screen: screen
+        )
         guard let rect = selectedRect else {
             throw ScreenRecordingError.userCancelled
         }
@@ -135,20 +132,15 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
         // 获取可录制的窗口列表
         let windows = try await getShareableWindows()
 
-        // 截取底图供覆盖层显示
-        guard let cgImage = CGDisplayCreateImage(CGMainDisplayID()) else {
-            throw ScreenRecordingError.noScreenAvailable
-        }
-        let scale = NSScreen.main?.backingScaleFactor ?? 1.0
-        let bgImage = NSImage(cgImage: cgImage,
-                              size: NSSize(width: CGFloat(cgImage.width) / scale,
-                                           height: CGFloat(cgImage.height) / scale))
+        let screen = activeScreen()
+        let bgImage = try await captureScreen(screen)
 
         // 显示专属窗口覆盖层，等待用户选择和配置参数
         let (selectedRect, selectedWindow) = try await showSelectionOverlay(
             background: bgImage,
             windows: windows,
-            mode: .windowSelection
+            mode: .windowSelection,
+            screen: screen
         )
         guard let rect = selectedRect else {
             throw ScreenRecordingError.userCancelled
@@ -191,41 +183,83 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
     func stopRecording() async throws -> URL {
         guard isRecording else { throw ScreenRecordingError.notRecording }
 
-        // 停止流
+        // ① 第一步：立即将 isRecording 标记为 false，
+        //    让所有正在飞行的异步帧任务（Task { @MainActor in ... }）
+        //    在下一次调度时感知到录制已停止，从而不再向 assetWriter 追加数据
+        isRecording = false
+        isPaused = false
+
+        // ② 停止 ScreenCaptureKit 流，等待其真正停止
         try? await stream?.stopCapture()
         stream = nil
 
-        // 停止麦克风采集
+        // ③ 停止麦克风采集
         stopMicrophoneCapture()
 
-
-        // 关闭指示器窗口
+        // ④ 关闭指示器窗口
         areaIndicatorWindow?.orderOut(nil)
         areaIndicatorWindow = nil
 
-        // 停止时长计时器
+        // ⑤ 停止时长计时器
         durationTimer?.cancel()
         durationTimer = nil
 
-        // 完成写入并关闭文件描述符
+        // ⑥ 等待 300ms，给已派发的异步帧任务足够时间检测到 isRecording == false
+        //    并提前退出，避免并发写入冲突（原先 100ms 不够，在负载较高时仍有帧竞争）
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // ⑦ 若从未写入任何帧（firstSample 仍为 true，说明 startSession 未触发），
+        //    直接结束写入会进入 .failed 并报泛化错误，这里提前给出明确提示并清理
+        if firstSample {
+            videoInput?.markAsFinished()
+            audioInput?.markAsFinished()
+            micInput?.markAsFinished()
+            let writer = assetWriter
+            self.assetWriter = nil
+            writer?.cancelWriting()
+            if let url = outputURL { try? FileManager.default.removeItem(at: url) }
+            firstSample = true
+            timeOffset = .zero
+            lastAppendedPTS = .zero
+            needsResumeAdjustment = false
+            NotificationCenter.default.post(name: .recordingDidStop, object: nil)
+            throw ScreenRecordingError.saveFailed("未捕获到任何画面，录制时间过短或选区无效")
+        }
+
+        // ⑧ 通知各轨道数据写入完毕
         videoInput?.markAsFinished()
         audioInput?.markAsFinished()
         micInput?.markAsFinished()
-        await assetWriter?.finishWriting()
 
-        isRecording = false
-        isPaused = false
+        // ⑨ 先将 assetWriter 引用转移并置空，
+        //    防止极端情况下还有延迟帧在 finishWriting() 期间追加数据
+        let writer = assetWriter
+        self.assetWriter = nil
+
+        // ⑩ 完成写入并关闭文件描述符
+        await writer?.finishWriting()
+
+        // ⑪ 检查写入结果——即使 finishWriting 失败，也不要 throw，
+        //    因为此时 isRecording 已经为 false、流已经停止，
+        //    如果 throw 会导致调用者无法拿到 outputURL，且录屏陷入
+        //    "无法停止"的死锁（isRecording=false → guard 报 notRecording）。
+        //    改为仅打印日志警告，文件可能不完整但至少不会卡死。
+        if writer?.status == .failed {
+            let reason = writer?.error?.localizedDescription ?? "未知错误"
+            print("[ScreenRecordingEngine] ⚠️ finishWriting 失败（\(reason)），视频文件可能不完整")
+        }
+
         firstSample = true
         timeOffset = .zero
         lastAppendedPTS = .zero
         needsResumeAdjustment = false
 
+        // 广播通知，重置状态栏图标
+        NotificationCenter.default.post(name: .recordingDidStop, object: nil)
+
         guard let url = outputURL else {
             throw ScreenRecordingError.saveFailed("输出路径为空")
         }
-
-        // 广播通知，重置状态栏图标
-        NotificationCenter.default.post(name: .recordingDidStop, object: nil)
 
         return url
     }
@@ -242,12 +276,13 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
     private func showSelectionOverlay(
         background: NSImage,
         windows: [SCWindow] = [],
-        mode: RecordSelectionMode = .areaSelection
+        mode: RecordSelectionMode = .areaSelection,
+        screen: NSScreen
     ) async throws -> (CGRect?, SCWindow?) {
         return try await withCheckedThrowingContinuation { continuation in
             self.overlayContinuation = continuation
 
-            let overlay = RecordSelectionOverlayWindow(backgroundImage: background, windows: windows, mode: mode)
+            let overlay = RecordSelectionOverlayWindow(backgroundImage: background, windows: windows, screen: screen, mode: mode)
             self.selectionOverlayWindow = overlay
 
             overlay.onCancelled = { [weak self] in
@@ -271,18 +306,124 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
 
     private func getShareableWindows() async throws -> [SCWindow] {
         let content = try await SCShareableContent.current
-        let appBundleId = Bundle.main.bundleIdentifier
-        let filtered = content.windows.filter { window in
-            guard window.isOnScreen else { return false }
-            guard window.frame.width > 50 && window.frame.height > 50 else { return false }
-            guard window.windowLayer == 0 else { return false }
-            if let owningApp = window.owningApplication, owningApp.bundleIdentifier == appBundleId {
-                return false
-            }
-            guard let appName = window.owningApplication?.applicationName, !appName.isEmpty else { return false }
-            return true
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let ownBundleID = Bundle.main.bundleIdentifier
+        let screenFrames = NSScreen.screens.map { $0.frame }
+
+        let systemBundles: Set<String> = [
+            "com.apple.dock",
+            "com.apple.WindowManager",
+            "com.apple.controlcenter",
+            "com.apple.systemuiserver",
+            "com.apple.notificationcenterui",
+            "com.apple.wallpaper.WallpaperAgent",
+            "com.apple.Spotlight",
+            "com.apple.loginwindow",
+            "com.apple.TextInputMenuAgent",
+            "com.apple.TextInputSwitcher"
+        ]
+
+        // 1) 通过 CoreGraphics 获取真实可见窗口列表（已按 Z 序排好）
+        let cgListOpts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let rawList = CGWindowListCopyWindowInfo(cgListOpts, kCGNullWindowID) as? [[String: Any]] else {
+            return []
         }
-        return filtered
+
+        // 2) 把 SCWindow 按 windowID 建立索引，便于按 CG 顺序查找
+        var scIndex: [CGWindowID: SCWindow] = [:]
+        for w in content.windows {
+            scIndex[w.windowID] = w
+        }
+
+        // 3) 按 CG 列表顺序构建结果（保留 Z 序：前面 = 最上层）
+        var result: [SCWindow] = []
+        for entry in rawList {
+            // 仅普通应用窗口层
+            guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else { continue }
+            // 必须实际"在屏"
+            if let onScreen = entry[kCGWindowIsOnscreen as String] as? Bool, !onScreen { continue }
+            // 必须有 alpha（>0）
+            if let alpha = entry[kCGWindowAlpha as String] as? Double, alpha <= 0.05 { continue }
+            // PID：排除自身
+            if let pid = entry[kCGWindowOwnerPID as String] as? Int32, pid == ownPID { continue }
+            // 取 windowID
+            guard let cgID = entry[kCGWindowNumber as String] as? CGWindowID else { continue }
+            // 必须在 SCShareableContent 中存在
+            guard let scWin = scIndex[cgID] else { continue }
+            // owningApplication 必填
+            guard let app = scWin.owningApplication else { continue }
+            // 排除自身
+            if let ownBundleID = ownBundleID, app.bundleIdentifier == ownBundleID { continue }
+            // 排除系统 UI 进程
+            if systemBundles.contains(app.bundleIdentifier) { continue }
+            // 取 CGRect（CG 坐标系）
+            guard let boundsDict = entry[kCGWindowBounds as String] as? [String: Any],
+                  let cgRect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else { continue }
+            // 尺寸太小过滤
+            if cgRect.width < 60 || cgRect.height < 40 { continue }
+            // 必须与某个屏幕有交集
+            guard screenFrames.contains(where: { $0.intersects(scWin.frame) }) else { continue }
+            result.append(scWin)
+        }
+        return result
+    }
+
+    // MARK: - 私有：多屏幕与截图辅助
+    private func activeScreen() -> NSScreen {
+        let mouseLocation = NSEvent.mouseLocation
+        return NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.main
+            ?? NSScreen.screens[0]
+    }
+
+    private func captureScreen(_ screen: NSScreen) async throws -> NSImage {
+        let displayID = (screen.deviceDescription[
+            NSDeviceDescriptionKey(rawValue: "NSScreenNumber")] as? CGDirectDisplayID) ?? CGMainDisplayID()
+        let scale = screen.backingScaleFactor
+
+        if #available(macOS 14.0, *) {
+            do {
+                let content = try await SCShareableContent.excludingDesktopWindows(
+                    false, onScreenWindowsOnly: true)
+                guard let scDisplay = content.displays.first(where: { $0.displayID == displayID })
+                        ?? content.displays.first else {
+                    throw ScreenRecordingError.noScreenAvailable
+                }
+
+                // 排除自身所有窗口，避免覆盖层被截入
+                let ownPID = ProcessInfo.processInfo.processIdentifier
+                let ownWindows = content.windows.filter {
+                    $0.owningApplication?.processID == ownPID
+                }
+                let filter = SCContentFilter(display: scDisplay, excludingWindows: ownWindows)
+
+                let cfg = SCStreamConfiguration()
+                cfg.width  = Int(CGFloat(scDisplay.width)  * scale)
+                cfg.height = Int(CGFloat(scDisplay.height) * scale)
+                cfg.showsCursor = false
+                cfg.capturesAudio = false
+
+                let cgImage = try await SCScreenshotManager.captureImage(
+                    contentFilter: filter,
+                    configuration: cfg)
+                let size = NSSize(width:  CGFloat(cgImage.width)  / scale,
+                                  height: CGFloat(cgImage.height) / scale)
+                return NSImage(cgImage: cgImage, size: size)
+            } catch {
+                // 失败回退到 CGDisplayCreateImage
+            }
+        }
+
+        // 降级：在后台线程同步调用，避免阻塞主线程
+        let cgImage: CGImage? = await Task.detached(priority: .userInitiated) {
+            CGDisplayCreateImage(displayID)
+        }.value
+        guard let cgImage = cgImage else {
+            throw ScreenRecordingError.setupFailed("无法获取屏幕截图")
+        }
+        let size = NSSize(width:  CGFloat(cgImage.width)  / scale,
+                          height: CGFloat(cgImage.height) / scale)
+        return NSImage(cgImage: cgImage, size: size)
     }
 
     // MARK: - 私有：倒计时
@@ -319,8 +460,8 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
         try FileManager.default.createDirectory(at: saveDir, withIntermediateDirectories: true)
 
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        let fileName = "录屏 \(dateFormatter.string(from: Date()))"
+        dateFormatter.dateFormat = "yyyy-MM-dd_HH.mm.ss"
+        let fileName = "SnapClick_录屏_\(dateFormatter.string(from: Date()))"
         let ext = settings.recordFormat.lowercased()  // "mov" / "mp4"
         let fileURL = saveDir.appendingPathComponent(fileName).appendingPathExtension(ext)
         self.outputURL = fileURL
@@ -330,8 +471,16 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
         let writer = try AVAssetWriter(outputURL: fileURL, fileType: fileType)
         self.assetWriter = writer
 
-        // 计算录制尺寸
-        let screen = NSScreen.main ?? NSScreen.screens[0]
+        // 计算录制尺寸：以 captureRect 实际所在的屏幕为基准，避免在多屏/不同缩放比下
+        // 用 NSScreen.main 的 backingScaleFactor 计算出错误的像素尺寸，
+        // 导致 SCStream 输出的帧尺寸与 AVAssetWriterInput 期望尺寸不一致、append 静默失败、文件不完整。
+        let screen: NSScreen = {
+            if let rect = captureRect,
+               let matched = NSScreen.screens.first(where: { $0.frame.intersects(rect) }) {
+                return matched
+            }
+            return NSScreen.main ?? NSScreen.screens[0]
+        }()
         let screenScale = screen.backingScaleFactor
         
         var baseRect = captureRect ?? CGRect(
@@ -393,11 +542,26 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
             if writer.canAdd(micInput) { writer.add(micInput) }
         }
 
-        writer.startWriting()
+        // 复位会话状态，避免上一次录制异常中断后残留导致 startSession 永不触发
+        self.firstSample = true
+        self.timeOffset = .zero
+        self.lastAppendedPTS = .zero
+        self.needsResumeAdjustment = false
+        self.recordingStartTime = .zero
+
+        guard writer.startWriting() else {
+            let reason = writer.error?.localizedDescription ?? "未知错误"
+            throw ScreenRecordingError.saveFailed("无法开始写入：\(reason)")
+        }
 
         // ── 配置 SCStream ─────────────────────────────────────────
         let content = try await SCShareableContent.current
-        guard let display = content.displays.first else {
+
+        // 选取与录制屏幕匹配的 SCDisplay，保证 sourceRect 与尺寸计算基于同一块屏幕
+        let displayID = (screen.deviceDescription[
+            NSDeviceDescriptionKey(rawValue: "NSScreenNumber")] as? CGDirectDisplayID) ?? CGMainDisplayID()
+        guard let display = content.displays.first(where: { $0.displayID == displayID })
+                ?? content.displays.first else {
             throw ScreenRecordingError.noScreenAvailable
         }
 
@@ -423,10 +587,13 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
         }
 
         // 如果是选区录制且非窗口录屏，设置裁剪框 sourceRect
+        // sourceRect 必须是相对所在屏幕左上角的局部坐标（单位：点），
+        // 因此先把全局桌面坐标转换为屏幕局部坐标，再做 Y 轴翻转。
         if let rect = captureRect, targetWindow == nil {
-            let displayHeight = display.frame.height
-            let flippedY = displayHeight - rect.origin.y - rect.height
-            streamConfig.sourceRect = CGRect(x: rect.origin.x,
+            let localX = rect.origin.x - screen.frame.origin.x
+            let localYBottom = rect.origin.y - screen.frame.origin.y
+            let flippedY = screen.frame.height - localYBottom - rect.height
+            streamConfig.sourceRect = CGRect(x: localX,
                                              y: flippedY,
                                              width: rect.width,
                                              height: rect.height)
@@ -577,9 +744,22 @@ extension ScreenRecordingEngine: SCStreamOutput {
                              of outputType: SCStreamOutputType) {
         guard CMSampleBufferDataIsReady(sampleBuffer) else { return }
 
+        // 仅处理状态为 .complete 的视频帧；.idle/.blank/.suspended 等帧不含有效画面，
+        // 直接 append 会污染时间轴并可能导致选区录制文件不完整。
+        if case .screen = outputType {
+            guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false)
+                    as? [[SCStreamFrameInfo: Any]],
+                  let statusRaw = attachments.first?[.status] as? Int,
+                  let status = SCFrameStatus(rawValue: statusRaw),
+                  status == .complete else {
+                return
+            }
+        }
+
         Task { @MainActor in
             guard self.isRecording && !self.isPaused else { return }
-            guard let writer = self.assetWriter else { return }
+            guard let writer = self.assetWriter,
+                  writer.status == .writing else { return }
 
             // 第一帧到来时启动写入 Session
             if self.firstSample {
@@ -644,7 +824,8 @@ extension ScreenRecordingEngine: AVCaptureAudioDataOutputSampleBufferDelegate {
         
         Task { @MainActor in
             guard self.isRecording && !self.isPaused else { return }
-            guard let writer = self.assetWriter else { return }
+            guard let writer = self.assetWriter,
+                  writer.status == .writing else { return }
             
             // 如果第一帧是从麦克风先到来，也需支持会话初始化
             if self.firstSample {

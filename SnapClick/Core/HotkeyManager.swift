@@ -134,9 +134,23 @@ final class HotkeyManager: ObservableObject {
             return
         }
 
+        // 同时监听 keyDown 与 EventTap 自身被系统禁用的事件，方便自愈
         let eventMask = (1 << CGEventType.keyDown.rawValue)
+            | (1 << CGEventType.tapDisabledByTimeout.rawValue)
+            | (1 << CGEventType.tapDisabledByUserInput.rawValue)
 
         let callback: CGEventTapCallBack = { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+            // EventTap 被系统因超时/用户输入禁用时，自动重新启用
+            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                DispatchQueue.main.async {
+                    if let tap = HotkeyManager.shared.eventTap {
+                        CGEvent.tapEnable(tap: tap, enable: true)
+                        print("CGEventTap 被系统禁用，已自动恢复 (type=\(type.rawValue))")
+                    }
+                }
+                return Unmanaged.passUnretained(event)
+            }
+
             guard type == .keyDown else { return Unmanaged.passUnretained(event) }
 
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)

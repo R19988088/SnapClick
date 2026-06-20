@@ -1,24 +1,5 @@
 import SwiftUI
 
-// MARK: - VisualEffectView
-struct VisualEffectView: NSViewRepresentable {
-    var material: NSVisualEffectView.Material = .sidebar
-    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
-    }
-}
-
 // MARK: - WelcomeView
 
 /// 首次启动权限引导页
@@ -40,115 +21,134 @@ struct WelcomeView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        ZStack {
+            // ── 统一底面背景（毛玻璃或纯色） ────────────────────────────────
+            if settings.enableGlassEffect {
+                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
+            } else {
+                Color.dynamic(
+                    light: Color(white: 0.98),
+                    dark: Color(white: 0.12)
+                )
+                .ignoresSafeArea()
+            }
 
-            // ── 左侧侧边栏 ──────────────────────────────────────────
-            VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
 
-                // App 头部
-                HStack(spacing: 10) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 59/255, green: 130/255, blue: 246/255),
-                                        Color(red: 99/255, green: 102/255, blue: 241/255)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 32, height: 32)
-                            .shadow(color: DT.accent.opacity(0.4), radius: 4, x: 0, y: 2)
+                // ── 左侧侧边栏 ──────────────────────────────────────────
+                VStack(alignment: .leading, spacing: 0) {
 
-                        Image(systemName: "camera.viewfinder")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                    .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("SnapClick".localized)
-                            .font(.system(size: 13.5, weight: .bold))
-                            .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
-                        Text("v1.0.2".localized)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(DT.groupLabel)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 20)
-                .padding(.bottom, 14)
-
-                // 伪导航菜单（与主窗口视觉一致）
-                VStack(spacing: 2) {
-                    WelcomeSidebarItem(icon: "gearshape",         title: "通用",       isActive: true)
-                    WelcomeSidebarItem(icon: "folder.badge.gearshape", title: "Finder 右键")
-                    WelcomeSidebarItem(icon: "camera.viewfinder", title: "截图与标注")
-                    WelcomeSidebarItem(icon: "pin.circle",        title: "贴图 & 取色")
-                }
-                .padding(.horizontal, 8)
-
-                Spacer()
-
-                // 进度面板
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("SETUP PROGRESS".localized)
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(DT.accent)
-                            .tracking(0.5)
-                        Spacer()
-                        Text("\(grantedCount) / 3")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color(red: 226/255, green: 232/255, blue: 240/255))
-                                .frame(height: 5)
-                            RoundedRectangle(cornerRadius: 3)
+                    // App 头部
+                    HStack(spacing: 10) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(
                                     LinearGradient(
-                                        colors: [DT.accent, Color(red: 99/255, green: 102/255, blue: 241/255)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
+                                        colors: [
+                                            Color(red: 59/255, green: 130/255, blue: 246/255),
+                                            Color(red: 99/255, green: 102/255, blue: 241/255)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
                                     )
                                 )
-                                .frame(width: geo.size.width * CGFloat(grantedCount) / 3.0, height: 5)
-                                .animation(.spring(response: 0.4), value: grantedCount)
+                                .frame(width: 32, height: 32)
+                                .shadow(color: DT.accent.opacity(0.4), radius: 4, x: 0, y: 2)
+
+                            Image(systemName: "camera.viewfinder")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .accessibilityHidden(true)
+
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text("SnapClick".localized)
+                                .font(.system(size: 13.5, weight: .bold))
+                                .foregroundStyle(.customPrimaryText)
+                            Text("v1.0.2".localized)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(DT.groupLabel)
                         }
                     }
-                    .frame(height: 5)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 40)
+                    .padding(.bottom, 14)
 
-                    Text(grantedCount == 3 ? "所有权限已就绪 ✓".localized : "\(grantedCount) / 3 已授权".localized)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(grantedCount == 3 ? DT.successGreen : Color.secondary)
+                    // 伪导航菜单（与主窗口视觉一致）
+                    VStack(spacing: 2) {
+                        WelcomeSidebarItem(icon: "gearshape",         title: "通用",       isActive: true)
+                        WelcomeSidebarItem(icon: "folder.badge.gearshape", title: "Finder 右键")
+                        WelcomeSidebarItem(icon: "camera.viewfinder", title: "截图与标注")
+                        WelcomeSidebarItem(icon: "pin.circle",        title: "贴图 & 取色")
+                    }
+                    .padding(.horizontal, 8)
+
+                    Spacer()
+
+                    // 进度面板
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("SETUP PROGRESS".localized)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(DT.accent)
+                                .tracking(0.5)
+                            Spacer()
+                            Text("\(grantedCount) / 3")
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.primary.opacity(0.1))
+                                    .frame(height: 5)
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [DT.accent, Color(red: 99/255, green: 102/255, blue: 241/255)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: geo.size.width * CGFloat(grantedCount) / 3.0, height: 5)
+                                    .animation(.spring(response: 0.4), value: grantedCount)
+                            }
+                        }
+                        .frame(height: 5)
+
+                        Text(grantedCount == 3 ? "所有权限已就绪 ✓".localized : "\(grantedCount) / 3 已授权".localized)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(grantedCount == 3 ? DT.successGreen : Color.secondary)
+                    }
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.primary.opacity(0.03))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(DT.cardBorder, lineWidth: 0.5)
+                            )
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 20)
                 }
-                .padding(14)
+                .frame(width: 210)
                 .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color(red: 15/255, green: 23/255, blue: 42/255).opacity(0.03))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(DT.cardBorder, lineWidth: 0.5)
-                        )
+                    Group {
+                        if !settings.enableGlassEffect {
+                            Color.dynamic(
+                                light: Color(white: 0.94),
+                                dark: Color(white: 0.18)
+                            )
+                        }
+                    }
                 )
-                .padding(.horizontal, 12)
-                .padding(.bottom, 20)
-            }
-            .frame(width: 210)
-            .background(DT.sidebarBg)
 
-            Divider().opacity(0.5)
+                Divider().opacity(0.5)
 
-            // ── 右侧主内容 ──────────────────────────────────────────
-            ZStack {
-                Color.white.ignoresSafeArea()
-
+                // ── 右侧主内容 ──────────────────────────────────────────
                 VStack(spacing: 0) {
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 22) {
@@ -177,7 +177,7 @@ struct WelcomeView: View {
 
                                 Text("欢迎使用 SnapClick".localized)
                                     .font(.system(size: 18, weight: .bold))
-                                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                                    .foregroundStyle(.customPrimaryText)
 
                                 Text("让您的 macOS 效率飞跃，请授予以下权限以开启全部功能".localized)
                                     .font(.system(size: 12.5))
@@ -246,7 +246,19 @@ struct WelcomeView: View {
                             .padding(.bottom, 24)
                         }
                     }
+                    .scrollContentBackground(.hidden)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(
+                    Group {
+                        if settings.enableGlassEffect {
+                            Color.dynamic(
+                                light: Color.white.opacity(0.35),
+                                dark: Color.black.opacity(0.25)
+                            )
+                        }
+                    }
+                )
             }
         }
         .frame(width: 820, height: 580)
@@ -272,12 +284,12 @@ private struct WelcomeSidebarItem: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: isActive ? .semibold : .regular))
-                .foregroundStyle(isActive ? .white : Color(red: 71/255, green: 85/255, blue: 105/255))
+                .foregroundStyle(isActive ? DT.accent : .customSecondaryText)
                 .frame(width: 18)
 
             Text(title.localized)
                 .font(.system(size: 13, weight: isActive ? .semibold : .regular))
-                .foregroundStyle(isActive ? .white : Color(red: 30/255, green: 41/255, blue: 59/255))
+                .foregroundStyle(isActive ? .customPrimaryText : .customMediumText)
 
             Spacer()
         }
@@ -285,7 +297,7 @@ private struct WelcomeSidebarItem: View {
         .padding(.vertical, 7)
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isActive ? DT.sidebarSelected : Color.clear)
+                .fill(isActive ? DT.accent.opacity(0.12) : Color.clear)
         )
     }
 }
@@ -317,7 +329,7 @@ private struct WelcomePermCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                    .foregroundStyle(.customPrimaryText)
                 Text(description)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -351,9 +363,11 @@ private struct WelcomePermCard: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(isGranted
-                      ? DT.successGreen.opacity(0.04)
-                      : (isHovered ? Color(red: 248/255, green: 250/255, blue: 252/255) : DT.cardBg))
+                .fill(isGranted ? DT.successGreen.opacity(0.04) : DT.cardBg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(isHovered ? Color.primary.opacity(0.03) : Color.clear)
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .stroke(isGranted ? DT.successGreen.opacity(0.2) : DT.cardBorder, lineWidth: 0.75)

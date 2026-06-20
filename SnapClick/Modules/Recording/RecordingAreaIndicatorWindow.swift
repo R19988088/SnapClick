@@ -9,40 +9,45 @@ import SwiftUI
 struct RecordingAreaIndicatorView: View {
     @State private var isVisible = true
     
+    // 线宽 6，顶点偏移 3 (即 lineWidth / 2)，折角臂长 28
+    private let lineWidth: CGFloat = 6
+    private let offset: CGFloat = 3
+    private let length: CGFloat = 28
+    
     var body: some View {
         GeometryReader { geo in
             ZStack {
                 // 左上角 L 型
                 Path { path in
-                    path.move(to: CGPoint(x: 0, y: 20))
-                    path.addLine(to: CGPoint(x: 0, y: 0))
-                    path.addLine(to: CGPoint(x: 20, y: 0))
+                    path.move(to: CGPoint(x: offset, y: offset + length))
+                    path.addLine(to: CGPoint(x: offset, y: offset))
+                    path.addLine(to: CGPoint(x: offset + length, y: offset))
                 }
-                .stroke(Color.blue, lineWidth: 4)
+                .stroke(Color.blue, lineWidth: lineWidth)
                 
                 // 右上角 L 型
                 Path { path in
-                    path.move(to: CGPoint(x: geo.size.width - 20, y: 0))
-                    path.addLine(to: CGPoint(x: geo.size.width, y: 0))
-                    path.addLine(to: CGPoint(x: geo.size.width, y: 20))
+                    path.move(to: CGPoint(x: geo.size.width - offset - length, y: offset))
+                    path.addLine(to: CGPoint(x: geo.size.width - offset, y: offset))
+                    path.addLine(to: CGPoint(x: geo.size.width - offset, y: offset + length))
                 }
-                .stroke(Color.blue, lineWidth: 4)
+                .stroke(Color.blue, lineWidth: lineWidth)
                 
                 // 左下角 L 型
                 Path { path in
-                    path.move(to: CGPoint(x: 0, y: geo.size.height - 20))
-                    path.addLine(to: CGPoint(x: 0, y: geo.size.height))
-                    path.addLine(to: CGPoint(x: 20, y: geo.size.height))
+                    path.move(to: CGPoint(x: offset, y: geo.size.height - offset - length))
+                    path.addLine(to: CGPoint(x: offset, y: geo.size.height - offset))
+                    path.addLine(to: CGPoint(x: offset + length, y: geo.size.height - offset))
                 }
-                .stroke(Color.blue, lineWidth: 4)
+                .stroke(Color.blue, lineWidth: lineWidth)
                 
                 // 右下角 L 型
                 Path { path in
-                    path.move(to: CGPoint(x: geo.size.width - 20, y: geo.size.height))
-                    path.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height))
-                    path.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - 20))
+                    path.move(to: CGPoint(x: geo.size.width - offset - length, y: geo.size.height - offset))
+                    path.addLine(to: CGPoint(x: geo.size.width - offset, y: geo.size.height - offset))
+                    path.addLine(to: CGPoint(x: geo.size.width - offset, y: geo.size.height - offset - length))
                 }
-                .stroke(Color.blue, lineWidth: 4)
+                .stroke(Color.blue, lineWidth: lineWidth)
             }
             .opacity(isVisible ? 1.0 : 0.15)
             .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isVisible)
@@ -57,8 +62,8 @@ struct RecordingAreaIndicatorView: View {
 final class RecordingAreaIndicatorWindow: NSWindow {
     
     init(recordingRect: CGRect) {
-        // 向外扩展 3 像素以完美贴合录制选区边界，避免挡住被录像内容，也更便于 SCStream 裁剪过滤
-        let padding: CGFloat = 3
+        // 向外扩展 5 像素以完美贴合录制选区边界并适应更大的线宽，避免挡住被录像内容，也更便于 SCStream 裁剪过滤
+        let padding: CGFloat = 5
         let frame = recordingRect.insetBy(dx: -padding, dy: -padding)
         
         super.init(

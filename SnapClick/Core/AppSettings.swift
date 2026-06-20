@@ -97,6 +97,14 @@ final class AppSettings: ObservableObject {
     @AppStorage("appAppearance")
     var appAppearance: String = "auto"
 
+    /// 是否开启毛玻璃/玻璃半透明效果
+    @AppStorage("enableGlassEffect")
+    var enableGlassEffect: Bool = true {
+        didSet {
+            NotificationCenter.default.post(name: .enableGlassEffectDidChange, object: nil)
+        }
+    }
+
     private func updateLaunchAtLogin() {
         if #available(macOS 13.0, *) {
             do {
@@ -167,6 +175,10 @@ final class AppSettings: ObservableObject {
     /// 全屏录制快捷键
     @AppStorage("hotkeyRecordScreen")
     var hotkeyRecordScreen: String = "ctrl+shift+f"
+
+    /// 默认录制范围/模式（"area" / "screen" / "window"）
+    @AppStorage("recordDefaultMode")
+    var recordDefaultMode: String = "area"
 }
 
 // MARK: - LanguageManager
@@ -198,6 +210,16 @@ public final class LanguageManager: ObservableObject {
             "SnapClick": "SnapClick",
             "v1.0.2": "v1.0.2",
             "版本 1.0.2": "Version 1.0.2",
+            "版本 %@": "Version %@",
+            "发现新版本": "Update Available",
+            "检测到新版本 %@，当前版本 %@。是否前往下载页面？": "A new version %@ is available (current: %@). Go to the download page?",
+            "前往下载": "Download",
+            "稍后": "Later",
+            "已是最新版本": "You're Up to Date",
+            "当前版本 %@ 已是最新。": "Current version %@ is the latest.",
+            "好": "OK",
+            "检查更新失败": "Update Check Failed",
+            "无法连接到更新服务器，请检查网络后重试。": "Could not connect to the update server. Please check your network and try again.",
             "设置": "Settings",
             "设置…": "Settings…",
             "退出 SnapClick": "Quit SnapClick",
@@ -249,6 +271,8 @@ public final class LanguageManager: ObservableObject {
             "简体中文": "Simplified Chinese",
             "English (US)": "English (US)",
             "日本語": "Japanese",
+            "毛玻璃效果": "Glass Effect",
+            "使窗口背景呈现半透明的玻璃质感": "Make window backgrounds translucent and glassy",
             "全局快捷键": "Global Shortcuts",
             "截图": "Screenshot",
             "区域截图": "Screenshot",
@@ -418,6 +442,16 @@ public final class LanguageManager: ObservableObject {
             "SnapClick": "SnapClick",
             "v1.0.2": "v1.0.2",
             "版本 1.0.2": "バージョン 1.0.2",
+            "版本 %@": "バージョン %@",
+            "发现新版本": "アップデートがあります",
+            "检测到新版本 %@，当前版本 %@。是否前往下载页面？": "新しいバージョン %@ が利用可能です（現在: %@）。ダウンロードページを開きますか？",
+            "前往下载": "ダウンロード",
+            "稍后": "後で",
+            "已是最新版本": "最新バージョンです",
+            "当前版本 %@ 已是最新。": "現在のバージョン %@ が最新です。",
+            "好": "OK",
+            "检查更新失败": "アップデートの確認に失敗しました",
+            "无法连接到更新服务器，请检查网络后重试。": "アップデートサーバーに接続できません。ネットワークを確認して再試行してください。",
             "设置": "設定",
             "设置…": "設定…",
             "退出 SnapClick": "SnapClick を終了",
@@ -466,6 +500,8 @@ public final class LanguageManager: ObservableObject {
             "简体中文": "簡体字中国語",
             "English (US)": "英語 (米国)",
             "日本語": "日本語",
+            "毛玻璃效果": "すりガラス効果",
+            "使窗口背景呈现半透明的玻璃质感": "ウィンドウの背景を半透明でガラスのような質感にします",
             "全局快捷键": "グローバルショートカット",
             "截图": "スクリーンショット",
             "区域截图": "スクリーンショット",
@@ -645,6 +681,7 @@ public extension Notification.Name {
     static let appLanguageDidChange = Notification.Name("AppLanguageDidChange")
     static let showInMenuBarDidChange = Notification.Name("ShowInMenuBarDidChange")
     static let showInDockDidChange = Notification.Name("ShowInDockDidChange")
+    static let enableGlassEffectDidChange = Notification.Name("EnableGlassEffectDidChange")
 }
 
 // MARK: - String Extension

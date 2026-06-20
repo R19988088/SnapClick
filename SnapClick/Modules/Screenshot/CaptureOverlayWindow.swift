@@ -38,23 +38,29 @@ class CaptureOverlayWindow: NSWindow {
     private let availableWindows: [SCWindow]
 
     // MARK: - 初始化
+    /// - Parameters:
+    ///   - backgroundImage: 该屏幕的全屏截图（应与 screen 对应）
+    ///   - windows: 可选窗口列表（用于窗口模式高亮）
+    ///   - screen: 覆盖层应显示的目标屏幕；nil 时退化为主屏
     init(backgroundImage: NSImage,
-         windows: [SCWindow] = []) {
+         windows: [SCWindow] = [],
+         screen: NSScreen? = nil) {
 
         self.backgroundImage  = backgroundImage
         self.availableWindows = windows
 
-        // 获取屏幕帧
-        let screenFrame = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+        // 确定目标屏幕的帧（AppKit 全局坐标）
+        let targetScreen = screen ?? NSScreen.main
+        let screenFrame  = targetScreen?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
 
-        // 初始化覆盖层视图
+        // 初始化覆盖层视图（相对于窗口内部，origin 始终 .zero）
         self.overlayView = CaptureOverlayView(
             frame: NSRect(origin: .zero, size: screenFrame.size),
             backgroundImage: backgroundImage,
             windows: windows
         )
 
-        // 初始化全屏透明无边框窗口
+        // 初始化全屏透明无边框窗口，contentRect 使用目标屏幕的 AppKit 帧
         super.init(
             contentRect: screenFrame,
             styleMask:   [.borderless],
@@ -63,14 +69,21 @@ class CaptureOverlayWindow: NSWindow {
         )
 
         // 窗口属性设置
-        self.level                  = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
-        self.backgroundColor        = .clear
-        self.isOpaque               = false
-        self.hasShadow              = false
-        self.ignoresMouseEvents     = false
-        self.collectionBehavior     = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        self.contentView            = overlayView
+        self.level                   = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
+        self.backgroundColor         = .clear
+        self.isOpaque                = false
+        self.hasShadow               = false
+        self.ignoresMouseEvents      = false
+        self.collectionBehavior      = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        self.contentView             = overlayView
         self.acceptsMouseMovedEvents = true
+
+        // 将窗口色彩空间设为目标屏幕原生色彩空间（通常是 Display P3）。
+        // NSWindow 默认为 sRGB，而 SCScreenshotManager 截取的背景图带屏幕原生 Profile，
+        // 不对齐时 NSImage.draw 会产生颜色/色温偏移，hover 与初始状态颜色与选中后不一致。
+        if let screenColorSpace = targetScreen?.colorSpace {
+            self.colorSpace = screenColorSpace
+        }
 
         // 绑定回调
         overlayView.onCancelled      = { [weak self] in self?.onCancelled?() }
@@ -143,10 +156,16 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     // 窗口高亮
     private var hoveredWindow: SCWindow?
 
+
+
     // 放大镜
     private var magnifierCenter: NSPoint = .zero
     private let magnifierSize: CGFloat   = 120
     private let magnifierScale: CGFloat  = 4.0
+
+    // 鼠标移动节流（避免在 ProMotion 120Hz 下每秒触发上百次 needsDisplay）
+    private var lastHoverEvalTime: CFTimeInterval = 0
+    private let hoverEvalMinInterval: CFTimeInterval = 1.0 / 60.0
 
     // MARK: ── 就地标注模式属性 ──────────────────────────────────────────
     private var isAnnotating = false
@@ -199,6 +218,8 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             userInfo: nil
         )
         addTrackingArea(trackingArea)
+
+        // 取消"全部预热"，改为按需懒抓（hover 时拉取）+ NSCache LRU 限制内存峰值
     }
 
     required init?(coder: NSCoder) {
@@ -307,7 +328,8 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     // MARK: - 绘制尺寸标注
     private func drawSizeAnnotation(context: CGContext) {
         let rect   = isAnnotating ? selectedRect : normalizedSelectedRect()
-        let scale  = NSScreen.main?.backingScaleFactor ?? 1.0
+        // 多屏修复：使用 overlay 所在屏的 backingScaleFactor，而不是主屏
+        let scale  = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
         let wPx    = Int(rect.width  * scale)
         let hPx    = Int(rect.height * scale)
         let text   = "\(wPx) × \(hPx)"
@@ -345,17 +367,35 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         let viewRect = winToViewRect(window)
 
         context.clear(viewRect)
-        backgroundImage.draw(
-            in:   viewRect,
-            from: CGRect(
-                x:      viewRect.origin.x,
-                y:      bounds.height - viewRect.origin.y - viewRect.height,
-                width:  viewRect.width,
-                height: viewRect.height
-            ),
-            operation: .sourceOver,
-            fraction:  1.0
-        )
+
+        // 直接从全屏背景图裁剪窗口区域显示：backgroundImage 在覆盖层打开时已包含所有窗口内容，
+        // 无需二次截图，色彩空间与背景图完全一致，也不存在任何延迟。
+        // CGImage 像素坐标系：原点左上、Y 向下；需从 AppKit 视图坐标（左下、Y 向上）翻转换算。
+        let overlayScale = self.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
+        if let bgCG = backgroundImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let cropRect = CGRect(
+                x:      viewRect.origin.x * overlayScale,
+                y:      (bounds.height - viewRect.origin.y - viewRect.height) * overlayScale,
+                width:  viewRect.width  * overlayScale,
+                height: viewRect.height * overlayScale
+            )
+            if let cropped = bgCG.cropping(to: cropRect) {
+                context.interpolationQuality = .high
+                context.draw(cropped, in: viewRect)
+            }
+        } else {
+            backgroundImage.draw(
+                in:   viewRect,
+                from: CGRect(
+                    x:      viewRect.origin.x,
+                    y:      bounds.height - viewRect.origin.y - viewRect.height,
+                    width:  viewRect.width,
+                    height: viewRect.height
+                ),
+                operation: .sourceOver,
+                fraction:  1.0
+            )
+        }
 
         context.setFillColor(NSColor(red: 0.12, green: 0.56, blue: 1.0, alpha: 0.08).cgColor)
         context.fill(viewRect)
@@ -364,6 +404,8 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         context.setLineWidth(3)
         context.stroke(viewRect)
     }
+
+
 
     // MARK: - 绘制放大镜
     private func drawMagnifier(context: CGContext) {
@@ -584,7 +626,13 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     // MARK: - 鼠标事件
     override func mouseDown(with event: NSEvent) {
         let loc = convert(event.locationInWindow, from: nil)
-        
+
+        // 双击：所有模式下统一表示「立即截取当前区域并复制到剪贴板」
+        if event.clickCount >= 2 {
+            handleDoubleClickQuickCopy(at: loc)
+            return
+        }
+
         if isAnnotating && canvas?.currentTool == .drag {
             if let handle = getHandleAt(point: loc) {
                 activeDragHandle = handle
@@ -597,9 +645,14 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         guard !isAnnotating else { return }
 
         if isWindowSelectedPending {
+            let confirmedWindow = pendingSelectedWindow
             isWindowSelectedPending = false
             pendingSelectedWindow = nil
-            enterInPlaceAnnotationMode()
+            if let win = confirmedWindow {
+                enterInPlaceAnnotationMode(forWindow: win)
+            } else {
+                enterInPlaceAnnotationMode()
+            }
             return
         }
 
@@ -619,9 +672,11 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         case .windowSelection:
             if let win = windowAtPoint(loc) {
                 selectedRect = winToViewRect(win).intersection(bounds)
-                enterInPlaceAnnotationMode()
+                enterInPlaceAnnotationMode(forWindow: win)
             } else {
-                onCancelled?()
+                // 鼠标点在空白处（未命中任何窗口），不直接取消，
+                // 让用户有机会移动鼠标重新悬停到目标窗口上再点击
+                needsDisplay = true
             }
         }
     }
@@ -707,14 +762,17 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         isDragging = false
         let rect = normalizedSelectedRect()
 
-        // 智能模式：拖拽距离太小视为点击，选中悬停窗口等待确认
+        // 智能模式：拖拽距离太小→视为单击，直接捕获悬停窗口（对齐 Snipaste/macOS 单击即截行为）
         if mode == .combined && rect.width < 10 && rect.height < 10 {
             if let win = hoveredWindow {
                 selectedRect = winToViewRect(win).intersection(bounds)
-                pendingSelectedWindow = win
-                isWindowSelectedPending = true
-                needsDisplay = true
+                if isLongScreenshotMode {
+                    enterScrollingCaptureMode()
+                } else {
+                    enterInPlaceAnnotationMode(forWindow: win)
+                }
             } else {
+                // 未悬停在任何窗口上，什么也不做，展示空白点击提示
                 needsDisplay = true
             }
             return
@@ -763,8 +821,16 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             return
         }
 
+        // 节流：限制 hover 评估与重绘频率到 60Hz，避免 120Hz ProMotion 下大量重绘
+        let now = CACurrentMediaTime()
+        if now - lastHoverEvalTime < hoverEvalMinInterval { return }
+        lastHoverEvalTime = now
+
         if mode == .windowSelection || mode == .combined {
-            hoveredWindow = windowAtPoint(loc)
+            let newHover = windowAtPoint(loc)
+            if newHover?.windowID != hoveredWindow?.windowID {
+                hoveredWindow = newHover
+            }
             if hoveredWindow != nil {
                 NSCursor.pointingHand.set()
             } else {
@@ -780,12 +846,33 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         enterInPlaceAnnotationMode()
     }
 
+    // MARK: - 🌟 核心：进入就地标注模式（窗口模式）
+    /// 选中某个具体窗口后，先用 ScreenCaptureKit 单独捕获该窗口图像，
+    /// 用窗口图像替换裁剪出的全屏背景作为画布底图，从而避免把上层其它程序的内容也截进来
+    private func enterInPlaceAnnotationMode(forWindow win: SCWindow) {
+        // 先以"窗口在屏的矩形"为占位，进入标注模式，画布初始底图依然来自 backgroundImage 裁剪
+        // 这样 UI 不会被截图等待阻塞
+        enterInPlaceAnnotationMode()
+
+        // 异步：用 ScreenCaptureKit 仅捕获该窗口的真实像素，覆盖到画布底图上
+        let canvasRef = self.canvas
+        Task { @MainActor in
+            do {
+                let img = try await ScreenCaptureEngine.shared.captureSingleWindow(win)
+                // 防御：在标注期间用户可能已取消
+                guard let canvas = canvasRef, canvas === self.canvas else { return }
+                canvas.baseImage = img
+                canvas.needsDisplay = true
+            } catch {
+                // 失败时保留裁剪后的占位底图，不打断用户操作
+            }
+        }
+    }
+
     // MARK: - 🌟 核心：进入就地标注模式
     private func enterInPlaceAnnotationMode() {
         isAnnotating = true
         needsDisplay = true // 强制重绘，高亮选区，外侧暗化
-
-        // 1. 从 backgroundImage 中裁剪出该选区矩形作为画布的底图
         let screenHeight = bounds.height
         let cropY = screenHeight - selectedRect.origin.y - selectedRect.height
         let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
@@ -1222,17 +1309,21 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         }
         
         // 定时持续截图（每 0.25 秒捕获一帧）
+        var thumbnailTick = 0
         self.captureTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             guard let self = self, self.isScrollingCaptureActive, !self.isTimerCaptureInFlight else { return }
             self.isTimerCaptureInFlight = true
-            
+            thumbnailTick &+= 1
+            let shouldRefreshThumbnail = (thumbnailTick % 2 == 0)
+
             captureQueue.async {
                 if let image = self.captureScreenshotForStitching(rect: rectInScreen, size: captureSize) {
                     self.stitchingManager.addImage(image)
-                    
-                    // 更新缩略图预览
-                    DispatchQueue.main.async {
-                        if let stitched = self.stitchingManager.currentStitchedImage {
+
+                    // 限频更新缩略图预览（每 0.5s 一次），减轻主线程压力
+                    if shouldRefreshThumbnail,
+                       let stitched = self.stitchingManager.currentStitchedImage {
+                        DispatchQueue.main.async {
                             self.updateThumbnail(with: stitched)
                         }
                     }
@@ -1269,9 +1360,13 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     /// 截取指定区域的截图
     private func captureScreenshotForStitching(rect screenRect: NSRect, size: NSSize) -> NSImage? {
         // 主覆盖窗口已隐藏，直接截取屏幕区域即可
+        // 多屏修复：使用全局坐标系的最大 maxY 进行 Y 翻转，而不是单屏高度
+        let flipH = NSScreen.screens.map { $0.frame.maxY }.max()
+            ?? NSScreen.main?.frame.height
+            ?? screenRect.maxY
         let cgRect = CGRect(
             x: screenRect.minX,
-            y: NSScreen.main!.frame.height - screenRect.maxY,
+            y: flipH - screenRect.maxY,
             width: screenRect.width,
             height: screenRect.height
         )
@@ -1420,8 +1515,8 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
                             let panel = NSSavePanel()
                             panel.allowedContentTypes = [.png]
                             let dateFormatter = DateFormatter()
-                            dateFormatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
-                            panel.nameFieldStringValue = "长截图 \(dateFormatter.string(from: Date())).png"
+                            dateFormatter.dateFormat = "yyyy-MM-dd_HH.mm.ss"
+                            panel.nameFieldStringValue = "SnapClick_长截图_\(dateFormatter.string(from: Date())).png"
                             
                             if panel.runModal() == .OK, let url = panel.url {
                                 if let tiffData = finalImage.tiffRepresentation,
@@ -1442,8 +1537,8 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
                            let bitmap = NSBitmapImageRep(data: tiffData),
                            let pngData = bitmap.representation(using: .png, properties: [:]) {
                             let dateFormatter = DateFormatter()
-                            dateFormatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
-                            let fileName = "长截图 \(dateFormatter.string(from: Date())).png"
+                            dateFormatter.dateFormat = "yyyy-MM-dd_HH.mm.ss"
+                            let fileName = "SnapClick_长截图_\(dateFormatter.string(from: Date())).png"
                             
                             // 优先保存到用户设置的截图保存目录
                             let saveDirectory = ScreenshotSettings.shared.saveDirectory
@@ -1529,10 +1624,17 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             // 添加阴影选中样式：选中时带有半透明白色背景，未选中时背景透明
             btn.layer?.backgroundColor = isSelected ? NSColor.white.withAlphaComponent(0.2).cgColor : NSColor.clear.cgColor
         }
+        
+        // 更新颜色块的选中高亮状态
+        let currentSelColor = canvas?.currentColor ?? .systemRed
+        for btn in colorPresetButtons {
+            btn.updateHighlightState(selectedColor: currentSelColor)
+        }
     }
     
     @objc private func colorWellChanged(_ sender: NSColorWell) {
         canvas?.currentColor = sender.color
+        updateButtonStates()
     }
 
     @objc private func paletteButtonClicked() {
@@ -1551,6 +1653,76 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
 
     @objc private func colorPanelChanged(_ sender: NSColorPanel) {
         canvas?.currentColor = sender.color
+        updateButtonStates()
+    }
+
+    // MARK: - 双击快速截图复制
+    /// 所有截图模式下双击：截取当前应被截取的区域 → 复制到剪贴板 → 关闭覆盖层
+    /// - 就地标注模式：复制带标注的最终图（等价于 doneAction）
+    /// - 窗口选择 / 智能模式 hover 中：复制悬停窗口
+    /// - 区域选择 / pending 选区：复制当前选区；都没有则复制全屏
+    private func handleDoubleClickQuickCopy(at loc: NSPoint) {
+        // 1) 已经在标注模式：直接走 done 逻辑（包含画布上的标注）
+        if isAnnotating {
+            doneAction()
+            return
+        }
+
+        // 2) 长截图捕获中不响应双击
+        if isScrollingCaptureActive {
+            return
+        }
+
+        var imageToCopy: NSImage?
+
+        // 3) 窗口模式：优先以悬停或 pending 窗口为目标
+        let targetWindow: SCWindow? = {
+            if isWindowSelectedPending { return pendingSelectedWindow }
+            if mode == .windowSelection || mode == .combined {
+                return hoveredWindow ?? windowAtPoint(loc)
+            }
+            return nil
+        }()
+
+        if let win = targetWindow {
+            // 从背景图裁剪窗口区域：backgroundImage 已包含截图时刻所有窗口内容
+            let winRect = winToViewRect(win).intersection(bounds)
+            imageToCopy = cropFromBackgroundImage(viewRect: winRect)
+        } else if selectedRect.width > 10 && selectedRect.height > 10 {
+            // 4) 区域选择已经有选区：复制选区
+            imageToCopy = cropFromBackgroundImage(viewRect: selectedRect)
+        } else {
+            // 5) 没有任何选区：复制全屏背景
+            imageToCopy = backgroundImage
+        }
+
+        if let img = imageToCopy {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.writeObjects([img])
+        }
+
+        // 关闭覆盖层
+        parentWindow?.onFinished?()
+        self.window?.close()
+    }
+
+    /// 从全屏背景图按 view 坐标系矩形裁剪，返回点尺寸的 NSImage
+    private func cropFromBackgroundImage(viewRect: NSRect) -> NSImage? {
+        guard viewRect.width > 0, viewRect.height > 0,
+              let bgCG = backgroundImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+        let scale = self.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2.0
+        // CGImage 像素坐标系：左上原点、Y 向下；view 是左下原点、Y 向上 → 翻转
+        let cropRect = CGRect(
+            x:      viewRect.origin.x * scale,
+            y:      (bounds.height - viewRect.origin.y - viewRect.height) * scale,
+            width:  viewRect.width  * scale,
+            height: viewRect.height * scale
+        )
+        guard let cropped = bgCG.cropping(to: cropRect) else { return nil }
+        return NSImage(cgImage: cropped, size: viewRect.size)
     }
 
     private func getFinalImage() -> NSImage? {
@@ -1678,29 +1850,87 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         }
     }
 
+    // MARK: - 坐标系转换辅助
+
+    /// CG 全局坐标系与 AppKit 坐标系之间的翻转基准高度。
+    ///
+    /// CG 全局坐标系：原点在主屏左上角，Y 轴向下为正。
+    /// AppKit 全局屏幕坐标系：原点在主屏左下角，Y 轴向上为正。
+    ///
+    /// 转换公式：
+    ///   cgY      = flipHeight - appKitY
+    ///   appKitY  = flipHeight - cgY
+    ///
+    /// 正确的 flipHeight 是「所有屏幕中 AppKit frame.maxY 的最大值」，
+    /// 这等价于主屏的高度（在 AppKit 体系中主屏 minY == 0，maxY == height）。
+    /// 注意：不能直接用 NSScreen.main?.frame.height，因为在多屏幕且主屏非最大时
+    /// 可能不等于所有屏幕的最大 maxY；也不能用 backingScaleFactor 来缩放，
+    /// 因为 SCWindow.frame 使用的是逻辑点，与 AppKit 的 NSRect 单位相同。
+    private var cgCoordFlipHeight: CGFloat {
+        // 取所有已连接屏幕中 maxY 最大值，即全局坐标系中最高点
+        return NSScreen.screens.map { $0.frame.maxY }.max() ?? NSScreen.main?.frame.height ?? 900
+    }
+
     // MARK: - 寻找鼠标下的窗口
     private func windowAtPoint(_ viewPoint: NSPoint) -> SCWindow? {
-        let screenHeight = bounds.height
-        let screenPoint = CGPoint(x: viewPoint.x, y: screenHeight - viewPoint.y)
-        var bestWindow: SCWindow?
+        // viewPoint：overlayView 坐标系（AppKit，以 overlayView 左下角为原点）
+        //
+        // 转换路径：
+        //   overlayView 坐标  ->（convert to nil）->  overlayWindow 内坐标
+        //   overlayWindow 内坐标 ->（convertToScreen）->  AppKit 全局屏幕坐标
+        //   AppKit 全局屏幕坐标 ->（Y 轴翻转）->  CG 全局坐标
+        //   CG 全局坐标 -> 与 SCWindow.frame 做命中测试
+
+        guard let win = self.window else {
+            // fallback：没有父 window 时，直接用 view 坐标做粗略估算
+            let cgPt = CGPoint(x: viewPoint.x, y: cgCoordFlipHeight - viewPoint.y)
+            return availableWindows.first { $0.frame.contains(cgPt) }
+        }
+
+        // Step 1: overlayView -> overlayWindow
+        let pointInWindow = self.convert(viewPoint, to: nil)
+        // Step 2: overlayWindow -> AppKit 全局屏幕坐标
+        let pointInScreen = win.convertToScreen(NSRect(origin: pointInWindow, size: .zero)).origin
+        // Step 3: AppKit 全局坐标 -> CG 全局坐标（Y 轴翻转）
+        let cgPoint = CGPoint(x: pointInScreen.x, y: cgCoordFlipHeight - pointInScreen.y)
+
+        // availableWindows 已按真实 Z 序从上到下排好，命中第一个即为最上层
         for window in availableWindows {
-            let frame = window.frame
-            if frame.contains(screenPoint) {
-                bestWindow = window
+            if window.frame.contains(cgPoint) {
+                return window
             }
         }
-        return bestWindow
+        return nil
     }
 
     private func winToViewRect(_ win: SCWindow) -> CGRect {
-        let screenHeight = bounds.height
-        let winFrame = win.frame
-        return CGRect(
-            x:      winFrame.origin.x,
-            y:      screenHeight - winFrame.origin.y - winFrame.height,
-            width:  winFrame.width,
-            height: winFrame.height
+        // win.frame：CG 全局坐标系（主屏左上角为原点，Y 向下为正）
+        //
+        // 转换路径（与 windowAtPoint 完全逆向）：
+        //   CG 全局坐标 ->（Y 轴翻转）->  AppKit 全局屏幕坐标
+        //   AppKit 全局屏幕坐标 ->（convertFromScreen）->  overlayWindow 内坐标
+        //   overlayWindow 内坐标 ->（convert from nil）->  overlayView 坐标
+
+        let cgFrame = win.frame
+        let flipH   = cgCoordFlipHeight
+
+        // Step 1: CG -> AppKit 全局屏幕坐标
+        let appKitScreenRect = NSRect(
+            x:      cgFrame.origin.x,
+            y:      flipH - cgFrame.origin.y - cgFrame.height, // Y 轴翻转
+            width:  cgFrame.width,
+            height: cgFrame.height
         )
+
+        guard let parent = self.window else {
+            // fallback：无父 window 时直接返回屏幕坐标作为近似
+            return appKitScreenRect
+        }
+
+        // Step 2: AppKit 全局屏幕坐标 -> overlayWindow 内坐标
+        let rectInWindow = parent.convertFromScreen(appKitScreenRect)
+        // Step 3: overlayWindow 内坐标 -> overlayView 坐标
+        return self.convert(rectInWindow, from: nil)
     }
 
     private func drawWindowTooltip(window: SCWindow, rect: CGRect, context: CGContext) {
@@ -1757,6 +1987,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
 class ColorPresetButton: NSButton {
     let color: NSColor
     weak var parentView: CaptureOverlayView?
+    private let fillLayer = CAShapeLayer()
     
     init(color: NSColor, parentView: CaptureOverlayView) {
         self.color = color
@@ -1765,17 +1996,28 @@ class ColorPresetButton: NSButton {
         self.wantsLayer = true
         self.isBordered = false
         self.title = ""
+        self.layer?.cornerRadius = 12 // 圆形背景
+        self.layer?.masksToBounds = true
         
-        let shapeLayer = CAShapeLayer()
-        shapeLayer.path = CGPath(ellipseIn: bounds.insetBy(dx: 4, dy: 4), transform: nil)
-        shapeLayer.fillColor = color.cgColor
-        shapeLayer.strokeColor = NSColor.white.cgColor
-        shapeLayer.lineWidth = 1.5
-        self.layer?.addSublayer(shapeLayer)
+        // 核心彩色填充层 (保持直径 16)
+        fillLayer.path = CGPath(ellipseIn: bounds.insetBy(dx: 4, dy: 4), transform: nil)
+        fillLayer.fillColor = color.cgColor
+        fillLayer.strokeColor = NSColor(white: 1.0, alpha: 0.15).cgColor
+        fillLayer.lineWidth = 0.5
+        self.layer?.addSublayer(fillLayer)
+        
+        // 初始化时立刻刷新一次高亮态
+        updateHighlightState(selectedColor: parentView.canvas?.currentColor ?? .systemRed)
     }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+    
+    func updateHighlightState(selectedColor: NSColor) {
+        let isSelected = (color == selectedColor)
+        // 选中时带有半透明白色背景（跟左侧工具按钮一致），未选中时透明
+        self.layer?.backgroundColor = isSelected ? NSColor.white.withAlphaComponent(0.2).cgColor : NSColor.clear.cgColor
     }
     
     override func mouseDown(with event: NSEvent) {
@@ -1802,8 +2044,11 @@ class StitchingManager {
     // MARK: - Public API
     
     func startStitching(with initialImage: NSImage) {
-        runningStitchedImage = initialImage
-        previousImage = initialImage
+        // 与 addImage / currentStitchedImage 同走队列，避免读写竞态
+        stitchingQueue.async { [weak self] in
+            self?.runningStitchedImage = initialImage
+            self?.previousImage = initialImage
+        }
     }
     
     func addImage(_ image: NSImage) {

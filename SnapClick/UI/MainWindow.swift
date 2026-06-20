@@ -1,16 +1,66 @@
 import SwiftUI
 import AppKit
 
+// MARK: - VisualEffectView
+struct VisualEffectView: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .sidebar
+    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
+
+// MARK: - 窗口外观同步
+
+struct WindowAppearanceSync: NSViewRepresentable {
+    let appearance: String
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { apply(to: view.window) }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { apply(to: nsView.window) }
+    }
+
+    private func apply(to window: NSWindow?) {
+        guard let window else { return }
+        switch appearance {
+        case "light": window.appearance = NSAppearance(named: .aqua)
+        case "dark":  window.appearance = NSAppearance(named: .darkAqua)
+        default:      window.appearance = nil
+        }
+    }
+}
+
 // MARK: - 设计 Token
 
 enum DT {
     // 颜色
-    static let sidebarBg        = Color.dynamic(light: Color(red: 240/255, green: 243/255, blue: 247/255), dark: Color(red: 30/255, green: 30/255, blue: 30/255))
+    static let sidebarBg        = Color.clear
     static let sidebarSelected  = Color(red: 59/255,  green: 130/255, blue: 246/255)
     static let accent           = Color(red: 59/255,  green: 130/255, blue: 246/255)
-    static let contentBg        = Color.dynamic(light: .white, dark: Color(red: 24/255, green: 24/255, blue: 24/255))
-    static let cardBg           = Color.dynamic(light: Color(red: 249/255, green: 250/255, blue: 251/255), dark: Color(red: 38/255, green: 38/255, blue: 38/255))
-    static let cardBorder       = Color.dynamic(light: Color(red: 226/255, green: 232/255, blue: 240/255), dark: Color(red: 55/255, green: 65/255, blue: 81/255))
+    static let contentBg        = Color.clear
+    static let cardBg           = Color.dynamic(
+        light: Color.white.opacity(0.65),
+        dark: Color.black.opacity(0.2)
+    )
+    static let cardBorder       = Color.dynamic(
+        light: Color(white: 0, opacity: 0.08),
+        dark: Color(white: 1, opacity: 0.1)
+    )
     static let groupLabel       = Color.dynamic(light: Color(red: 148/255, green: 163/255, blue: 184/255), dark: Color(red: 107/255, green: 114/255, blue: 128/255))
     static let successGreen     = Color(red: 34/255,  green: 197/255, blue: 94/255)
     static let warningOrange    = Color(red: 249/255, green: 115/255, blue: 22/255)
@@ -71,12 +121,12 @@ private struct SidebarNavItem: View {
             HStack(spacing: 10) {
                 Image(systemName: dest.symbolName)
                     .font(.system(size: 13.5, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? .white : .customSecondaryText)
+                    .foregroundStyle(isSelected ? DT.accent : .customSecondaryText)
                     .frame(width: 18)
 
                 Text(dest.localizedTitle)
                     .font(.system(size: 13.5, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? .white : .customMediumText)
+                    .foregroundStyle(isSelected ? .customPrimaryText : .customMediumText)
 
                 Spacer()
             }
@@ -85,8 +135,8 @@ private struct SidebarNavItem: View {
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(isSelected
-                          ? DT.sidebarSelected
-                          : (isHovered ? Color.black.opacity(0.05) : Color.clear))
+                          ? DT.accent.opacity(0.12)
+                          : (isHovered ? Color.primary.opacity(0.05) : Color.clear))
             )
         }
         .buttonStyle(.plain)
@@ -127,6 +177,7 @@ struct DesignCard<Content: View>: View {
             RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
                 .stroke(DT.cardBorder, lineWidth: 0.75)
         )
+        .shadow(color: Color.black.opacity(0.03), radius: 6, x: 0, y: 3)
     }
 }
 
@@ -169,18 +220,38 @@ struct MainWindow: View {
     @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
-        HStack(spacing: 0) {
-            // ── 自定义侧边栏 ────────────────────────────────────────
-            SidebarView(selectedDestination: $selectedDestination)
+        ZStack {
+            // ── 统一底面背景（毛玻璃或纯色） ────────────────────────────────
+            if settings.enableGlassEffect {
+                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+                    .ignoresSafeArea()
+            } else {
+                Color.dynamic(
+                    light: Color(white: 0.98),
+                    dark: Color(white: 0.12)
+                )
+                .ignoresSafeArea()
+            }
 
-            Divider()
-                .opacity(0.5)
+            HStack(spacing: 0) {
+                // ── 自定义侧边栏 ────────────────────────────────────────
+                SidebarView(selectedDestination: $selectedDestination)
 
-            // ── 内容工作区 ──────────────────────────────────────────
-            DetailView(selectedDestination: $selectedDestination)
+                // ── 侧边栏与内容区之间的竖向分隔线（贯穿标题栏）──────────
+                Rectangle()
+                    .fill(Color.dynamic(
+                        light: Color(white: 0, opacity: 0.08),
+                        dark: Color(white: 1, opacity: 0.06)
+                    ))
+                    .frame(width: 0.75)
+                    .ignoresSafeArea()
+
+                // ── 内容工作区 ──────────────────────────────────────────
+                DetailView(selectedDestination: $selectedDestination)
+            }
         }
         .frame(minWidth: 820, idealWidth: 880, minHeight: 540, idealHeight: 600)
-        .background(DT.contentBg)
+        .background(WindowAppearanceSync(appearance: settings.appAppearance))
         .preferredColorScheme(settings.appAppearance == "light" ? .light : (settings.appAppearance == "dark" ? .dark : nil))
     }
 }
@@ -191,6 +262,7 @@ private struct SidebarView: View {
     @Binding var selectedDestination: SettingsDestination?
     @ObservedObject private var permMgr = PermissionManager.shared
     @AppStorage("isFinderEnabled") private var isFinderEnabled: Bool = false
+    @ObservedObject private var settings = AppSettings.shared
 
     private var allGranted: Bool {
         permMgr.hasScreenRecordingPermission && permMgr.hasAccessibilityPermission && isFinderEnabled
@@ -231,7 +303,7 @@ private struct SidebarView: View {
                 Spacer()
             }
             .padding(.horizontal, 14)
-            .padding(.top, 18)
+            .padding(.top, 48)
             .padding(.bottom, 24)
 
             VStack(spacing: 2) {
@@ -258,7 +330,22 @@ private struct SidebarView: View {
             .padding(.bottom, 18)
         }
         .frame(width: 190)
-        .background(DT.sidebarBg)
+        .background(
+            Group {
+                if settings.enableGlassEffect {
+                    Color.dynamic(
+                        light: Color.white.opacity(0.04),
+                        dark: Color.black.opacity(0.02)
+                    )
+                } else {
+                    Color.dynamic(
+                        light: Color(white: 0.94),
+                        dark: Color(white: 0.18)
+                    )
+                }
+            }
+            .ignoresSafeArea()  // 延伸到标题栏左侧区域
+        )
     }
 }
 
@@ -266,6 +353,7 @@ private struct SidebarView: View {
 
 private struct DetailView: View {
     @Binding var selectedDestination: SettingsDestination?
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -289,10 +377,13 @@ private struct DetailView: View {
                             AboutView()
                         }
                     }
-                    .padding(DT.contentPadding)
+                    .padding(.horizontal, DT.contentPadding)
+                    .padding(.bottom, DT.contentPadding)
+                    .padding(.top, DT.contentPadding + 28)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(ScrollViewConfigurator())
                 }
-                .background(DT.contentBg)
+                .scrollContentBackground(.hidden)
             } else {
                 VStack(spacing: 14) {
                     Image(systemName: "gearshape")
@@ -303,9 +394,25 @@ private struct DetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(DT.contentBg)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            Group {
+                if settings.enableGlassEffect {
+                    Color.dynamic(
+                        light: Color.white.opacity(0.35),
+                        dark: Color.black.opacity(0.25)
+                    )
+                } else {
+                    Color.dynamic(
+                        light: Color(white: 0.98),
+                        dark: Color(white: 0.12)
+                    )
+                }
+            }
+            .ignoresSafeArea()  // 延伸到标题栏右侧区域
+        )
     }
 }
 
@@ -388,75 +495,80 @@ private struct GeneralSettingsView: View {
                 SectionLabel(title: "语言与外观".localized, icon: "globe", color: .orange)
 
                 DesignCard {
-                    HStack(spacing: 16) {
-                        // 系统语言
-                        VStack(alignment: .leading, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("系统语言".localized)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.customPrimaryText)
-                                Text("界面及菜单呈现语言".localized)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Picker("", selection: $settings.appLanguage) {
-                                Text("简体中文").tag("zh-CN")
-                                Text("English (US)").tag("en")
-                                Text("日本語").tag("ja")
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.customControlBg)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                            .stroke(DT.cardBorder, lineWidth: 0.5)
-                                    )
-                            )
+                    // 系统语言
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("系统语言".localized)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.customPrimaryText)
+                            Text("界面及菜单呈现语言".localized)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
                         }
-                        .frame(maxWidth: .infinity)
-
-                        // 外观模式
-                        VStack(alignment: .leading, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("外观模式".localized)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.customPrimaryText)
-                                Text("界面颜色主题偏好".localized)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            HStack(spacing: 0) {
-                                AppearanceModeButton(
-                                    label: "Light",
-                                    icon: "sun.max",
-                                    isSelected: settings.appAppearance == "light"
-                                ) { settings.appAppearance = "light" }
-
-                                AppearanceModeButton(
-                                    label: "Dark",
-                                    icon: "moon",
-                                    isSelected: settings.appAppearance == "dark"
-                                ) { settings.appAppearance = "dark" }
-                            }
-                            .background(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.customControlBg)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                            .stroke(DT.cardBorder, lineWidth: 0.5)
-                                    )
-                            )
+                        Spacer()
+                        Picker("", selection: $settings.appLanguage) {
+                            Text("简体中文").tag("zh-CN")
+                            Text("English (US)").tag("en")
+                            Text("日本語").tag("ja")
                         }
-                        .frame(maxWidth: .infinity)
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .fixedSize()
                     }
-                    .padding(DT.rowPadH)
+                    .padding(.horizontal, DT.rowPadH)
+                    .padding(.vertical, DT.rowPadV)
+
+                    CardDivider()
+
+                    // 外观模式
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("外观模式".localized)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.customPrimaryText)
+                            Text("界面颜色主题偏好".localized)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        HStack(spacing: 0) {
+                            AppearanceModeButton(
+                                label: "Light",
+                                icon: "sun.max",
+                                isSelected: settings.appAppearance == "light"
+                            ) { settings.appAppearance = "light" }
+
+                            AppearanceModeButton(
+                                label: "Dark",
+                                icon: "moon",
+                                isSelected: settings.appAppearance == "dark"
+                            ) { settings.appAppearance = "dark" }
+
+                            AppearanceModeButton(
+                                label: "Auto",
+                                icon: "circle.lefthalf.filled",
+                                isSelected: settings.appAppearance == "auto"
+                            ) { settings.appAppearance = "auto" }
+                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(.customControlBg)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .stroke(DT.cardBorder, lineWidth: 0.5)
+                                )
+                        )
+                    }
+                    .padding(.horizontal, DT.rowPadH)
+                    .padding(.vertical, DT.rowPadV)
+
+                    CardDivider()
+
+                    ToggleRow(
+                        title: "毛玻璃效果".localized,
+                        description: "使窗口背景呈现半透明的玻璃质感".localized,
+                        isOn: $settings.enableGlassEffect
+                    )
                 }
             }
         }
@@ -1106,7 +1218,7 @@ private struct AboutView: View {
                     Text("SnapClick")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(.customPrimaryText)
-                    Text("版本 1.0.2".localized)
+                    Text(String(format: "版本 %@".localized, UpdateChecker.shared.currentVersion))
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
 
@@ -1120,7 +1232,7 @@ private struct AboutView: View {
                         .controlSize(.small)
 
                         Button("检查更新".localized) {
-                            // 检查更新
+                            UpdateChecker.shared.checkForUpdates()
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
@@ -1240,21 +1352,30 @@ private struct RecordingSettingsView: View {
                         iconColor: .red,
                         title: "选区录制".localized,
                         subtitle: "单击选取录制区域".localized,
-                        isSelected: true
+                        isSelected: settings.recordDefaultMode == "area",
+                        action: {
+                            updateRecordingMode("area")
+                        }
                     )
                     RecordingModeCard(
                         icon: "display",
                         iconColor: Color(red: 99/255, green: 102/255, blue: 241/255),
                         title: "全屏录制".localized,
                         subtitle: "立即录制全屏".localized,
-                        isSelected: false
+                        isSelected: settings.recordDefaultMode == "screen",
+                        action: {
+                            updateRecordingMode("screen")
+                        }
                     )
                     RecordingModeCard(
                         icon: "macwindow",
                         iconColor: .teal,
                         title: "应用窗口".localized,
                         subtitle: "选取目标窗口".localized,
-                        isSelected: false
+                        isSelected: settings.recordDefaultMode == "window",
+                        action: {
+                            updateRecordingMode("window")
+                        }
                     )
                 }
             }
@@ -1281,7 +1402,11 @@ private struct RecordingSettingsView: View {
                                 }
                                 Spacer()
                                 Picker("", selection: $settings.recordResolution) {
-                                    Text("与选区匹配".localized).tag("与选区匹配")
+                                    if settings.recordDefaultMode == "area" {
+                                        Text("与选区匹配".localized).tag("与选区匹配")
+                                    } else if settings.recordDefaultMode == "window" {
+                                        Text("与窗口匹配".localized).tag("与窗口匹配")
+                                    }
                                     Text("1080p HD").tag("1080p")
                                     Text("4K UHD").tag("4K")
                                 }
@@ -1511,7 +1636,6 @@ private struct RecordingSettingsView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-
             // ── 快捷键 ───────────────────────────────────────────────
             VStack(alignment: .leading, spacing: 10) {
                 SectionLabel(title: "快捷键".localized, icon: "keyboard", color: .indigo)
@@ -1535,6 +1659,25 @@ private struct RecordingSettingsView: View {
                     Color.clear
                         .frame(maxWidth: .infinity)
                 }
+            }
+        }
+    }
+
+    private func updateRecordingMode(_ mode: String) {
+        settings.recordDefaultMode = mode
+        
+        // 联动调整分辨率选项
+        if mode == "area" {
+            if settings.recordResolution == "与窗口匹配" {
+                settings.recordResolution = "与选区匹配"
+            }
+        } else if mode == "screen" {
+            if settings.recordResolution == "与选区匹配" || settings.recordResolution == "与窗口匹配" {
+                settings.recordResolution = "1080p"
+            }
+        } else if mode == "window" {
+            if settings.recordResolution == "与选区匹配" {
+                settings.recordResolution = "与窗口匹配"
             }
         }
     }
@@ -1777,45 +1920,60 @@ private struct RecordingModeCard: View {
     let title: String
     let subtitle: String
     let isSelected: Bool
+    let action: () -> Void
 
     @State private var hovered = false
 
     var body: some View {
-        VStack(spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(isSelected ? iconColor.opacity(0.15) : iconColor.opacity(0.08))
-                    .frame(width: 38, height: 38)
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(iconColor)
-            }
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(isSelected ? iconColor.opacity(0.15) : iconColor.opacity(0.08))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(iconColor)
+                }
 
-            VStack(spacing: 2) {
-                Text(title)
-                    .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? .customPrimaryText : .customSecondaryText)
-                Text(subtitle)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                VStack(spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium))
+                        .foregroundStyle(isSelected ? .customPrimaryText : .customSecondaryText)
+                    Text(subtitle)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
+                    .fill(DT.cardBg)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
+                            .fill(isSelected ? Color.clear : (hovered ? Color.primary.opacity(0.03) : Color.clear))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
+                            .stroke(isSelected ? iconColor.opacity(0.5) : DT.cardBorder, lineWidth: isSelected ? 1.5 : 0.75)
+                    )
+                    .shadow(color: Color.black.opacity(0.02), radius: 4, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { isHovered in
+            hovered = isHovered
+            if isHovered {
+                NSCursor.pointingHand.set()
+            } else {
+                NSCursor.arrow.set()
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .padding(.horizontal, 8)
-        .background(
-            RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
-                .fill(isSelected
-                      ? DT.cardBg
-                      : (hovered ? Color.black.opacity(0.03) : DT.cardBg))
-                .overlay(
-                    RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
-                        .stroke(isSelected ? iconColor.opacity(0.5) : DT.cardBorder, lineWidth: isSelected ? 1.5 : 0.75)
-                )
-        )
-        .onHover { hovered = $0 }
         .animation(.easeOut(duration: 0.12), value: hovered)
     }
 }
@@ -1857,3 +2015,58 @@ extension ShapeStyle where Self == Color {
     static var customSecondaryText: Color { Color.customSecondaryText }
     static var customControlBg: Color { Color.customControlBg }
 }
+
+// MARK: - 自定义滚动条
+
+class CustomScroller: NSScroller {
+    override class var isCompatibleWithOverlayScrollers: Bool {
+        return true
+    }
+
+    override func drawKnob() {
+        guard let window = self.window else { return }
+        let knobRect = rect(for: .knob)
+        if knobRect.isEmpty { return }
+        
+        // 限制宽度与边距，使滑块变得更纤细、更精致
+        let insetRect = knobRect.insetBy(dx: 4.5, dy: 2)
+        let path = NSBezierPath(roundedRect: insetRect, xRadius: 3, yRadius: 3)
+        
+        let isDark = window.appearance?.name.rawValue.contains("dark") ?? false
+        let color = isDark
+            ? NSColor.white.withAlphaComponent(0.18)
+            : NSColor.black.withAlphaComponent(0.12)
+            
+        color.set()
+        path.fill()
+    }
+    
+    override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {
+        // 背景轨道不画任何东西，保持透明，减少视觉干扰
+    }
+}
+
+class ScrollViewConfiguratorNSView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if self.window != nil {
+            if let scrollView = self.enclosingScrollView {
+                scrollView.hasVerticalScroller = true
+                scrollView.drawsBackground = false
+                if !(scrollView.verticalScroller is CustomScroller) {
+                    let customScroller = CustomScroller()
+                    scrollView.verticalScroller = customScroller
+                }
+            }
+        }
+    }
+}
+
+struct ScrollViewConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        return ScrollViewConfiguratorNSView()
+    }
+    
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+

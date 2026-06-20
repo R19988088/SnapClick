@@ -26,6 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
+        // 监听毛玻璃透明效果变化
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleGlassEffectChanged),
+            name: .enableGlassEffectDidChange,
+            object: nil
+        )
+
         let settings = AppSettings.shared
         if settings.isFirstLaunch {
             showWelcomeWindow()
@@ -57,19 +65,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(ColorPickerEngine.shared)
                 .environmentObject(PinWindowManager.shared))
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 780, height: 520),
-                styleMask: [.titled, .closable, .resizable, .miniaturizable],
+                contentRect: NSRect(x: 0, y: 0, width: 880, height: 600),
+                styleMask: [.titled, .closable, .resizable, .miniaturizable, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
             )
             window.title = "SnapClick 设置"
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.titlebarSeparatorStyle = .none
+            window.isMovableByWindowBackground = true
+            // 不再透明，让标题栏区域由侧边栏的 VisualEffectView 自然延伸覆盖
             window.contentView = hostingView
+            applyAppearance(to: window)
+            applyGlassEffect(to: window)
             window.center()
             window.isReleasedWhenClosed = false
             settingsWindow = window
         }
+        applyAppearance(to: settingsWindow)
+        applyGlassEffect(to: settingsWindow)
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func closeSettings() {
+        settingsWindow?.orderOut(nil)
+    }
+
+    private func applyAppearance(to window: NSWindow?) {
+        guard let window else { return }
+        switch AppSettings.shared.appAppearance {
+        case "light": window.appearance = NSAppearance(named: .aqua)
+        case "dark":  window.appearance = NSAppearance(named: .darkAqua)
+        default:      window.appearance = nil
+        }
+    }
+
+    private func applyGlassEffect(to window: NSWindow?) {
+        guard let window else { return }
+        if AppSettings.shared.enableGlassEffect {
+            window.isOpaque = false
+            window.backgroundColor = .clear
+        } else {
+            window.isOpaque = true
+            window.backgroundColor = .windowBackgroundColor
+        }
+    }
+
+    @objc private func handleGlassEffectChanged() {
+        applyGlassEffect(to: settingsWindow)
+        applyGlassEffect(to: welcomeWindow)
     }
 
     private func cacheInstalledApps() {
@@ -203,12 +249,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 600, height: 560),
-            styleMask: [.titled, .closable],
+            styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "欢迎使用 SnapClick".localized
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isMovableByWindowBackground = true
         window.contentView = hostingView
+        applyGlassEffect(to: window)
         window.center()
         window.isReleasedWhenClosed = false
         welcomeWindow = window

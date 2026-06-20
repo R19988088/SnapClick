@@ -519,8 +519,8 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         
         let path = (AppSettings.shared.screenshotSavePath as NSString).expandingTildeInPath
         let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        let fileURL = URL(fileURLWithPath: path).appendingPathComponent("截图 \(fmt.string(from: Date())).png")
+        fmt.dateFormat = "yyyy-MM-dd_HH.mm.ss"
+        let fileURL = URL(fileURLWithPath: path).appendingPathComponent("SnapClick_截图_\(fmt.string(from: Date())).png")
         
         do {
             try ScreenCaptureEngine.shared.saveScreenshot(exported, to: fileURL.path)
@@ -610,18 +610,25 @@ private class ColorSwatch: NSView {
     private let color: NSColor
     private weak var parent: AnnotationEditorWindow?
     private var isHovered = false
+    private let fillLayer = CAShapeLayer()
 
     init(color: NSColor, parent: AnnotationEditorWindow) {
         self.color = color
         self.parent = parent
-        super.init(frame: CGRect(x: 0, y: 0, width: 18, height: 18))
+        super.init(frame: CGRect(x: 0, y: 0, width: 24, height: 24))
         wantsLayer = true
-        layer?.backgroundColor = color.cgColor
-        layer?.cornerRadius    = 9 // 完美正圆
+        layer?.cornerRadius    = 12 // 圆形背景
         layer?.masksToBounds   = true
         
-        widthAnchor.constraint(equalToConstant: 18).isActive  = true
-        heightAnchor.constraint(equalToConstant: 18).isActive = true
+        widthAnchor.constraint(equalToConstant: 24).isActive  = true
+        heightAnchor.constraint(equalToConstant: 24).isActive = true
+        
+        // 内部彩色填充层
+        fillLayer.path = CGPath(ellipseIn: bounds.insetBy(dx: 3, dy: 3), transform: nil)
+        fillLayer.fillColor = color.cgColor
+        fillLayer.strokeColor = NSColor(white: 1.0, alpha: 0.15).cgColor
+        fillLayer.lineWidth = 0.5
+        self.layer?.addSublayer(fillLayer)
         
         updateHighlightState(selectedColor: parent.canvas.currentColor)
         
@@ -638,14 +645,9 @@ private class ColorSwatch: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     func updateHighlightState(selectedColor: NSColor) {
-        // 如果当前颜色与母窗口选择颜色匹配，应用粗白环描边
-        if color == selectedColor {
-            layer?.borderWidth = 1.5
-            layer?.borderColor = NSColor.white.cgColor
-        } else {
-            layer?.borderWidth = 0.5
-            layer?.borderColor = NSColor(white: 1.0, alpha: 0.35).cgColor
-        }
+        let isSelected = (color == selectedColor)
+        // 选中时带有半透明白色背景（跟左侧工具按钮一致），未选中时透明
+        self.layer?.backgroundColor = isSelected ? NSColor.white.withAlphaComponent(0.2).cgColor : NSColor.clear.cgColor
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -661,7 +663,7 @@ private class ColorSwatch: NSView {
         isHovered = false
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
-            self.animator().frame = CGRect(x: self.frame.midX - 9, y: self.frame.midY - 9, width: 18, height: 18)
+            self.animator().frame = CGRect(x: self.frame.midX - 12, y: self.frame.midY - 12, width: 24, height: 24)
         }
     }
 

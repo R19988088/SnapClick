@@ -41,6 +41,6 @@ class ScreenshotSettings: ObservableObject {
     }
     
     var customPrefix: String {
-        get { "截图" }
+        get { "SnapClick" }
     }
 }

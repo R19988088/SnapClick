@@ -29,10 +29,11 @@ final class RecordSelectionOverlayWindow: NSWindow {
     private let backgroundImage: NSImage
     private var overlayView: RecordSelectionOverlayView!
     
-    init(backgroundImage: NSImage, windows: [SCWindow] = [], mode: RecordSelectionMode = .areaSelection) {
+    init(backgroundImage: NSImage, windows: [SCWindow] = [], screen: NSScreen? = nil, mode: RecordSelectionMode = .areaSelection) {
         self.backgroundImage = backgroundImage
         
-        let screenFrame = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let targetScreen = screen ?? NSScreen.main
+        let screenFrame = targetScreen?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
         
         super.init(
             contentRect: screenFrame,
@@ -48,6 +49,10 @@ final class RecordSelectionOverlayWindow: NSWindow {
         self.ignoresMouseEvents = false
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.acceptsMouseMovedEvents = true
+        
+        if let screenColorSpace = targetScreen?.colorSpace {
+            self.colorSpace = screenColorSpace
+        }
         
         self.overlayView = RecordSelectionOverlayView(
             frame: NSRect(origin: .zero, size: screenFrame.size),
@@ -102,6 +107,7 @@ final class RecordSelectionOverlayView: NSView {
     }
     var hoveredWindow: SCWindow?
     var selectedWindow: SCWindow?
+    private var selectedWindowImage: NSImage?
     
     var selectedRect: CGRect = .zero {
         didSet {
@@ -112,6 +118,29 @@ final class RecordSelectionOverlayView: NSView {
     
     // HUD 窗口
     private var hudWindow: NSWindow?
+    
+    private var cgCoordFlipHeight: CGFloat {
+        return NSScreen.screens.map { $0.frame.maxY }.max() ?? NSScreen.main?.frame.height ?? 900
+    }
+
+    private func winToViewRect(_ win: SCWindow) -> CGRect {
+        let cgFrame = win.frame
+        let flipH   = cgCoordFlipHeight
+
+        let appKitScreenRect = NSRect(
+            x:      cgFrame.origin.x,
+            y:      flipH - cgFrame.origin.y - cgFrame.height,
+            width:  cgFrame.width,
+            height: cgFrame.height
+        )
+
+        guard let parent = self.window else {
+            return appKitScreenRect
+        }
+
+        let rectInWindow = parent.convertFromScreen(appKitScreenRect)
+        return self.convert(rectInWindow, from: nil)
+    }
     
     init(frame: NSRect, backgroundImage: NSImage, parentWindow: RecordSelectionOverlayWindow, windows: [SCWindow] = []) {
         self.backgroundImage = backgroundImage
@@ -147,14 +176,7 @@ final class RecordSelectionOverlayView: NSView {
         
         if mode == .windowSelection {
             if let win = hoveredWindow {
-                let screenHeight = bounds.height
-                let frame = win.frame
-                let appKitFrame = CGRect(
-                    x: frame.origin.x,
-                    y: screenHeight - frame.origin.y - frame.size.height,
-                    width: frame.size.width,
-                    height: frame.size.height
-                )
+                let appKitFrame = winToViewRect(win)
                 
                 let outerPath = CGMutablePath()
                 outerPath.addRect(bounds)
@@ -184,6 +206,10 @@ final class RecordSelectionOverlayView: NSView {
                 outerPath.addRect(rect)
                 context.addPath(outerPath)
                 context.fillPath(using: .evenOdd)
+                
+                if let winImg = selectedWindowImage, selectedWindow != nil {
+                    winImg.draw(in: rect)
+                }
                 
                 drawSelectionBorder(rect: rect, context: context)
                 drawSizeTooltip(rect: rect, context: context)
@@ -367,15 +393,24 @@ final class RecordSelectionOverlayView: NSView {
         if mode == .windowSelection {
             if let win = hoveredWindow {
                 selectedWindow = win
-                let screenHeight = bounds.height
-                let frame = win.frame
-                selectedRect = CGRect(
-                    x: frame.origin.x,
-                    y: screenHeight - frame.origin.y - frame.size.height,
-                    width: frame.size.width,
-                    height: frame.size.height
-                )
+                selectedRect = winToViewRect(win)
                 mode = .areaSelection
+                
+                if let app = win.owningApplication,
+                   let runningApp = NSRunningApplication(processIdentifier: app.processID) {
+                    runningApp.activate(options: [.activateIgnoringOtherApps])
+                }
+                
+                Task { @MainActor in
+                    do {
+                        let img = try await ScreenCaptureEngine.shared.captureSingleWindow(win)
+                        self.selectedWindowImage = img
+                        self.needsDisplay = true
+                    } catch {
+                        print("[RecordSelectionOverlayView] 捕获窗口画面失败: \(error)")
+                    }
+                }
+                
                 showHUD()
             }
             return
@@ -385,12 +420,16 @@ final class RecordSelectionOverlayView: NSView {
             activeHandle = handle
             dragStartRect = selectedRect
             startPoint = loc
+            selectedWindow = nil
+            selectedWindowImage = nil
         } else {
             activeHandle = nil
             startPoint = loc
             currentPoint = loc
             isDragging = true
             selectedRect = .zero
+            selectedWindow = nil
+            selectedWindowImage = nil
         }
         needsDisplay = true
     }
@@ -506,22 +545,22 @@ final class RecordSelectionOverlayView: NSView {
         }
     }
     
-    private func windowAtPoint(_ point: NSPoint) -> SCWindow? {
-        let screenHeight = bounds.height
-        var bestWindow: SCWindow?
+    private func windowAtPoint(_ viewPoint: NSPoint) -> SCWindow? {
+        guard let win = self.window else {
+            let cgPt = CGPoint(x: viewPoint.x, y: cgCoordFlipHeight - viewPoint.y)
+            return availableWindows.first { $0.frame.contains(cgPt) }
+        }
+
+        let pointInWindow = self.convert(viewPoint, to: nil)
+        let pointInScreen = win.convertToScreen(NSRect(origin: pointInWindow, size: .zero)).origin
+        let cgPoint = CGPoint(x: pointInScreen.x, y: cgCoordFlipHeight - pointInScreen.y)
+
         for window in availableWindows {
-            let frame = window.frame
-            let appKitFrame = CGRect(
-                x: frame.origin.x,
-                y: screenHeight - frame.origin.y - frame.size.height,
-                width: frame.size.width,
-                height: frame.size.height
-            )
-            if appKitFrame.contains(point) {
-                bestWindow = window
+            if window.frame.contains(cgPoint) {
+                return window
             }
         }
-        return bestWindow
+        return nil
     }
     
     // MARK: - HUD 管理与通信

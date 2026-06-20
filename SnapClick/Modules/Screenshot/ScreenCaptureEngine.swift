@@ -94,8 +94,80 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         return content
     }
 
+    /// 过滤出"用户可见的普通应用窗口"，并按真实 Z 序（从最上层到最底层）返回
+    ///
+    /// 核心思路：
+    /// - 使用 CGWindowListCopyWindowInfo(.optionOnScreenOnly) 获取当前桌面上"真正可见"的窗口
+    ///   该 API 严格按 Z 序排列（数组前面的窗口在视觉上更上层），且会自动过滤被遮挡的窗口
+    /// - 用 windowNumber 与 SCWindow.windowID 做映射，得到对应的 SCWindow 用于 ScreenCaptureKit 截图
+    /// - 对最终结果再做一层属性过滤（layer/owner/尺寸/屏幕范围/SnapClick 自身/系统 UI）
+    private func selectableWindows(from content: SCShareableContent) -> [SCWindow] {
+        let ownBundleID = Bundle.main.bundleIdentifier
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let screenFrames = NSScreen.screens.map { $0.frame }
+
+        // 系统级 UI 进程，不应作为可截图的"窗口"
+        let systemBundles: Set<String> = [
+            "com.apple.dock",
+            "com.apple.WindowManager",
+            "com.apple.controlcenter",
+            "com.apple.systemuiserver",
+            "com.apple.notificationcenterui",
+            "com.apple.wallpaper.WallpaperAgent",
+            "com.apple.Spotlight",
+            "com.apple.loginwindow",
+            "com.apple.TextInputMenuAgent",
+            "com.apple.TextInputSwitcher"
+        ]
+
+        // 1) 通过 CoreGraphics 获取真实可见窗口列表（已按 Z 序排好）
+        let cgListOpts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let rawList = CGWindowListCopyWindowInfo(cgListOpts, kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+
+        // 2) 把 SCWindow 按 windowID 建立索引，便于按 CG 顺序查找
+        var scIndex: [CGWindowID: SCWindow] = [:]
+        for w in content.windows {
+            scIndex[w.windowID] = w
+        }
+
+        // 3) 按 CG 列表顺序构建结果（保留 Z 序：前面 = 最上层）
+        var result: [SCWindow] = []
+        for entry in rawList {
+            // 仅普通应用窗口层（菜单栏/Dock/桌面/输入法 IME 等都是非 0）
+            guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else { continue }
+            // 必须实际"在屏"
+            if let onScreen = entry[kCGWindowIsOnscreen as String] as? Bool, !onScreen { continue }
+            // 必须有 alpha（>0），否则纯透明，用户看不见
+            if let alpha = entry[kCGWindowAlpha as String] as? Double, alpha <= 0.05 { continue }
+            // PID：排除自身
+            if let pid = entry[kCGWindowOwnerPID as String] as? Int32, pid == ownPID { continue }
+            // 取 windowID
+            guard let cgID = entry[kCGWindowNumber as String] as? CGWindowID else { continue }
+            // 必须在 SCShareableContent 中存在，否则后面无法用 ScreenCaptureKit 截
+            guard let scWin = scIndex[cgID] else { continue }
+            // owningApplication 必填
+            guard let app = scWin.owningApplication else { continue }
+            // 排除自身（双保险）
+            if let ownBundleID = ownBundleID, app.bundleIdentifier == ownBundleID { continue }
+            // 排除系统 UI 进程
+            if systemBundles.contains(app.bundleIdentifier) { continue }
+            // 取 CGRect（CG 坐标系）
+            guard let boundsDict = entry[kCGWindowBounds as String] as? [String: Any],
+                  let cgRect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else { continue }
+            // 尺寸太小一般是辅助窗口/装饰（放宽到 60x40，避免遗漏部分合法的工具面板窗口）
+            if cgRect.width < 60 || cgRect.height < 40 { continue }
+            // 必须与某个屏幕有交集
+            guard screenFrames.contains(where: { $0.intersects(scWin.frame) }) else { continue }
+            result.append(scWin)
+        }
+        return result
+    }
+
     // MARK: - 智能截图（区域 + 窗口合一）
     /// 显示覆盖层：悬停高亮窗口，拖拽选区，点击截取窗口
+    /// 多屏幕支持：覆盖层显示在鼠标当前所在的屏幕上
     func capture() async throws {
         guard !isCapturing else { return }
 
@@ -106,15 +178,15 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         isCapturing = true
         defer { isCapturing = false }
 
+        let screen = activeScreen()
         let content = try await refreshContent()
-        let backgroundImage = try await captureFullScreenRaw()
+        let backgroundImage = try await captureScreen(screen)
 
-        let windows = content.windows.filter {
-            $0.isOnScreen && $0.frame.width > 50 && $0.frame.height > 50
-        }
+        let windows = selectableWindows(from: content)
 
         let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage,
-                                           windows: windows)
+                                           windows: windows,
+                                           screen: screen)
         self.overlayWindow = overlay
         overlay.mode = .combined
         overlay.makeKeyAndOrderFront(nil)
@@ -134,9 +206,10 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         isCapturing = true
         defer { isCapturing = false }
 
-        let backgroundImage = try await captureFullScreenRaw()
+        let screen = activeScreen()
+        let backgroundImage = try await captureScreen(screen)
 
-        let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage)
+        let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage, screen: screen)
         self.overlayWindow = overlay
         overlay.mode = .areaSelection
         overlay.makeKeyAndOrderFront(nil)
@@ -158,8 +231,9 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         isCapturing = true
         defer { isCapturing = false }
 
-        let backgroundImage = try await captureFullScreenRaw()
-        let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage)
+        let screen = activeScreen()
+        let backgroundImage = try await captureScreen(screen)
+        let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage, screen: screen)
         self.overlayWindow = overlay
         overlay.mode = .areaSelection
         overlay.isLongScreenshotMode = true
@@ -180,15 +254,15 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         isCapturing = true
         defer { isCapturing = false }
 
+        let screen = activeScreen()
         let content = try await refreshContent()
-        let backgroundImage = try await captureFullScreenRaw()
+        let backgroundImage = try await captureScreen(screen)
 
-        let windows = content.windows.filter {
-            $0.isOnScreen && $0.frame.width > 50 && $0.frame.height > 50
-        }
+        let windows = selectableWindows(from: content)
 
         let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage,
-                                           windows: windows)
+                                           windows: windows,
+                                           screen: screen)
         self.overlayWindow = overlay
         overlay.mode = .windowSelection
         overlay.makeKeyAndOrderFront(nil)
@@ -198,7 +272,7 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     }
 
     // MARK: - 全屏截图
-    /// 截取主屏幕并立刻进入就地标注模式
+    /// 截取当前屏幕并立刻进入就地标注模式
     func captureFullScreen() async throws {
         // 防止重复触发，确保同时只有一个截图实例运行
         guard !isCapturing else { return }
@@ -210,9 +284,10 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         isCapturing = true
         defer { isCapturing = false }
         
-        let backgroundImage = try await captureFullScreenRaw()
+        let screen = activeScreen()
+        let backgroundImage = try await captureScreen(screen)
         
-        let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage)
+        let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage, screen: screen)
         self.overlayWindow = overlay
         overlay.mode = .areaSelection
         
@@ -225,7 +300,7 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     }
 
     // MARK: - 延时截图
-    /// countdown 秒倒计时后执行全屏截图并立刻进入就地标注模式
+    /// countdown 秒倒计时后执行截图并立刻进入就地标注模式
     func captureWithDelay(_ seconds: Int) async throws {
         // 防止重复触发，确保同时只有一个截图实例运行
         guard !isCapturing else { return }
@@ -246,9 +321,11 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
 
         defer { isCapturing = false }
         
-        let backgroundImage = try await captureFullScreenRaw()
+        // 延时结束后重新检测鼠标所在屏幕（用户在倒计时期间可能已移动到其它屏幕）
+        let screen = activeScreen()
+        let backgroundImage = try await captureScreen(screen)
         
-        let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage)
+        let overlay = CaptureOverlayWindow(backgroundImage: backgroundImage, screen: screen)
         self.overlayWindow = overlay
         overlay.mode = .areaSelection
         
@@ -284,14 +361,113 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         }
     }
 
-    /// 内部：截取主屏幕原图
-    private func captureFullScreenRaw() async throws -> NSImage {
-        guard let cgImage = CGDisplayCreateImage(CGMainDisplayID()) else {
+    // MARK: - 屡屏截图辅助
+
+    /// 返回鼠标当前所在的屏幕；找不到时退化为主屏。
+    /// 支持多屏幕：这样用户在哪个屏幕上触发截图，覆盖层就显示在那个屏幕上。
+    private func activeScreen() -> NSScreen {
+        let mouseLocation = NSEvent.mouseLocation
+        return NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.main
+            ?? NSScreen.screens[0]
+    }
+
+    /// 截取指定屏幕的全屏图像（逻辑分辨率）
+    /// macOS 14+ 使用 SCScreenshotManager（异步、非阻塞）
+    /// macOS 13   降级使用 CGDisplayCreateImage
+    private func captureScreen(_ screen: NSScreen) async throws -> NSImage {
+        let displayID = (screen.deviceDescription[
+            NSDeviceDescriptionKey(rawValue: "NSScreenNumber")] as? CGDirectDisplayID) ?? CGMainDisplayID()
+        let scale = screen.backingScaleFactor
+
+        if #available(macOS 14.0, *) {
+            do {
+                let content = try await SCShareableContent.excludingDesktopWindows(
+                    false, onScreenWindowsOnly: true)
+                guard let scDisplay = content.displays.first(where: { $0.displayID == displayID })
+                        ?? content.displays.first else {
+                    throw ScreenCaptureError.noScreenAvailable
+                }
+
+                // 只排除截图覆盖层自身的窗口，其余 SnapClick 窗口（如设置界面）正常保留
+                var excludedWindows: [SCWindow] = []
+                if let overlayWin = self.overlayWindow {
+                    let overlayWindowNum = overlayWin.windowNumber
+                    let ownPID = ProcessInfo.processInfo.processIdentifier
+                    let overlaySCWin = content.windows.first(where: {
+                        $0.owningApplication?.processID == ownPID &&
+                        $0.windowID == UInt32(overlayWindowNum)
+                    })
+                    if let w = overlaySCWin { excludedWindows.append(w) }
+                }
+                let filter = SCContentFilter(display: scDisplay, excludingWindows: excludedWindows)
+
+                let cfg = SCStreamConfiguration()
+                cfg.width  = Int(CGFloat(scDisplay.width)  * scale)
+                cfg.height = Int(CGFloat(scDisplay.height) * scale)
+                cfg.showsCursor = false
+                cfg.capturesAudio = false
+
+                let cgImage = try await SCScreenshotManager.captureImage(
+                    contentFilter: filter,
+                    configuration: cfg)
+                let size = NSSize(width:  CGFloat(cgImage.width)  / scale,
+                                  height: CGFloat(cgImage.height) / scale)
+                return NSImage(cgImage: cgImage, size: size)
+            } catch {
+                // 失败回退到 CGDisplayCreateImage
+            }
+        }
+
+        // 降级：在后台线程同步调用，避免阻塞主线程
+        let cgImage: CGImage? = await Task.detached(priority: .userInitiated) {
+            CGDisplayCreateImage(displayID)
+        }.value
+        guard let cgImage = cgImage else {
             throw ScreenCaptureError.imageConversionFailed
         }
-        let scale = NSScreen.main?.backingScaleFactor ?? 1.0
-        let size = NSSize(width: CGFloat(cgImage.width) / scale, height: CGFloat(cgImage.height) / scale)
+        let size = NSSize(width:  CGFloat(cgImage.width)  / scale,
+                          height: CGFloat(cgImage.height) / scale)
         return NSImage(cgImage: cgImage, size: size)
+    }
+
+    /// 单窗口精确截图（macOS 14+ 优先 SCScreenshotManager）
+    /// 仅截取指定 SCWindow 的内容（不包含其它程序、不包含被遮挡区域之外的内容）
+    /// 返回的图片尺寸与窗口逻辑大小相同（点为单位）
+    func captureSingleWindow(_ window: SCWindow) async throws -> NSImage {
+        let cgID = window.windowID
+
+        if #available(macOS 14.0, *) {
+            let filter = SCContentFilter(desktopIndependentWindow: window)
+            let cfg = SCStreamConfiguration()
+            let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+            cfg.width  = max(1, Int(window.frame.width  * scale))
+            cfg.height = max(1, Int(window.frame.height * scale))
+            cfg.showsCursor = false
+            cfg.capturesAudio = false
+            if let cg = try? await SCScreenshotManager.captureImage(
+                contentFilter: filter, configuration: cfg) {
+                return NSImage(cgImage: cg, size: window.frame.size)
+            }
+        }
+
+        // 降级路径：CGWindowListCreateImage（在后台执行避免阻塞）
+        let img: CGImage? = await Task.detached(priority: .userInitiated) {
+            if let cg = CGWindowListCreateImage(.null,
+                                                .optionIncludingWindow,
+                                                cgID,
+                                                [.boundsIgnoreFraming, .nominalResolution]) {
+                return cg
+            }
+            return CGWindowListCreateImage(.null,
+                                           .optionIncludingWindow,
+                                           cgID,
+                                           [.boundsIgnoreFraming, .bestResolution])
+        }.value
+        if let img = img {
+            return NSImage(cgImage: img, size: window.frame.size)
+        }
+        throw ScreenCaptureError.imageConversionFailed
     }
 
     // MARK: - 图像后处理
@@ -314,56 +490,76 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     }
 
     // MARK: - 圆角处理
-    /// 给图片添加圆角
+    /// 给图片添加圆角（离屏 CGContext 绘制，避免 lockFocus 主线程阻塞）
     func applyRoundedCorners(to image: NSImage, radius: CGFloat) -> NSImage {
-        let size = image.size
-        let result = NSImage(size: size)
-        result.lockFocus()
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return image
+        }
+        let pxW = cg.width
+        let pxH = cg.height
+        let scaleX = CGFloat(pxW) / max(image.size.width, 1)
+        let pxRadius = radius * scaleX
 
-        let rect = NSRect(origin: .zero, size: size)
-        let path = NSBezierPath(roundedRect: rect,
-                                xRadius: radius,
-                                yRadius: radius)
-        path.addClip()
-        image.draw(in: rect)
-        result.unlockFocus()
-        return result
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(data: nil,
+                                  width: pxW,
+                                  height: pxH,
+                                  bitsPerComponent: 8,
+                                  bytesPerRow: 0,
+                                  space: colorSpace,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return image
+        }
+        let rectPx = CGRect(x: 0, y: 0, width: pxW, height: pxH)
+        let path = CGPath(roundedRect: rectPx, cornerWidth: pxRadius, cornerHeight: pxRadius, transform: nil)
+        ctx.addPath(path)
+        ctx.clip()
+        ctx.draw(cg, in: rectPx)
+        guard let outCG = ctx.makeImage() else { return image }
+        return NSImage(cgImage: outCG, size: image.size)
     }
 
     // MARK: - 阴影处理
-    /// 给图片添加阴影效果
+    /// 给图片添加阴影效果（离屏 CGContext 绘制）
     func applyShadow(to image: NSImage) -> NSImage {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return image
+        }
         let padding: CGFloat = 40
-        let originalSize = image.size
-        let newSize = NSSize(
-            width:  originalSize.width  + padding * 2,
-            height: originalSize.height + padding * 2
-        )
+        let scaleX = CGFloat(cg.width) / max(image.size.width, 1)
+        let pxPadding = padding * scaleX
 
-        let result = NSImage(size: newSize)
-        result.lockFocus()
+        let pxW = cg.width  + Int(pxPadding * 2)
+        let pxH = cg.height + Int(pxPadding * 2)
 
-        // 清空背景
-        NSColor.clear.setFill()
-        NSRect(origin: .zero, size: newSize).fill()
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(data: nil,
+                                  width: pxW,
+                                  height: pxH,
+                                  bitsPerComponent: 8,
+                                  bytesPerRow: 0,
+                                  space: colorSpace,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return image
+        }
 
-        // 设置阴影
-        let shadow = NSShadow()
-        shadow.shadowColor  = NSColor.black.withAlphaComponent(0.5)
-        shadow.shadowOffset = NSSize(width: 0, height: -8)
-        shadow.shadowBlurRadius = 20
-        shadow.set()
+        ctx.clear(CGRect(x: 0, y: 0, width: pxW, height: pxH))
 
-        // 绘制图像
-        let drawRect = NSRect(
-            x: padding,
-            y: padding,
-            width:  originalSize.width,
-            height: originalSize.height
-        )
-        image.draw(in: drawRect)
-        result.unlockFocus()
-        return result
+        // 阴影：偏移 8pt（向下，CG 坐标系 Y 向上 → 取负值），模糊半径 20pt
+        let shadowColor = NSColor.black.withAlphaComponent(0.5).cgColor
+        ctx.setShadow(offset: CGSize(width: 0, height: -8 * scaleX),
+                      blur: 20 * scaleX,
+                      color: shadowColor)
+
+        let drawRect = CGRect(x: pxPadding,
+                              y: pxPadding,
+                              width: CGFloat(cg.width),
+                              height: CGFloat(cg.height))
+        ctx.draw(cg, in: drawRect)
+        guard let outCG = ctx.makeImage() else { return image }
+        let newSize = NSSize(width:  image.size.width  + padding * 2,
+                             height: image.size.height + padding * 2)
+        return NSImage(cgImage: outCG, size: newSize)
     }
 
     // MARK: - 保存截图
@@ -436,12 +632,18 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     }
 
     /// 裁剪图像到指定矩形（坐标为屏幕坐标系）
+    /// 多屏修复：根据矩形所在屏幕选择对应 backingScaleFactor，避免混合 Retina 错位
     private func cropImage(_ image: NSImage, to rect: CGRect) throws -> NSImage {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             throw ScreenCaptureError.imageConversionFailed
         }
 
-        let scale = NSScreen.main?.backingScaleFactor ?? 1.0
+        let scale: CGFloat = {
+            if let s = NSScreen.screens.first(where: { $0.frame.intersects(rect) })?.backingScaleFactor {
+                return s
+            }
+            return NSScreen.main?.backingScaleFactor ?? 1.0
+        }()
         let scaledRect = CGRect(
             x:      rect.origin.x * scale,
             y:      rect.origin.y * scale,
@@ -469,13 +671,13 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     /// 生成文件名
     private func generateFileName(settings: ScreenshotSettings) -> String {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        dateFormatter.dateFormat = "yyyy-MM-dd_HH.mm.ss"
         let dateString = dateFormatter.string(from: Date())
 
         if settings.namingRule == .customPrefix {
-            return "\(settings.customPrefix) \(dateString)"
+            return "\(settings.customPrefix)_\(dateString)"
         } else {
-            return "截图 \(dateString)"
+            return "SnapClick_截图_\(dateString)"
         }
     }
 }
