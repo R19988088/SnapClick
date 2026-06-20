@@ -1,5 +1,6 @@
 # Xcode
 build/
+dist/
 DerivedData/
 *.xcscmblueprint
 *.xccheckout
@@ -12,6 +13,7 @@ xcschememanagement.plist
 *.app
 *.dSYM.zip
 *.dSYM
+scripts/dmg_background*.png
 
 # Swift Package Manager
 .build/
