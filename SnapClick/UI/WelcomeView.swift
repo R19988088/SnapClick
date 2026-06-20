@@ -66,7 +66,7 @@ struct WelcomeView: View {
                             Text("SnapClick".localized)
                                 .font(.system(size: 13.5, weight: .bold))
                                 .foregroundStyle(.customPrimaryText)
-                            Text("v1.0.2".localized)
+                            Text("v\(UpdateChecker.shared.currentVersion)")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(DT.groupLabel)
                         }

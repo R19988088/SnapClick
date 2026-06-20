@@ -18,7 +18,7 @@ A premium productivity tool built exclusively for macOS, integrating Finder menu
 
 <br>
 
-<img src="website/assets/hero_screenshot.png" alt="SnapClick Main UI" width="800" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+<img src="docs/assets/hero_screenshot.png" alt="SnapClick Main UI" width="800" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
 
 </div>
 
@@ -37,7 +37,7 @@ A premium productivity tool built exclusively for macOS, integrating Finder menu
 - **Quick AirDrop** — One-click AirDrop for selected files.
 
 <br>
-<img src="website/assets/right_click_screenshot.png" alt="Finder Right-Click Menu" width="600" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
+<img src="docs/assets/right_click_screenshot.png" alt="Finder Right-Click Menu" width="600" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
 <br>
 
 ---
@@ -51,8 +51,8 @@ A premium productivity tool built exclusively for macOS, integrating Finder menu
 
 <br>
 <div align="center">
-  <img src="website/assets/screenshot_editor_screenshot.png" alt="Screenshot Annotation" width="480" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); margin-right: 16px;">
-  <img src="website/assets/long_screenshot_preview.png" alt="Scrolling Capture" width="300" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
+  <img src="docs/assets/screenshot_editor_screenshot.png" alt="Screenshot Annotation" width="480" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); margin-right: 16px;">
+  <img src="docs/assets/long_screenshot_preview.png" alt="Scrolling Capture" width="300" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
 </div>
 <br>
 
@@ -67,7 +67,7 @@ A premium productivity tool built exclusively for macOS, integrating Finder menu
 - **HUD Floating Controller** — A floating control panel to pause, resume, and stop recording, featuring live timers and audio waveforms.
 
 <br>
-<img src="website/assets/recording_overlay.png" alt="Screen Recording Overlay" width="700" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
+<img src="docs/assets/recording_overlay.png" alt="Screen Recording Overlay" width="700" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
 <br>
 
 ---
@@ -79,7 +79,7 @@ A premium productivity tool built exclusively for macOS, integrating Finder menu
 - **Flexible Interactions** — Zoom via double-clicks, adjust opacity smoothly using your scroll wheel, and manage active pins easily.
 
 <br>
-<img src="website/assets/pin_window_overlay.png" alt="Pinned Screen Window" width="600" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
+<img src="docs/assets/pin_window_overlay.png" alt="Pinned Screen Window" width="600" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
 <br>
 
 ---
@@ -91,7 +91,7 @@ A premium productivity tool built exclusively for macOS, integrating Finder menu
 - **History Tracking** — Automatically saves your 20 most recent color picks for quick recall.
 
 <br>
-<img src="website/assets/color_picker_overlay.png" alt="Magnifier Color Picker" width="450" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
+<img src="docs/assets/color_picker_overlay.png" alt="Magnifier Color Picker" width="450" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
 <br>
 
 ---
@@ -220,7 +220,7 @@ If you have questions, feature suggestions, or bug reports, feel free to contact
 - **Email**: [tyeerth@163.com](mailto:tyeerth@163.com)
 - **WeChat**:
   <br>
-  <img src="website/assets/wechat_qr.png" width="220" alt="WeChat QR Code" style="border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+  <img src="docs/assets/wechat_qr.png" width="220" alt="WeChat QR Code" style="border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
 
 ---
 
