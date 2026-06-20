@@ -7,7 +7,7 @@ class FileOperations {
 
     static let shared = FileOperations()
 
-    private let appGroupID = "group.com.snapclick.shared"
+    private let appGroupID = "group.4DAY66XCT4.com.snapclick.shared"
     private let clipboardKey = "finderClipboard"
     private let clipboardModeKey = "finderClipboardMode"
 
@@ -202,21 +202,36 @@ class FileOperations {
 
     func openWithDevTool(items: [URL], bundleID: String) {
         guard !items.isEmpty else { return }
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+        // 通过 bundleID 反查已知路径（避开 NSWorkspace.urlForApplication 触发的 TCC 提示）
+        let knownPaths: [String: String] = [
+            "com.microsoft.VSCode":            "/Applications/Visual Studio Code.app",
+            "com.todesktop.230313mzl4w4u92":    "/Applications/Cursor.app",
+            "com.apple.dt.Xcode":               "/Applications/Xcode.app",
+            "com.sublimetext.4":                "/Applications/Sublime Text.app",
+            "com.sublimetext.3":                "/Applications/Sublime Text.app"
+        ]
+        guard let appPath = knownPaths[bundleID],
+              Self.appExists(at: appPath) else {
             showAlert(title: "打开失败", message: "未检测到已安装此应用，请确认已在 Mac 上安装该程序。")
             return
         }
-
+        let appURL = URL(fileURLWithPath: appPath)
         let config = NSWorkspace.OpenConfiguration()
         NSWorkspace.shared.open(items, withApplicationAt: appURL, configuration: config, completionHandler: nil)
     }
 
     func openInTerminal(directory: URL, terminalBundleID: String) {
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: terminalBundleID) else {
+        let knownPaths: [String: String] = [
+            "com.apple.Terminal":         "/System/Applications/Utilities/Terminal.app",
+            "com.googlecode.iterm2":      "/Applications/iTerm.app",
+            "dev.warp.Warp-Stable":       "/Applications/Warp.app"
+        ]
+        guard let appPath = knownPaths[terminalBundleID],
+              Self.appExists(at: appPath) else {
             showAlert(title: "打开终端失败", message: "未找到对应的终端程序（\(terminalBundleID)）。")
             return
         }
-
+        let appURL = URL(fileURLWithPath: appPath)
         let config = NSWorkspace.OpenConfiguration()
         NSWorkspace.shared.open([directory], withApplicationAt: appURL, configuration: config, completionHandler: { _, error in
             if let error = error {
@@ -225,6 +240,11 @@ class FileOperations {
                 }
             }
         })
+    }
+
+    private static func appExists(at path: String) -> Bool {
+        var isDir: ObjCBool = false
+        return FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue
     }
 
     func airDrop(items: [URL]) {

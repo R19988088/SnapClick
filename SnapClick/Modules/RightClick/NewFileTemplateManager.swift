@@ -35,7 +35,7 @@ final class NewFileTemplateManager: ObservableObject {
     static let shared = NewFileTemplateManager()
 
     // MARK: - 常量
-    private let appGroupID = "group.com.snapclick.shared"
+    private let appGroupID = "group.4DAY66XCT4.com.snapclick.shared"
     private let storageKey = "fileTemplates"
     private let customKey  = "customTemplates"   // 供 FinderExtension MenuBuilder 读取
 

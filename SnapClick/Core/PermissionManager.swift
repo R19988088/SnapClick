@@ -72,7 +72,7 @@ final class PermissionManager: ObservableObject {
         }
 
         _ = CGRequestScreenCaptureAccess()
-        openLoginItemsPreferences()
+        openScreenRecordingPreferences()
         startPolling()
     }
 
@@ -86,20 +86,10 @@ final class PermissionManager: ObservableObject {
             return
         }
 
-        // 弹出系统提示（有时无效，因此同时打开设置页面）
-        let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true]
-        let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
-
-        DispatchQueue.main.async {
-            self.hasAccessibilityPermission = trusted
-        }
-
-        // 直接打开登录项与扩展设置页面，确保用户能找到开关
-        openLoginItemsPreferences()
-
-        if !trusted {
-            startPolling()
-        }
+        // 直接打开对应的设置页面让用户手动开启辅助功能
+        // 不使用 kAXTrustedCheckOptionPrompt，避免弹出系统提示框
+        openAccessibilityPreferences()
+        startPolling()
     }
 
     func checkFinderExtensionPermission() -> Bool {
@@ -132,14 +122,24 @@ final class PermissionManager: ObservableObject {
         startPolling()
     }
 
-    private func openLoginItemsPreferences() {
+    private func openScreenRecordingPreferences() {
         let urlString: String
-        if #available(macOS 15.0, *) {
-            urlString = "x-apple.systempreferences:com.apple.LoginItems-Settings.extension"
-        } else if #available(macOS 13.0, *) {
-            urlString = "x-apple.systempreferences:com.apple.settings.LoginItems"
+        if #available(macOS 13.0, *) {
+            urlString = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ScreenCapture"
         } else {
-            urlString = "x-apple.systempreferences:com.apple.preference.loginitems"
+            urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        }
+        if let url = URL(string: urlString) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func openAccessibilityPreferences() {
+        let urlString: String
+        if #available(macOS 13.0, *) {
+            urlString = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"
+        } else {
+            urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         }
         if let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)

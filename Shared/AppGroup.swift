@@ -1,7 +1,7 @@
 import Foundation
 
 enum AppGroup {
-    static let id = "group.com.snapclick.shared"
+    static let id = "group.4DAY66XCT4.com.snapclick.shared"
 
     static let defaults: UserDefaults = {
         guard let suite = UserDefaults(suiteName: id) else {

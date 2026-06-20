@@ -26,7 +26,7 @@ final class FavoriteDirectoriesManager: ObservableObject {
     static let shared = FavoriteDirectoriesManager()
 
     // MARK: - 常量
-    private let appGroupID  = "group.com.snapclick.shared"
+    private let appGroupID  = "group.4DAY66XCT4.com.snapclick.shared"
     private let storageKey  = "favoriteDirectories"
 
     // MARK: - 已发布属性

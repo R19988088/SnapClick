@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 enum MenuBuilder {
 
-    private static let appGroupID = "group.com.snapclick.shared"
+    private static let appGroupID = "group.4DAY66XCT4.com.snapclick.shared"
 
     static func buildMenu(for menuKind: FIMenuKind, target: AnyObject) -> NSMenu {
         resetActionData()

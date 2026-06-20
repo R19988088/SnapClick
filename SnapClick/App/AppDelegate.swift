@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController = StatusBarController(appDelegate: self)
         _ = PermissionManager.shared
         HotkeyManager.shared.registerAll()
-        cacheInstalledApps()
+        // 不在启动时调用 cacheInstalledApps() —— 避免非沙盒 App 访问 App Group 时触发 TCC 提示
         setupFinderCommandObserver()
         handleFinderCommand()
 
@@ -60,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func openSettings() {
+        cacheInstalledApps()
         print("[诊断] AppDelegate.openSettings 调用, settingsWindow == nil ? \(settingsWindow == nil)")
         if settingsWindow == nil {
             let hostingView = NSHostingView(rootView: MainWindow()
@@ -125,30 +126,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func cacheInstalledApps() {
         let terminals = [
-            (name: "Terminal", bundleID: "com.apple.Terminal"),
-            (name: "iTerm2", bundleID: "com.googlecode.iterm2"),
-            (name: "Warp", bundleID: "dev.warp.Warp-Stable")
+            (name: "Terminal", path: "/System/Applications/Utilities/Terminal.app", bundleID: "com.apple.Terminal"),
+            (name: "iTerm2", path: "/Applications/iTerm.app", bundleID: "com.googlecode.iterm2"),
+            (name: "Warp", path: "/Applications/Warp.app", bundleID: "dev.warp.Warp-Stable")
         ]
 
         let devTools = [
-            (name: "VS Code", bundleID: "com.microsoft.VSCode"),
-            (name: "Cursor", bundleID: "anysphere.cursor"),
-            (name: "Xcode", bundleID: "com.apple.dt.Xcode"),
-            (name: "Sublime Text", bundleID: "com.sublimetext.4"),
-            (name: "Sublime Text 3", bundleID: "com.sublimetext.3")
+            (name: "VS Code", path: "/Applications/Visual Studio Code.app", bundleID: "com.microsoft.VSCode"),
+            (name: "Cursor", path: "/Applications/Cursor.app", bundleID: "com.todesktop.230313mzl4w4u92"),
+            (name: "Xcode", path: "/Applications/Xcode.app", bundleID: "com.apple.dt.Xcode"),
+            (name: "Sublime Text", path: "/Applications/Sublime Text.app", bundleID: "com.sublimetext.4"),
+            (name: "Sublime Text 3", path: "/Applications/Sublime Text.app", bundleID: "com.sublimetext.3")
         ]
 
-        let installedTerminals = terminals.filter { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleID) != nil }
-        let installedDevTools = devTools.filter { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleID) != nil }
+        let installedTerminals = terminals.filter { Self.appExists(at: $0.path) }
+        let installedDevTools = devTools.filter { Self.appExists(at: $0.path) }
 
-        let ud = AppGroup.defaults
-        if let data = try? JSONEncoder().encode(installedTerminals.map { ["name": $0.name, "bundleID": $0.bundleID] }) {
-            ud.set(data, forKey: "cachedInstalledTerminals")
+        let payload: [String: Any] = [
+            "terminals": installedTerminals.map { ["name": $0.name, "bundleID": $0.bundleID] },
+            "devTools": installedDevTools.map { ["name": $0.name, "bundleID": $0.bundleID] }
+        ]
+
+        if let data = try? JSONSerialization.data(withJSONObject: payload) {
+            AppGroup.defaults.set(data, forKey: "cachedInstalledApps_v2")
+            AppGroup.defaults.synchronize()
         }
-        if let data = try? JSONEncoder().encode(installedDevTools.map { ["name": $0.name, "bundleID": $0.bundleID] }) {
-            ud.set(data, forKey: "cachedInstalledDevTools")
+    }
+
+    private static func appExists(at path: String) -> Bool {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else {
+            return false
         }
-        ud.synchronize()
+        return true
     }
 
     private func setupFinderCommandObserver() {

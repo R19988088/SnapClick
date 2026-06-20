@@ -1,7 +1,6 @@
 <div align="center">
 
 <img src="docs/assets/banner.png" alt="SnapClick" width="640">
-
 ### macOS 效率增强工具 — 右键增强 · 截图标注 · 屏幕录制 · 屏幕贴图 · 智能取色
 
 [![Version](https://img.shields.io/github/v/release/Tyeerth/SnapClick?color=blue\&label=version)](https://github.com/Tyeerth/SnapClick/releases)
@@ -169,7 +168,7 @@ sudo xattr -dr com.apple.quarantine /Applications/SnapClick.app
    ```
 3. **配置开发者签名** — 在 Xcode 的 `Signing & Capabilities` 中为以下两个 Target 配置您的开发团队 (Team)：
    - `SnapClick`（主 App，Bundle ID: `com.snapclick.app`，非沙盒特权模式）
-   - `FinderExtension`（右键扩展插件，Bundle ID: `com.snapclick.app.FinderExtension`，沙盒模式，绑定 App Group: `group.com.snapclick.shared`）
+   - `FinderExtension`（右键扩展插件，Bundle ID: `com.snapclick.app.FinderExtension`，沙盒模式，绑定 App Group: `group.4DAY66XCT4.com.snapclick.shared`）
 4. **构建运行** — 选择 Scheme `SnapClick` → 构建目标 `My Mac` → 运行 (⌘R)
 
 ***

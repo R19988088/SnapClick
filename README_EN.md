@@ -156,7 +156,7 @@ For features to work correctly, you will be prompted to grant these system privi
 
 3. **Configure code signing** — Under Xcode's `Signing & Capabilities`, configure your Development Team for both targets:
    - `SnapClick` (Main App, Bundle ID: `com.snapclick.app`, non-sandboxed)
-   - `FinderExtension` (Right-click plugin, Bundle ID: `com.snapclick.app.FinderExtension`, sandboxed, bound to App Group `group.com.snapclick.shared`)
+   - `FinderExtension` (Right-click plugin, Bundle ID: `com.snapclick.app.FinderExtension`, sandboxed, bound to App Group `group.4DAY66XCT4.com.snapclick.shared`)
 
 4. **Build and Run** — Select target `SnapClick` → Destination `My Mac` → Run (⌘R)
 
