@@ -607,16 +607,24 @@ final class RecordSelectionOverlayView: NSView {
         
         let hudWidth: CGFloat = 840
         let hudHeight: CGFloat = 76
+        let margin: CGFloat = 12
         
         let screenFrame = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
         
         var x = selectedRect.midX - hudWidth / 2
-        var y = selectedRect.minY - hudHeight - 12
         
-        if y < 10 {
-            y = selectedRect.maxY + 12
+        // 优先放在选区上方，其次选区下方，若上下都超出屏幕（如全屏/满屏窗口）则浮在选区内部底部
+        var y: CGFloat
+        if selectedRect.minY - hudHeight - margin >= 10 {
+            y = selectedRect.minY - hudHeight - margin
+        } else if selectedRect.maxY + margin + hudHeight <= screenFrame.height - 10 {
+            y = selectedRect.maxY + margin
+        } else {
+            y = selectedRect.minY + margin
         }
         
+        // 兜底夹紧，确保 HUD 始终完整可见
+        y = max(10, min(y, screenFrame.height - hudHeight - 10))
         x = max(10, min(x, screenFrame.width - hudWidth - 10))
         hud.setFrame(CGRect(x: screenFrame.origin.x + x, y: screenFrame.origin.y + y, width: hudWidth, height: hudHeight), display: true)
     }
@@ -745,14 +753,24 @@ struct RecordingSelectionHUDView: View {
                 HStack(spacing: 4) {
                     Image(systemName: settings.recordSystemAudio ? "speaker.wave.2.fill" : "speaker.slash.fill")
                         .font(.system(size: 11))
-                        .foregroundColor(Color(white: 1.0, opacity: 0.8))
+                        .foregroundColor(settings.recordSystemAudio ? .green : Color(white: 1.0, opacity: 0.8))
                         .frame(width: 14)
                     
-                    Toggle("", isOn: $settings.recordSystemAudio)
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                        .scaleEffect(0.65)
-                        .padding(.trailing, -10)
+                    Button(action: {
+                        settings.recordSystemAudio.toggle()
+                    }) {
+                        ZStack(alignment: settings.recordSystemAudio ? .trailing : .leading) {
+                            Capsule()
+                                .fill(settings.recordSystemAudio ? Color.green : Color(white: 1.0, opacity: 0.2))
+                                .frame(width: 32, height: 18)
+                            Circle()
+                                .fill(.white)
+                                .frame(width: 14, height: 14)
+                                .padding(.horizontal, 2)
+                        }
+                        .animation(.easeInOut(duration: 0.15), value: settings.recordSystemAudio)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .frame(height: 24)
             }

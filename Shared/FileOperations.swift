@@ -7,7 +7,6 @@ class FileOperations {
 
     static let shared = FileOperations()
 
-    private let appGroupID = "group.4DAY66XCT4.com.snapclick.shared"
     private let clipboardKey = "finderClipboard"
     private let clipboardModeKey = "finderClipboardMode"
 

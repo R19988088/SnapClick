@@ -52,14 +52,17 @@ enum DT {
     static let sidebarBg        = Color.clear
     static let sidebarSelected  = Color(red: 59/255,  green: 130/255, blue: 246/255)
     static let accent           = Color(red: 59/255,  green: 130/255, blue: 246/255)
-    static let contentBg        = Color.clear
+    static let contentBg        = Color.dynamic(
+        light: Color.white.opacity(0.55),
+        dark: Color(white: 1, opacity: 0.04)
+    )
     static let cardBg           = Color.dynamic(
-        light: Color.white.opacity(0.65),
-        dark: Color.black.opacity(0.2)
+        light: Color.white.opacity(0.95),
+        dark: Color(white: 1, opacity: 0.07)
     )
     static let cardBorder       = Color.dynamic(
-        light: Color(white: 0, opacity: 0.08),
-        dark: Color(white: 1, opacity: 0.1)
+        light: Color(white: 0, opacity: 0.12),
+        dark: Color(white: 1, opacity: 0.14)
     )
     static let groupLabel       = Color.dynamic(light: Color(red: 148/255, green: 163/255, blue: 184/255), dark: Color(red: 107/255, green: 114/255, blue: 128/255))
     static let successGreen     = Color(red: 34/255,  green: 197/255, blue: 94/255)
@@ -177,7 +180,7 @@ struct DesignCard<Content: View>: View {
             RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
                 .stroke(DT.cardBorder, lineWidth: 0.75)
         )
-        .shadow(color: Color.black.opacity(0.03), radius: 6, x: 0, y: 3)
+        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 2)
     }
 }
 
@@ -397,7 +400,7 @@ private struct DetailView: View {
         .background(
             Group {
                 if settings.enableGlassEffect {
-                    Color(red: 210/255, green: 209/255, blue: 208/255).opacity(0.5)
+                    DT.contentBg
                 } else {
                     Color.dynamic(
                         light: Color(white: 0.98),

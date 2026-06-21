@@ -118,7 +118,22 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
             throw ScreenRecordingError.permissionDenied
         }
 
-        try await performCountdown()
+        // 全屏录制同样显示四角闪烁标识，让用户明确录制范围
+        // 向内收缩 5px，抵消指示器窗口的对外扩展，确保四角标识完整贴合屏幕边缘可见
+        let screen = activeScreen()
+        let indicatorRect = screen.frame.insetBy(dx: 5, dy: 5)
+        let indicator = RecordingAreaIndicatorWindow(recordingRect: indicatorRect)
+        self.areaIndicatorWindow = indicator
+        indicator.orderFrontRegardless()
+
+        do {
+            try await performCountdown()
+        } catch {
+            areaIndicatorWindow?.orderOut(nil)
+            areaIndicatorWindow = nil
+            throw error
+        }
+
         try await startRecording(captureRect: nil, targetWindow: nil)  // nil = 全屏
     }
 
@@ -306,8 +321,6 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
 
     private func getShareableWindows() async throws -> [SCWindow] {
         let content = try await SCShareableContent.current
-        let ownPID = ProcessInfo.processInfo.processIdentifier
-        let ownBundleID = Bundle.main.bundleIdentifier
         let screenFrames = NSScreen.screens.map { $0.frame }
 
         let systemBundles: Set<String> = [
@@ -345,15 +358,14 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
             // 必须有 alpha（>0）
             if let alpha = entry[kCGWindowAlpha as String] as? Double, alpha <= 0.05 { continue }
             // PID：排除自身
-            if let pid = entry[kCGWindowOwnerPID as String] as? Int32, pid == ownPID { continue }
+            // PID：本 App 的录屏辅助窗口（选区覆盖层、HUD、四角指示器）层级均高于 0，
+            // 已被上面的 layer == 0 过滤掉；此处保留普通层级的 SnapClick 主窗口，使其可被录制
             // 取 windowID
             guard let cgID = entry[kCGWindowNumber as String] as? CGWindowID else { continue }
             // 必须在 SCShareableContent 中存在
             guard let scWin = scIndex[cgID] else { continue }
             // owningApplication 必填
             guard let app = scWin.owningApplication else { continue }
-            // 排除自身
-            if let ownBundleID = ownBundleID, app.bundleIdentifier == ownBundleID { continue }
             // 排除系统 UI 进程
             if systemBundles.contains(app.bundleIdentifier) { continue }
             // 取 CGRect（CG 坐标系）
@@ -569,7 +581,11 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
         if let targetWindow = targetWindow {
             filter = SCContentFilter(desktopIndependentWindow: targetWindow)
         } else {
-            filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
+            // 全屏录制时排除本 App 自身，避免四角闪烁指示器、HUD 等被录入视频
+            let selfApps = content.applications.filter {
+                $0.bundleIdentifier == Bundle.main.bundleIdentifier
+            }
+            filter = SCContentFilter(display: display, excludingApplications: selfApps, exceptingWindows: [])
         }
 
         let streamConfig = SCStreamConfiguration()

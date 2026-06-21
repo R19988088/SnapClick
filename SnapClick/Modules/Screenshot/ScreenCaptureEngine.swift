@@ -102,8 +102,6 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     /// - 用 windowNumber 与 SCWindow.windowID 做映射，得到对应的 SCWindow 用于 ScreenCaptureKit 截图
     /// - 对最终结果再做一层属性过滤（layer/owner/尺寸/屏幕范围/SnapClick 自身/系统 UI）
     private func selectableWindows(from content: SCShareableContent) -> [SCWindow] {
-        let ownBundleID = Bundle.main.bundleIdentifier
-        let ownPID = ProcessInfo.processInfo.processIdentifier
         let screenFrames = NSScreen.screens.map { $0.frame }
 
         // 系统级 UI 进程，不应作为可截图的"窗口"
@@ -141,16 +139,14 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
             if let onScreen = entry[kCGWindowIsOnscreen as String] as? Bool, !onScreen { continue }
             // 必须有 alpha（>0），否则纯透明，用户看不见
             if let alpha = entry[kCGWindowAlpha as String] as? Double, alpha <= 0.05 { continue }
-            // PID：排除自身
-            if let pid = entry[kCGWindowOwnerPID as String] as? Int32, pid == ownPID { continue }
+            // 本 App 的截图覆盖层等辅助窗口层级高于 0，已被上面的 layer == 0 过滤掉；
+            // 此处保留普通层级的 SnapClick 主窗口，使其可被选中截图
             // 取 windowID
             guard let cgID = entry[kCGWindowNumber as String] as? CGWindowID else { continue }
             // 必须在 SCShareableContent 中存在，否则后面无法用 ScreenCaptureKit 截
             guard let scWin = scIndex[cgID] else { continue }
             // owningApplication 必填
             guard let app = scWin.owningApplication else { continue }
-            // 排除自身（双保险）
-            if let ownBundleID = ownBundleID, app.bundleIdentifier == ownBundleID { continue }
             // 排除系统 UI 进程
             if systemBundles.contains(app.bundleIdentifier) { continue }
             // 取 CGRect（CG 坐标系）

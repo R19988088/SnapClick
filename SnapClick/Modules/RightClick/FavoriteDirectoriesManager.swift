@@ -26,18 +26,16 @@ final class FavoriteDirectoriesManager: ObservableObject {
     static let shared = FavoriteDirectoriesManager()
 
     // MARK: - 常量
-    private let appGroupID  = "group.4DAY66XCT4.com.snapclick.shared"
     private let storageKey  = "favoriteDirectories"
 
     // MARK: - 已发布属性
     @Published var favorites: [FavoriteDirectory] = []
 
     // MARK: - 内部属性
-    private var userDefaults: UserDefaults?
+    private let store = SharedStore.shared
 
     // MARK: - 初始化
     private init() {
-        userDefaults = UserDefaults(suiteName: appGroupID)
         load()
     }
 
@@ -83,8 +81,7 @@ final class FavoriteDirectoriesManager: ObservableObject {
     // MARK: - 私有方法
 
     private func load() {
-        guard let ud = userDefaults,
-              let data = ud.data(forKey: storageKey),
+        guard let data = store.data(forKey: storageKey),
               let decoded = try? JSONDecoder().decode([FavoriteDirectory].self, from: data) else {
             // 首次启动写入默认收藏目录
             favorites = Self.defaultDirectories()
@@ -95,10 +92,8 @@ final class FavoriteDirectoriesManager: ObservableObject {
     }
 
     private func save() {
-        guard let ud = userDefaults,
-              let encoded = try? JSONEncoder().encode(favorites) else { return }
-        ud.set(encoded, forKey: storageKey)
-        ud.synchronize()
+        guard let encoded = try? JSONEncoder().encode(favorites) else { return }
+        store.set(encoded, forKey: storageKey)
     }
 
     /// 默认收藏目录列表（首次启动时写入）

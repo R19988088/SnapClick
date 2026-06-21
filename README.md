@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="docs/assets/banner.png" alt="SnapClick" width="640">
+<img src="docs/assets/banner.png" alt="SnapClick" width="100%">
+
 ### macOS 效率增强工具 — 右键增强 · 截图标注 · 屏幕录制 · 屏幕贴图 · 智能取色
 
 [![Version](https://img.shields.io/github/v/release/Tyeerth/SnapClick?color=blue\&label=version)](https://github.com/Tyeerth/SnapClick/releases)
@@ -11,7 +12,7 @@
 
 一款专为 macOS 打造的高级效率增强工具，将 Finder 菜单增强、高级截图标注、高性能录屏、屏幕贴图、智能取色等常用效率功能一体化汇总，以纯原生 Swift 架构呈现，为您提供丝滑般尊贵的使用体验。
 
-[功能特性](#-功能特性) · [下载安装](#-下载安装) · [技术栈](#%EF%B8%8F-技术栈) · [编译构建](#-编译构建) · [项目结构](#-项目结构) · [联系作者](#-联系作者)
+[功能特性](#-功能特性) · [下载安装](#-下载安装) · [技术栈](#%EF%B8%8F-技术栈) · [编译构建](#-编译构建) · [联系作者](#-联系作者)
 
 [English](README_EN.md)
 
@@ -173,41 +174,7 @@ sudo xattr -dr com.apple.quarantine /Applications/SnapClick.app
 
 ***
 
-## 📂 项目结构
-
-```
-SnapClick/
-├── Shared/                          # 主 App 与 FinderExtension 共享模块
-│   ├── AppGroup.swift               # App Group 共享 UserDefaults 桥接
-│   └── FileOperations.swift         # 文件操作核心（剪切/粘贴/新建/哈希/显示）
-│
-├── FinderExtension/                 # Finder 右键插件
-│   ├── FinderSync.swift             # FIFinderSync 生命周期控制器
-│   ├── MenuBuilder.swift            # 动态右键菜单构造引擎
-│   ├── FinderExtension.entitlements
-│   └── Info.plist
-│
-└── SnapClick/                       # 主 App
-    ├── App/
-    │   ├── SnapClickApp.swift       # SwiftUI 生命周期入口
-    │   └── AppDelegate.swift        # AppKit 周期管理、命令分发
-    ├── Core/
-    │   ├── AppSettings.swift         # 全局 @AppStorage 配置项
-    │   ├── PermissionManager.swift   # 系统权限检测与引导
-    │   └── HotkeyManager.swift       # CGEventTap 全局快捷键
-    ├── UI/
-    │   ├── MainWindow.swift          # SwiftUI 多栏设置中心
-    │   ├── WelcomeView.swift         # 首次启动授权引导页
-    │   └── StatusBarController.swift # 菜单栏图标与下拉菜单
-    └── Modules/
-        ├── Screenshot/               # 截图与标注模块
-        ├── PinColor/                 # 贴图与取色模块
-        └── RightClick/               # 右键菜单设置模块
-```
-
-***
-
-## 📮 联系作者
+##  联系作者
 
 如果您在使用中遇到问题、有功能建议，或者想参与讨论，欢迎通过以下方式联系：
 

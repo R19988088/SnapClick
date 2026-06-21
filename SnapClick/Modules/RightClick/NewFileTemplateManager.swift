@@ -35,7 +35,6 @@ final class NewFileTemplateManager: ObservableObject {
     static let shared = NewFileTemplateManager()
 
     // MARK: - 常量
-    private let appGroupID = "group.4DAY66XCT4.com.snapclick.shared"
     private let storageKey = "fileTemplates"
     private let customKey  = "customTemplates"   // 供 FinderExtension MenuBuilder 读取
 
@@ -43,11 +42,10 @@ final class NewFileTemplateManager: ObservableObject {
     @Published var templates: [FileTemplate] = []
 
     // MARK: - 内部属性
-    private var userDefaults: UserDefaults?
+    private let store = SharedStore.shared
 
     // MARK: - 初始化
     private init() {
-        userDefaults = UserDefaults(suiteName: appGroupID)
         load()
     }
 
@@ -136,8 +134,7 @@ final class NewFileTemplateManager: ObservableObject {
     // MARK: - 私有方法
 
     private func load() {
-        guard let ud = userDefaults,
-              let data = ud.data(forKey: storageKey),
+        guard let data = store.data(forKey: storageKey),
               let decoded = try? JSONDecoder().decode([FileTemplate].self, from: data) else {
             // 首次启动写入内置模板
             templates = Self.builtinTemplates()
@@ -148,16 +145,14 @@ final class NewFileTemplateManager: ObservableObject {
     }
 
     private func save() {
-        guard let ud = userDefaults,
-              let encoded = try? JSONEncoder().encode(templates) else { return }
-        ud.set(encoded, forKey: storageKey)
+        guard let encoded = try? JSONEncoder().encode(templates) else { return }
+        store.set(encoded, forKey: storageKey)
 
         // 同步自定义模板的精简格式，供 FinderExtension MenuBuilder 读取
         let customs = templates
             .filter { !$0.isBuiltin && $0.isEnabled }
             .map { ["name": $0.name, "ext": $0.ext, "content": $0.defaultContent] }
-        ud.set(customs, forKey: customKey)
-        ud.synchronize()
+        store.set(customs, forKey: customKey)
     }
 
     /// 内置模板列表
