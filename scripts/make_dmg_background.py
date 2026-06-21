@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 OUT_DIR = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
 
-W, H = 660, 400  # logical points; window content size
+W, H = 660, 440  # logical points; window content size
 
 FONT_PATH = "/System/Library/Fonts/Hiragino Sans GB.ttc"
 FONT_INDEX_REGULAR = 0  # W3

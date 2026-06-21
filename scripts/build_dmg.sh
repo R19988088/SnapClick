@@ -18,14 +18,17 @@ BG_PNG="$SCRIPTS_DIR/dmg_background.png"
 BG_PNG_2X="$SCRIPTS_DIR/dmg_background@2x.png"
 
 WIN_W=660
-WIN_H=400
+# Background image height. Window content is made a few px taller than this
+# so the whole background fits with bottom margin and no scrollbar appears.
+WIN_H=440
 TITLEBAR_H=28
+WIN_CONTENT_H=$((WIN_H + 12))
 ICON_SIZE=128
 # icon center coordinates within the window content
 APP_ICON_X=165
-APP_ICON_Y=250
+APP_ICON_Y=285
 LINK_ICON_X=495
-LINK_ICON_Y=250
+LINK_ICON_Y=285
 
 APP_PATH="${1:-}"
 
@@ -101,7 +104,7 @@ tell application "Finder"
     set toolbar visible of container window to false
     set statusbar visible of container window to false
     set the sidebar width of container window to 0
-    set the bounds of container window to {200, 120, 200 + $WIN_W, 120 + $WIN_H + $TITLEBAR_H}
+    set the bounds of container window to {200, 120, 200 + $WIN_W, 120 + $WIN_CONTENT_H + $TITLEBAR_H}
     set viewOptions to the icon view options of container window
     set arrangement of viewOptions to not arranged
     set icon size of viewOptions to $ICON_SIZE
