@@ -167,56 +167,51 @@ final class RecordSelectionOverlayView: NSView {
     // MARK: - 绘制
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
-        
-        // 1. 绘制背景底图
-        backgroundImage.draw(in: bounds)
-        
-        // 2. 绘制暗化蒙层
-        context.setFillColor(NSColor(calibratedRed: 0, green: 0, blue: 0, alpha: 0.4).cgColor)
-        
+
+        // 窗口选择模式：保持真实屏幕完全透出，不绘制任何蒙版（黑色或蓝色），
+        // 仅在悬停目标窗口边缘画蓝色高亮描边 + 信息气泡作为视觉引导。
         if mode == .windowSelection {
             if let win = hoveredWindow {
                 let appKitFrame = winToViewRect(win)
-                
-                let outerPath = CGMutablePath()
-                outerPath.addRect(bounds)
-                outerPath.addRect(appKitFrame)
-                context.addPath(outerPath)
-                context.fillPath(using: .evenOdd)
-                
+
                 let themeColor = NSColor(red: 0.12, green: 0.56, blue: 1.0, alpha: 1.0)
                 context.setStrokeColor(themeColor.cgColor)
                 context.setLineWidth(3.0)
                 context.stroke(appKitFrame)
-                
-                context.setFillColor(NSColor(red: 0.12, green: 0.56, blue: 1.0, alpha: 0.08).cgColor)
-                context.fill(appKitFrame)
-                
+
                 drawWindowTooltip(window: win, rect: appKitFrame, context: context)
             } else {
-                context.fill(bounds)
+                // 未悬停任意窗口时，仅显示提示文字
                 drawWindowHintText(context: context)
             }
-        } else {
-            let rect = isDragging && activeHandle == nil ? normalizedSelectedRect() : selectedRect
-            
-            if rect.width > 2 && rect.height > 2 {
-                let outerPath = CGMutablePath()
-                outerPath.addRect(bounds)
-                outerPath.addRect(rect)
-                context.addPath(outerPath)
-                context.fillPath(using: .evenOdd)
-                
-                if let winImg = selectedWindowImage, selectedWindow != nil {
-                    winImg.draw(in: rect)
-                }
-                
-                drawSelectionBorder(rect: rect, context: context)
-                drawSizeTooltip(rect: rect, context: context)
-            } else {
-                context.fill(bounds)
-                drawHintText(context: context)
+            return
+        }
+
+        // 区域选择模式：保留原有"快照 + 暗化蒙层 + 选区高亮"交互
+        // 1. 绘制背景底图
+        backgroundImage.draw(in: bounds)
+
+        // 2. 绘制暗化蒙层
+        context.setFillColor(NSColor(calibratedRed: 0, green: 0, blue: 0, alpha: 0.4).cgColor)
+
+        let rect = isDragging && activeHandle == nil ? normalizedSelectedRect() : selectedRect
+
+        if rect.width > 2 && rect.height > 2 {
+            let outerPath = CGMutablePath()
+            outerPath.addRect(bounds)
+            outerPath.addRect(rect)
+            context.addPath(outerPath)
+            context.fillPath(using: .evenOdd)
+
+            if let winImg = selectedWindowImage, selectedWindow != nil {
+                winImg.draw(in: rect)
             }
+
+            drawSelectionBorder(rect: rect, context: context)
+            drawSizeTooltip(rect: rect, context: context)
+        } else {
+            context.fill(bounds)
+            drawHintText(context: context)
         }
     }
     
@@ -638,31 +633,10 @@ final class RecordSelectionOverlayView: NSView {
     }
     
     private func adjustSelectionForResolution(_ res: String) {
-        let screen = NSScreen.main ?? NSScreen.screens[0]
-        let screenFrame = screen.frame
-        let scale = screen.backingScaleFactor
-        
-        var targetSize = selectedRect.size
-        
-        switch res {
-        case "720p":
-            targetSize = CGSize(width: 1280 / scale, height: 720 / scale)
-        case "1080p":
-            targetSize = CGSize(width: 1920 / scale, height: 1080 / scale)
-        case "4K":
-            targetSize = CGSize(width: 3840 / scale, height: 2160 / scale)
-        default:
-            return
-        }
-        
-        let center = CGPoint(x: selectedRect.midX, y: selectedRect.midY)
-        var newX = center.x - targetSize.width / 2
-        var newY = center.y - targetSize.height / 2
-        
-        newX = max(10, min(newX, screenFrame.width - targetSize.width - 10))
-        newY = max(10, min(newY, screenFrame.height - targetSize.height - 10))
-        
-        selectedRect = CGRect(origin: CGPoint(x: newX, y: newY), size: targetSize)
+        // 设计原则：用户调整录制参数（分辨率/格式/帧率等）时，选区窗口大小不应发生变化。
+        // 分辨率仅决定输出视频文件的目标像素尺寸，由 ScreenRecordingEngine 在编码阶段按
+        // 选区宽高比进行缩放，这里不再修改 selectedRect。
+        _ = res
     }
 }
 
@@ -694,7 +668,7 @@ struct RecordingSelectionHUDView: View {
             HUDDropdown(
                 label: "RESOLUTION",
                 selection: $settings.recordResolution,
-                options: ["与选区匹配", "720p", "1080p", "4K"],
+                options: ["与选区匹配", "原画"],
                 width: 90,
                 onChange: onResolutionChange
             )

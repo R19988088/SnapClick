@@ -397,9 +397,6 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             )
         }
 
-        context.setFillColor(NSColor(red: 0.12, green: 0.56, blue: 1.0, alpha: 0.08).cgColor)
-        context.fill(viewRect)
-
         context.setStrokeColor(NSColor(red: 0.12, green: 0.56, blue: 1.0, alpha: 1.0).cgColor)
         context.setLineWidth(3)
         context.stroke(viewRect)
@@ -2177,46 +2174,114 @@ class StitchingManager {
 class LongScreenshotThumbnailView: NSView {
     private var image: NSImage
     private var imageView: NSImageView!
+    private var statusBar: NSVisualEffectView!
     private var statusLabel: NSTextField!
-    
+    private var statusDot: NSView!
+    private var topScrimLayer: CAGradientLayer!
+
+    private let statusBarHeight: CGFloat = 22
+    private let edgeInset: CGFloat = 4
+
     init(image: NSImage, size: NSSize) {
         self.image = image
         super.init(frame: NSRect(origin: .zero, size: size))
-        
+
         wantsLayer = true
         layer?.cornerRadius = 8
         layer?.masksToBounds = true
-        layer?.borderColor = NSColor.systemBlue.withAlphaComponent(0.6).cgColor
-        layer?.borderWidth = 2
-        layer?.backgroundColor = NSColor.black.withAlphaComponent(0.7).cgColor
-        
+        layer?.borderColor = NSColor.white.withAlphaComponent(0.55).cgColor
+        layer?.borderWidth = 1
+        layer?.backgroundColor = NSColor.black.withAlphaComponent(0.65).cgColor
+
         // 图片视图
-        imageView = NSImageView(frame: bounds.insetBy(dx: 4, dy: 4))
+        imageView = NSImageView(frame: bounds.insetBy(dx: edgeInset, dy: edgeInset))
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.image = image
+        imageView.autoresizingMask = [.width, .height]
+        imageView.wantsLayer = true
         addSubview(imageView)
-        
-        // 状态标签
+
+        // 顶部渐变遮罩（提升状态条区域文字可读性，避免蓝色或浅色背景下不可读）
+        topScrimLayer = CAGradientLayer()
+        topScrimLayer.colors = [
+            NSColor.black.withAlphaComponent(0.55).cgColor,
+            NSColor.black.withAlphaComponent(0.0).cgColor
+        ]
+        topScrimLayer.locations = [0.0, 1.0]
+        topScrimLayer.frame = topScrimFrame()
+        layer?.addSublayer(topScrimLayer)
+
+        // 状态条（暗色毛玻璃 HUD，保证在任何背景下都清晰）
+        statusBar = NSVisualEffectView(frame: statusBarFrame())
+        statusBar.material = .hudWindow
+        statusBar.blendingMode = .withinWindow
+        statusBar.state = .active
+        statusBar.wantsLayer = true
+        statusBar.layer?.cornerRadius = 5
+        statusBar.layer?.masksToBounds = true
+        statusBar.layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
+        statusBar.layer?.borderWidth = 0.5
+        addSubview(statusBar)
+
+        // 状态指示小圆点（保留蓝色作为状态标识，但只是小点不影响阅读）
+        statusDot = NSView(frame: .zero)
+        statusDot.wantsLayer = true
+        statusDot.layer?.backgroundColor = NSColor.systemBlue.cgColor
+        statusDot.layer?.cornerRadius = 3
+        statusBar.addSubview(statusDot)
+
+        // 状态文字
         statusLabel = NSTextField(labelWithString: "长截图捕获中...")
         statusLabel.textColor = .white
-        statusLabel.font = NSFont.systemFont(ofSize: 10, weight: .semibold)
-        statusLabel.alignment = .center
-        statusLabel.wantsLayer = true
-        statusLabel.layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.8).cgColor
-        statusLabel.layer?.cornerRadius = 4
-        statusLabel.frame = NSRect(x: 4, y: bounds.height - 22, width: bounds.width - 8, height: 18)
-        addSubview(statusLabel)
+        statusLabel.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        statusLabel.alignment = .left
+        statusLabel.drawsBackground = false
+        statusLabel.isBezeled = false
+        statusLabel.isEditable = false
+        statusLabel.shadow = {
+            let s = NSShadow()
+            s.shadowColor = NSColor.black.withAlphaComponent(0.6)
+            s.shadowOffset = NSSize(width: 0, height: -1)
+            s.shadowBlurRadius = 2
+            return s
+        }()
+        statusBar.addSubview(statusLabel)
+
+        layoutStatusBarContents()
     }
-    
+
     required init?(coder: NSCoder) {
         fatalError("init(coder:) 未实现")
     }
-    
+
+    private func statusBarFrame() -> NSRect {
+        NSRect(x: edgeInset + 2,
+               y: bounds.height - statusBarHeight - edgeInset - 2,
+               width: bounds.width - (edgeInset + 2) * 2,
+               height: statusBarHeight)
+    }
+
+    private func topScrimFrame() -> NSRect {
+        NSRect(x: 0, y: bounds.height - statusBarHeight - 14, width: bounds.width, height: statusBarHeight + 14)
+    }
+
+    private func layoutStatusBarContents() {
+        let h = statusBar.bounds.height
+        let dotSize: CGFloat = 6
+        statusDot.frame = NSRect(x: 8, y: (h - dotSize) / 2, width: dotSize, height: dotSize)
+        statusLabel.frame = NSRect(x: 8 + dotSize + 6,
+                                   y: 0,
+                                   width: statusBar.bounds.width - (8 + dotSize + 6) - 6,
+                                   height: h)
+    }
+
     func updateImage(_ newImage: NSImage, size: NSSize) {
         self.image = newImage
         imageView.image = newImage
-        imageView.frame = bounds.insetBy(dx: 4, dy: 4)
-        statusLabel.frame = NSRect(x: 4, y: bounds.height - 22, width: bounds.width - 8, height: 18)
+        imageView.frame = bounds.insetBy(dx: edgeInset, dy: edgeInset)
+        topScrimLayer.frame = topScrimFrame()
+        statusBar.frame = statusBarFrame()
+        layoutStatusBarContents()
     }
 }
 

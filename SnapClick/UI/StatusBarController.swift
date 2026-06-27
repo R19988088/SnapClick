@@ -452,7 +452,10 @@ final class StatusBarController: NSObject {
         setupRecordingMenu()
         
         recordingTimer?.invalidate()
-        recordingTimer = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(updateRecordingStatus), userInfo: nil, repeats: true)
+        // 使用 .common mode 注册 Timer，确保菜单打开（.eventTracking mode）期间计时器仍正常触发
+        let timer = Timer(timeInterval: 0.5, target: self, selector: #selector(updateRecordingStatus), userInfo: nil, repeats: true)
+        RunLoop.main.add(timer, forMode: .common)
+        recordingTimer = timer
         
         updateRecordingStatus()
     }

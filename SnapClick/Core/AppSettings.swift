@@ -11,7 +11,22 @@ final class AppSettings: ObservableObject {
 
     static let shared = AppSettings()
 
-    private init() {}
+    private init() {
+        // 历史遗留：录制分辨率档位文案演进
+        //   720p / 1080p / 2K / 标准 → 已废弃，回落为「与选区匹配」
+        //   4K / 超清 → 原画
+        let key = "recordResolution"
+        if let old = UserDefaults.standard.string(forKey: key) {
+            switch old {
+            case "720p", "1080p", "2K", "标准":
+                UserDefaults.standard.set("与选区匹配", forKey: key)
+            case "4K", "超清":
+                UserDefaults.standard.set("原画", forKey: key)
+            default:
+                break
+            }
+        }
+    }
 
     // MARK: 截图设置
 
@@ -142,13 +157,13 @@ final class AppSettings: ObservableObject {
 
     /// 视频编解码（H.264 / HEVC）
     @AppStorage("recordCodec")
-    var recordCodec: String = "H.264"
+    var recordCodec: String = "HEVC"
 
     /// 帧率（30 / 60 / 120）
     @AppStorage("recordFPS")
     var recordFPS: Int = 60
 
-    /// 分辨率（与选区匹配 / 1080p / 4K）
+    /// 分辨率（与选区匹配 / 原画）
     @AppStorage("recordResolution")
     var recordResolution: String = "与选区匹配"
 
@@ -418,6 +433,7 @@ public final class LanguageManager: ObservableObject {
             "视频参数": "Video Settings",
             "分辨率": "Resolution",
             "与选区匹配": "Match Selection",
+            "原画": "Original Quality",
             "帧率": "Frame Rate",
             "视频格式": "Format",
             "编解码": "Codec",
@@ -645,6 +661,7 @@ public final class LanguageManager: ObservableObject {
             "视频参数": "映像設定",
             "分辨率": "解像度",
             "与选区匹配": "選択範囲に合わせる",
+            "原画": "オリジナル画質",
             "帧率": "フレームレート",
             "视频格式": "フォーマット",
             "编解码": "コーデック",

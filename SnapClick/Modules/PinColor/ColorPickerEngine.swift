@@ -119,11 +119,25 @@ final class ColorPickerEngine: ObservableObject {
     /// 确认当前颜色：写入剪贴板 + 加入历史 + 关闭取色模式
     /// （内部访问级别，供 SwiftUI 视图直接调用）
     func confirmColor() {
-        let hex = hexString(for: currentColor)
+        let text = formattedString(for: currentColor)
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(hex, forType: .string)
+        NSPasteboard.general.setString(text, forType: .string)
         appendHistory(currentColor)
         stopPicking()
+    }
+
+    /// 根据用户在设置中选择的「默认复制格式」生成对应字符串
+    /// 与 PinColorSettingsView.swift 中的 ColorFormat 枚举 rawValue 保持一致
+    func formattedString(for color: NSColor) -> String {
+        let raw = UserDefaults.standard.string(forKey: "PinColor.defaultColorFormat") ?? "HEX"
+        switch raw.uppercased() {
+        case "RGB":  return rgbString(for: color)
+        case "HSL":  return hslString(for: color)
+        case "HSB":  return hsbString(for: color)
+        case "CMYK": return cmykString(for: color)
+        case "LAB":  return labString(for: color)
+        default:     return hexString(for: color)
+        }
     }
 
     // MARK: - 私有方法
@@ -279,6 +293,52 @@ final class ColorPickerEngine: ObservableObject {
         var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         c.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
         return String(format: "hsb(%.0f, %.0f%%, %.0f%%)", h * 360, s * 100, b * 100)
+    }
+
+    /// CMYK：先简单 RGB→CMYK（基于 sRGB，未做 ICC 转换）
+    func cmykString(for color: NSColor) -> String {
+        let c = normalized(color)
+        let r = c.redComponent, g = c.greenComponent, b = c.blueComponent
+        let k = 1 - max(r, g, b)
+        let cy: CGFloat
+        let mg: CGFloat
+        let yl: CGFloat
+        if k >= 1 - 1e-6 {
+            cy = 0; mg = 0; yl = 0
+        } else {
+            cy = (1 - r - k) / (1 - k)
+            mg = (1 - g - k) / (1 - k)
+            yl = (1 - b - k) / (1 - k)
+        }
+        return String(format: "cmyk(%.0f%%, %.0f%%, %.0f%%, %.0f%%)",
+                      cy * 100, mg * 100, yl * 100, k * 100)
+    }
+
+    /// CIE Lab（D65）：sRGB → 线性 RGB → XYZ → Lab
+    func labString(for color: NSColor) -> String {
+        let c = normalized(color)
+        // sRGB → linear
+        func toLinear(_ v: CGFloat) -> CGFloat {
+            v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        let r = toLinear(c.redComponent)
+        let g = toLinear(c.greenComponent)
+        let b = toLinear(c.blueComponent)
+        // linear RGB → XYZ (D65)
+        let x = r * 0.4124564 + g * 0.3575761 + b * 0.1804375
+        let y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750
+        let z = r * 0.0193339 + g * 0.1191920 + b * 0.9503041
+        // 归一化到参考白 D65
+        let xn: CGFloat = 0.95047, yn: CGFloat = 1.0, zn: CGFloat = 1.08883
+        func f(_ t: CGFloat) -> CGFloat {
+            let delta: CGFloat = 6.0 / 29.0
+            return t > pow(delta, 3) ? pow(t, 1.0 / 3.0) : (t / (3 * delta * delta) + 4.0 / 29.0)
+        }
+        let fx = f(x / xn), fy = f(y / yn), fz = f(z / zn)
+        let L = 116 * fy - 16
+        let aLab = 500 * (fx - fy)
+        let bLab = 200 * (fy - fz)
+        return String(format: "lab(%.1f, %.1f, %.1f)", L, aLab, bLab)
     }
 
     func swiftString(for color: NSColor) -> String {

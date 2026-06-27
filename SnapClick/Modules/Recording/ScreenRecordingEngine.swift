@@ -499,16 +499,34 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
             origin: .zero,
             size: CGSize(width: screen.frame.width, height: screen.frame.height)
         )
-        
-        // 如果是从 HUD 中直接选定了特定分辨率的，在此进行二次调整限制
-        if settings.recordResolution == "1080p" {
-            baseRect.size = CGSize(width: 1920 / screenScale, height: 1080 / screenScale)
-        } else if settings.recordResolution == "4K" {
-            baseRect.size = CGSize(width: 3840 / screenScale, height: 2160 / screenScale)
+
+        // 输出像素尺寸：基于用户选定的选区原始像素尺寸（保持其宽高比，不改变选区大小），
+        // 再按分辨率档位限制最长边。这样切换分辨率只会影响编码输出大小，不会改动用户已经
+        // 拖拽好的录制区域窗口。
+        let nativeWidthPx  = baseRect.width  * screenScale
+        let nativeHeightPx = baseRect.height * screenScale
+
+        // 取目标"最长边"上限（点）；"与选区匹配"则不限制
+        let maxLongSidePx: CGFloat? = {
+            switch settings.recordResolution {
+            case "原画": return 3840
+            default:    return nil
+            }
+        }()
+
+        var targetWidthPx = nativeWidthPx
+        var targetHeightPx = nativeHeightPx
+        if let maxLong = maxLongSidePx {
+            let longSide = max(nativeWidthPx, nativeHeightPx)
+            if longSide > maxLong {
+                let ratio = maxLong / longSide
+                targetWidthPx  = nativeWidthPx  * ratio
+                targetHeightPx = nativeHeightPx * ratio
+            }
         }
 
-        var videoWidth = Int(baseRect.width * screenScale)
-        var videoHeight = Int(baseRect.height * screenScale)
+        var videoWidth  = Int(targetWidthPx.rounded())
+        var videoHeight = Int(targetHeightPx.rounded())
         
         // 保证宽高为偶数，防止 AVAssetWriter 报错
         videoWidth = videoWidth - (videoWidth % 2)
@@ -516,10 +534,66 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
 
         // 视频编码轨设置
         let codecKey = settings.recordCodec == "HEVC" ? AVVideoCodecType.hevc : AVVideoCodecType.h264
+
+        // ── 视频码率 ──────────────────────────────────────────────
+        // 屏幕录制内容多为静态 UI / 文字，时空冗余极高，码率边际效益快速衰减。
+        // 这里采用行业惯例（参考 OBS、QuickTime、ScreenFlow 默认值），
+        // 在保持文字/UI 锐利度的同时显著降低文件体积。
+        //
+        //  分辨率         H.264      HEVC
+        //  4K (≥3840)     80 Mbps   40 Mbps
+        //  2K (≥2560)     40 Mbps   20 Mbps
+        //  1080p (≥1920)  20 Mbps   10 Mbps
+        //  720p 及以下    10 Mbps    5 Mbps
+        let baseH264Bitrate: Int
+        switch videoWidth {
+        case 3840...: baseH264Bitrate = 80_000_000
+        case 2560...: baseH264Bitrate = 40_000_000
+        case 1920...: baseH264Bitrate = 20_000_000
+        default:      baseH264Bitrate = 10_000_000
+        }
+        // 高帧率额外补偿（60fps +50%，120fps +100%），保证每帧码率不衰减
+        let fpsFactor: Double
+        switch settings.recordFPS {
+        case 120...: fpsFactor = 2.0
+        case 60...:  fpsFactor = 1.5
+        default:     fpsFactor = 1.0
+        }
+        let scaledH264 = Int(Double(baseH264Bitrate) * fpsFactor)
+        let targetBitrate = settings.recordCodec == "HEVC"
+            ? scaledH264 / 2
+            : scaledH264
+
+        // H.264 Profile：1080p 及以上或高帧率选 High，保证编码器能充分利用码率
+        let h264Profile = (videoWidth >= 1920 || settings.recordFPS > 30)
+            ? AVVideoProfileLevelH264HighAutoLevel
+            : AVVideoProfileLevelH264MainAutoLevel
+
+        // 关键帧间隔固定为 1 秒（= FPS 帧）：
+        //   - 太长（如 5s）：P 帧积累误差，快速滚动时会拖影/模糊
+        //   - 1s 是屏幕录制的行业惯例，兼顾随机访问与压缩效率
+        var compressionProps: [String: Any] = [
+            AVVideoAverageBitRateKey:               targetBitrate,
+            AVVideoMaxKeyFrameIntervalKey:          settings.recordFPS,
+            AVVideoMaxKeyFrameIntervalDurationKey:  1.0,
+            AVVideoExpectedSourceFrameRateKey:      settings.recordFPS,
+            AVVideoAllowFrameReorderingKey:         false,
+        ]
+        if settings.recordCodec != "HEVC" {
+            compressionProps[AVVideoProfileLevelKey] = h264Profile
+            compressionProps[AVVideoH264EntropyModeKey] = AVVideoH264EntropyModeCABAC
+        }
+
         let videoSettings: [String: Any] = [
-            AVVideoCodecKey: codecKey,
-            AVVideoWidthKey:  videoWidth,
-            AVVideoHeightKey: videoHeight,
+            AVVideoCodecKey:                 codecKey,
+            AVVideoWidthKey:                 videoWidth,
+            AVVideoHeightKey:                videoHeight,
+            AVVideoColorPropertiesKey: [
+                AVVideoColorPrimariesKey:    AVVideoColorPrimaries_ITU_R_709_2,
+                AVVideoTransferFunctionKey:  AVVideoTransferFunction_ITU_R_709_2,
+                AVVideoYCbCrMatrixKey:       AVVideoYCbCrMatrix_ITU_R_709_2,
+            ],
+            AVVideoCompressionPropertiesKey: compressionProps,
         ]
         let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         videoInput.expectsMediaDataInRealTime = true
@@ -594,6 +668,18 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
         streamConfig.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(settings.recordFPS))
         streamConfig.queueDepth = 6
         streamConfig.showsCursor = settings.recordHighlightCursor
+
+        // 像素格式：屏幕内容包含大量文字 / 锐利边缘，YUV 4:2:0 (默认 420v) 的色度子采样
+        // 会让文字边缘发糊、出现彩边。改用 BGRA 全采样像素格式，配合 H.264/HEVC 编码器
+        // 内部的高质量色彩转换，最大化保留文字锐度。
+        streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
+        streamConfig.colorSpaceName = CGColorSpace.sRGB
+        streamConfig.colorMatrix = CGDisplayStream.yCbCrMatrix_ITU_R_709_2
+        streamConfig.backgroundColor = .black
+        // Retina 屏幕缩放策略：保留全部源像素，由编码器进行 Lanczos 缩放（如有必要）
+        if #available(macOS 14.0, *) {
+            streamConfig.captureResolution = .best
+        }
 
         // 启用系统声音捕获（macOS 13+）
         if #available(macOS 13.0, *), settings.recordSystemAudio {

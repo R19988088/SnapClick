@@ -83,6 +83,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
     case recording   = "recording"
     case pinAndColor = "pinAndColor"
     case contextMenu = "contextMenu"
+    case shortcuts   = "shortcuts"
     case about       = "about"
 
     var id: String { rawValue }
@@ -94,6 +95,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
         case .recording:   return "屏幕录制".localized
         case .pinAndColor: return "贴图 & 取色".localized
         case .contextMenu: return "Finder 右键".localized
+        case .shortcuts:   return "快捷键".localized
         case .about:       return "关于".localized
         }
     }
@@ -105,6 +107,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
         case .recording:   return "record.circle"
         case .pinAndColor: return "pin.circle"
         case .contextMenu: return "folder.badge.gearshape"
+        case .shortcuts:   return "keyboard"
         case .about:       return "info.circle"
         }
     }
@@ -373,6 +376,8 @@ private struct DetailView: View {
                             PinColorSettingsView()
                         case .contextMenu:
                             RightClickSettingsView()
+                        case .shortcuts:
+                            ShortcutsSettingsView()
                         case .about:
                             AboutView()
                         }
@@ -859,48 +864,6 @@ private struct ScreenshotSettingsView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            // ── 快捷键设置 ───────────────────────────────────────────
-            VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(title: "快捷键".localized, icon: "keyboard", color: .indigo)
-
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        ShortcutCard(
-                            icon: "crop",
-                            iconColor: .blue,
-                            title: "区域截图".localized,
-                            subtitle: "选取矩形区域".localized,
-                            hotkey: $settings.hotkeyAreaScreenshot
-                        )
-
-                        ShortcutCard(
-                            icon: "macwindow",
-                            iconColor: .teal,
-                            title: "窗口截图".localized,
-                            subtitle: "选取目标窗口".localized,
-                            hotkey: $settings.hotkeyWindowScreenshot
-                        )
-                    }
-
-                    HStack(spacing: 12) {
-                        ShortcutCard(
-                            icon: "arrow.up.and.down",
-                            iconColor: .purple,
-                            title: "长截图".localized,
-                            subtitle: "滚动截取全屏".localized,
-                            hotkey: $settings.hotkeyLongScreenshot
-                        )
-
-                        ShortcutCard(
-                            icon: "wand.and.stars",
-                            iconColor: .orange,
-                            title: "快速编辑".localized,
-                            subtitle: "打开标注编辑".localized,
-                            hotkey: .constant("")
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -1038,7 +1001,7 @@ private struct FormatBadge: View {
 
 // MARK: - 快捷键卡片
 
-private struct ShortcutCard: View {
+struct ShortcutCard: View {
     let icon: String
     let iconColor: Color
     let title: String
@@ -1242,7 +1205,7 @@ private struct AboutView: View {
 
                     HStack(spacing: 10) {
                         Button("官方网站".localized) {
-                            if let url = URL(string: "http://111.229.220.48/") {
+                            if let url = URL(string: "http://snapclick.cn/") {
                                 NSWorkspace.shared.open(url)
                             }
                         }
@@ -1340,7 +1303,9 @@ private struct FeatureCard: View {
                         .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
             .padding(14)
         }
         .scaleEffect(isHovered ? 1.01 : 1.0)
@@ -1348,6 +1313,7 @@ private struct FeatureCard: View {
         .onHover { isHovered = $0 }
     }
 }
+
 
 // MARK: - 屏幕录制设置页
 
@@ -1420,13 +1386,11 @@ private struct RecordingSettingsView: View {
                                 }
                                 Spacer()
                                 Picker("", selection: $settings.recordResolution) {
-                                    if settings.recordDefaultMode == "area" {
-                                        Text("与选区匹配".localized).tag("与选区匹配")
-                                    } else if settings.recordDefaultMode == "window" {
+                                    Text("与选区匹配".localized).tag("与选区匹配")
+                                    if settings.recordDefaultMode == "window" {
                                         Text("与窗口匹配".localized).tag("与窗口匹配")
                                     }
-                                    Text("1080p HD").tag("1080p")
-                                    Text("4K UHD").tag("4K")
+                                    Text("原画".localized).tag("原画")
                                 }
                                 .labelsHidden()
                                 .pickerStyle(.menu)
@@ -1654,44 +1618,30 @@ private struct RecordingSettingsView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            // ── 快捷键 ───────────────────────────────────────────────
-            VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(title: "快捷键".localized, icon: "keyboard", color: .indigo)
-
-                HStack(spacing: 12) {
-                    ShortcutCard(
-                        icon: "crop",
-                        iconColor: .red,
-                        title: "选区录制".localized,
-                        subtitle: "选取矩形录制区域".localized,
-                        hotkey: $settings.hotkeyRecordArea
-                    )
-                    ShortcutCard(
-                        icon: "display",
-                        iconColor: Color(red: 99/255, green: 102/255, blue: 241/255),
-                        title: "全屏录制".localized,
-                        subtitle: "立即录制全屏".localized,
-                        hotkey: $settings.hotkeyRecordScreen
-                    )
-                    // 占位，保持三列对齐
-                    Color.clear
-                        .frame(maxWidth: .infinity)
-                }
-            }
         }
     }
 
     private func updateRecordingMode(_ mode: String) {
         settings.recordDefaultMode = mode
-        
+
+        // 历史遗留：旧档位文案演进
+        switch settings.recordResolution {
+        case "720p", "1080p", "2K", "标准":
+            settings.recordResolution = "与选区匹配"
+        case "4K", "超清":
+            settings.recordResolution = "原画"
+        default:
+            break
+        }
+
         // 联动调整分辨率选项
         if mode == "area" {
             if settings.recordResolution == "与窗口匹配" {
                 settings.recordResolution = "与选区匹配"
             }
         } else if mode == "screen" {
-            if settings.recordResolution == "与选区匹配" || settings.recordResolution == "与窗口匹配" {
-                settings.recordResolution = "1080p"
+            if settings.recordResolution == "与窗口匹配" {
+                settings.recordResolution = "与选区匹配"
             }
         } else if mode == "window" {
             if settings.recordResolution == "与选区匹配" {

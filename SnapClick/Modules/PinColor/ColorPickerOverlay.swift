@@ -153,6 +153,11 @@ struct MagnifierCard: View {
     let width: CGFloat
     let height: CGFloat
 
+    // 跟随设置中的「默认复制格式」实时更新
+    @AppStorage("PinColor.defaultColorFormat") private var defaultFormat: String = "HEX"
+    /// 用户选择要在预览窗口中显示的格式列表（逗号分隔，与设置面板一致），默认 3 项
+    @AppStorage("PinColor.previewFormats") private var previewFormats: String = "HEX,RGB,HSL"
+
     // 顶部文字区高度、底部提示区高度
     private let topTextH: CGFloat = 104
     private let bottomHintH: CGFloat = 34
@@ -164,116 +169,182 @@ struct MagnifierCard: View {
 
     private let cardBg = Color(red: 0.10, green: 0.11, blue: 0.18)
 
-    // 颜色计算属性
-    private var hex: String { engine.hexString(for: color) }
-    private var rgb: (Int, Int, Int) {
-        let c = color.usingColorSpace(.sRGB) ?? color
-        return (Int(c.redComponent   * 255 + 0.5),
-                Int(c.greenComponent * 255 + 0.5),
-                Int(c.blueComponent  * 255 + 0.5))
+    // 浅色卡片底配色
+    private let panelBg    = Color(red: 0.96, green: 0.96, blue: 0.97)
+    private let panelBorder = Color.black.opacity(0.10)
+
+    // 高对比度的标签/数值文字配色
+    private let labelColor = Color(red: 0.38, green: 0.40, blue: 0.46)
+    private let valueColor = Color(red: 0.10, green: 0.12, blue: 0.18)
+    private let accentBlue = Color(red: 0.10, green: 0.40, blue: 0.92)
+
+    // 主格式（用户在设置中选择的，将以大字 + 蓝色突出显示，并写入剪贴板）
+    private var primaryFormat: String { defaultFormat.uppercased() }
+    private var primaryValue: String { formattedString(primaryFormat) }
+
+    /// 次要展示的格式列表：取用户设置的 previewFormats，剔除当前主格式
+    private var secondaryFormats: [String] {
+        let raw = previewFormats
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces).uppercased() }
+            .filter { !$0.isEmpty }
+        let filtered = raw.filter { $0 != primaryFormat }
+        // 最多展示 4 个，避免布局溢出
+        return Array(filtered.prefix(4))
     }
-    private var hsb: (Int, Int, Int) {
-        let c = color.usingColorSpace(.sRGB) ?? color
-        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        c.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-        return (Int(h * 360 + 0.5), Int(s * 100 + 0.5), Int(b * 100 + 0.5))
+
+    private func formattedString(_ fmt: String) -> String {
+        switch fmt {
+        case "RGB":  return engine.rgbString(for: color)
+        case "HSL":  return engine.hslString(for: color)
+        case "HSB":  return engine.hsbString(for: color)
+        case "CMYK": return engine.cmykString(for: color)
+        case "LAB":  return engine.labString(for: color)
+        default:     return engine.hexString(for: color)
+        }
+    }
+
+    /// 标签显示文本（Lab 保留大小写美观）
+    private func displayLabel(_ fmt: String) -> String {
+        fmt == "LAB" ? "Lab" : fmt
+    }
+
+    /// 显示用：剥掉格式前缀与括号，只保留数值（HEX 保留 # 前缀作为视觉锚点）
+    /// 同时去掉逗号后的空格，让窄列也能完整显示
+    private func displayValue(_ fmt: String) -> String {
+        let s = formattedString(fmt)
+        let inside: String
+        if let lp = s.firstIndex(of: "("), let rp = s.lastIndex(of: ")") {
+            inside = String(s[s.index(after: lp)..<rp])
+        } else {
+            inside = s
+        }
+        return inside.replacingOccurrences(of: ", ", with: ",")
     }
 
     var body: some View {
-        let (r, g, b) = rgb
-        let (h, s, bri) = hsb
+        // 当次要格式较多（>=3）时，把第 1 项挪到主格式右上角，剩余在第三行平铺，提高空间利用率
+        let secondaries = secondaryFormats
+        let topRightFmt: String? = secondaries.count >= 3 ? secondaries.first : nil
+        let bottomFmts: [String] = topRightFmt != nil ? Array(secondaries.dropFirst()) : secondaries
 
-        VStack(spacing: 0) {
+        return VStack(spacing: 6) {
 
-            // ── 顶部：左列 HEX(大字)+RGB ／ 右列 HSB ────────────
-            VStack(alignment: .leading, spacing: 0) {
-                // 第一行：HEX 标签
-                Text("HEX")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(Color(red: 0.45, green: 0.68, blue: 1.0))
+            // ── 浅色面板：顶部信息 + 放大镜（带背景 + 阴影） ─────
+            VStack(spacing: 0) {
+
+                // ── 顶部：主格式（大字蓝色） + 右上角次要 + 底部参考 ──
+                VStack(alignment: .leading, spacing: 0) {
+                    // 第一行：左主格式标签 + 右上角次要格式标签
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Text(displayLabel(primaryFormat))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(labelColor)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if let fmt = topRightFmt {
+                            Text(displayLabel(fmt))
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(labelColor)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                     .padding(.bottom, 2)
 
-                // 第二行：HEX 数值（大字）
-                Text(hex)
-                    .font(.system(size: 20, weight: .bold, design: .monospaced))
-                    .foregroundColor(Color(red: 0.18, green: 0.48, blue: 1.0))
-                    .lineLimit(1)
+                    // 第二行：主格式大字 + 右上角次要数值
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Text(displayValue(primaryFormat))
+                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .foregroundColor(accentBlue)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if let fmt = topRightFmt {
+                            Text(displayValue(fmt))
+                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                .foregroundColor(valueColor.opacity(0.85))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                     .padding(.bottom, 10)
 
-                // 第三行：RGB 标签（左） + HSB 标签（右）
-                HStack(alignment: .top, spacing: 0) {
-                    // 左列：RGB
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("RGB")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(Color(red: 0.45, green: 0.68, blue: 1.0))
-                        Text("\(r), \(g), \(b)")
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-                            .foregroundColor(Color(red: 0.18, green: 0.48, blue: 1.0))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
+                    // 第三行：剩余次要参考格式平铺
+                    if !bottomFmts.isEmpty {
+                        HStack(alignment: .top, spacing: 0) {
+                            ForEach(Array(bottomFmts.enumerated()), id: \.offset) { _, fmt in
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(displayLabel(fmt))
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(labelColor)
+                                    Text(displayValue(fmt))
+                                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                        .foregroundColor(valueColor.opacity(0.85))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.75)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(height: topTextH, alignment: .bottom)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 6)
 
-                    // 右列：HSB
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("HSB")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(Color(red: 0.45, green: 0.68, blue: 1.0))
-                        Text("\(h), \(s)%, \(bri)%")
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-                            .foregroundColor(Color(red: 0.18, green: 0.48, blue: 1.0))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
+                // ── 中部：放大镜像素区域 ──────────────────────────
+                ZStack {
+                    // 深色底（保证网格和像素可读）
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(cardBg)
+
+                    // 放大的像素内容
+                    if let img = image {
+                        Image(nsImage: img)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: width, height: magAreaH)
+                            .opacity(0.75)
+                            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // 深色叠加（增强网格可读性）
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(cardBg.opacity(0.22))
+
+                    // 像素网格线
+                    MagnifierGrid(
+                        cols: gridCols, rows: gridRows,
+                        width: width, height: magAreaH,
+                        cornerRadius: cornerRadius
+                    )
+
+                    // 中心像素高亮框
+                    CenterPixelHighlight(
+                        cols: gridCols, rows: gridRows,
+                        width: width, height: magAreaH
+                    )
                 }
+                .frame(width: width, height: magAreaH)
             }
-            .frame(height: topTextH, alignment: .bottom)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 8)
-            .padding(.bottom, 6)
+            .frame(width: width)
+            .background(
+                // 浅色卡片底
+                RoundedRectangle(cornerRadius: cornerRadius + 4, style: .continuous)
+                    .fill(panelBg)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius + 4, style: .continuous)
+                    .strokeBorder(panelBorder, lineWidth: 0.8)
+            )
+            .shadow(color: Color.black.opacity(0.25), radius: 18, x: 0, y: 8)
 
-            // ── 中部：放大镜像素区域 ────────────────────────────
-            ZStack {
-                // 深色底（保证网格和像素可读）
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(cardBg)
-
-                // 放大的像素内容
-                if let img = image {
-                    Image(nsImage: img)
-                        .interpolation(.none)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: width, height: magAreaH)
-                        .opacity(0.75)
-                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-                }
-
-                // 深色叠加（增强网格可读性）
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(cardBg.opacity(0.22))
-
-                // 像素网格线
-                MagnifierGrid(
-                    cols: gridCols, rows: gridRows,
-                    width: width, height: magAreaH,
-                    cornerRadius: cornerRadius
-                )
-
-                // 中心像素高亮框
-                CenterPixelHighlight(
-                    cols: gridCols, rows: gridRows,
-                    width: width, height: magAreaH
-                )
-            }
-            .frame(width: width, height: magAreaH)
-
-            // ── 底部：纯文字提示 ───────────────────────────────
+            // ── 底部：纯文字提示（无背景，蓝色字体） ─────────────
             Text("单击取色并复制到剪贴板".localized)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Color(red: 0.25, green: 0.55, blue: 1.0).opacity(0.80))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(accentBlue)
                 .tracking(0.5)
                 .frame(height: bottomHintH)
                 .frame(maxWidth: .infinity)

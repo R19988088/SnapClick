@@ -12,7 +12,7 @@
 
 A premium productivity tool built exclusively for macOS, integrating Finder menu enhancement, advanced screenshot annotation, high-performance screen recording, screen pinning, and smart color picking — all delivered in pure native Swift for a silky-smooth experience.
 
-[Features](#-features) · [Installation](#-installation) · [Tech Stack](#%EF%B8%8F-tech-stack) · [Build from Source](#-build-from-source) · [Project Structure](#-project-structure) · [Contact Author](#-contact-author)
+[Features](#-features) · [Installation](#-installation) · [Tech Stack](#%EF%B8%8F-tech-stack) · [Build from Source](#-build-from-source) · [Project Structure](#-project-structure) · [Contact Author](#-contact-author) · [Official Website](http://snapclick.cn/)
 
 [中文文档](README.md)
 
@@ -63,7 +63,7 @@ A premium productivity tool built exclusively for macOS, integrating Finder menu
 - **Native SCK Architecture** — Powered by Apple's ScreenCaptureKit framework, delivering extremely low system overhead.
 - **Custom Recording Area** — Capture full screens, selected areas, or specific application windows.
 - **High Frame Rate & Coding** — Supports 30/60/120 FPS recording with advanced HEVC and H.264 codecs.
-- **Multi-Channel Audio Mixing** — Record system audio, microphone inputs, or combine both in real time.
+- **Multi-Channel Audio Mixing** — Capture internal system audio (macOS 13+) and microphone input on two independent tracks.
 - **HUD Floating Controller** — A floating control panel to pause, resume, and stop recording, featuring live timers and audio waveforms.
 
 <br>
@@ -217,10 +217,11 @@ Contributions are welcome! Follow these steps to contribute:
 
 If you have questions, feature suggestions, or bug reports, feel free to contact:
 
+- **Official Website**: <http://snapclick.cn/>
 - **Email**: [tyeerth@163.com](mailto:tyeerth@163.com)
-- **WeChat**:
+- **WeChat Group**:
   <br>
-  <img src="docs/assets/wechat_qr.png" width="220" alt="WeChat QR Code" style="border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+  <img src="docs/assets/wechat_qr.png" width="220" alt="SnapClick WeChat Group QR Code" style="border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
 
 ---
 

@@ -7,11 +7,12 @@ import AppKit
 // MARK: - 颜色格式枚举
 
 enum ColorFormat: String, CaseIterable, Identifiable {
-    case hex   = "HEX"
-    case rgb   = "RGB"
-    case hsl   = "HSL"
-    case swift = "Swift"
-    case css   = "CSS"
+    case hex  = "HEX"
+    case rgb  = "RGB"
+    case hsl  = "HSL"
+    case hsb  = "HSB"
+    case cmyk = "CMYK"
+    case lab  = "Lab"
     var id: String { rawValue }
 }
 
@@ -23,6 +24,7 @@ struct PinColorSettingsView: View {
     @EnvironmentObject private var pinManager:  PinWindowManager
 
     @AppStorage("PinColor.defaultColorFormat") private var defaultFormat: String  = ColorFormat.hex.rawValue
+    @AppStorage("PinColor.previewFormats")     private var previewFormats: String = "HEX,RGB,HSL"
     @AppStorage("PinColor.pickerShortcut")     private var pickerShortcut: String = "⌥⇧C"
     @AppStorage("PinColor.pinShortcut")        private var pinShortcut: String    = "⌥⇧P"
 
@@ -79,7 +81,8 @@ struct PinColorSettingsView: View {
                     ColorPickerSettingsTab(
                         engine: engine,
                         pickerShortcut: $pickerShortcut,
-                        defaultFormat: $defaultFormat
+                        defaultFormat: $defaultFormat,
+                        previewFormats: $previewFormats
                     )
                 case .pinBoard:
                     PinBoardSettingsTab(
@@ -128,6 +131,33 @@ private struct ColorPickerSettingsTab: View {
     let engine: ColorPickerEngine
     @Binding var pickerShortcut: String
     @Binding var defaultFormat: String
+    @Binding var previewFormats: String
+
+    /// 预览窗口固定显示的格式数量（与放大镜卡片布局保持一致）
+    private let previewSlotCount = 3
+
+    /// 解析 previewFormats 字符串为有序列表（保持用户选择顺序）
+    private var previewList: [String] {
+        previewFormats
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces).uppercased() }
+            .filter { !$0.isEmpty }
+    }
+
+    private var previewSet: Set<String> { Set(previewList) }
+
+    /// 切换某个预览格式的勾选状态：始终保持恰好 previewSlotCount 项被选中
+    /// - 点击已选中项：忽略（避免不足 3 项）
+    /// - 点击未选中项：加入末尾，挤掉最早加入的那一项
+    private func togglePreview(_ fmt: String) {
+        var list = previewList
+        if list.contains(fmt) { return }
+        list.append(fmt)
+        while list.count > previewSlotCount {
+            list.removeFirst()
+        }
+        previewFormats = list.joined(separator: ",")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -181,6 +211,33 @@ private struct ColorPickerSettingsTab: View {
                                         isSelected: defaultFormat == fmt.rawValue
                                     ) {
                                         defaultFormat = fmt.rawValue
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, DT.rowPadH)
+                        .padding(.vertical, DT.rowPadV)
+
+                        CardDivider()
+
+                        // 预览窗口显示格式行（可多选）
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("预览窗口显示格式".localized)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                                Text("取色器实时预览中要显示哪些格式（可多选）".localized)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            HStack(spacing: 4) {
+                                ForEach(ColorFormat.allCases) { fmt in
+                                    FormatSelectBadge(
+                                        label: fmt.rawValue,
+                                        isSelected: previewSet.contains(fmt.rawValue)
+                                    ) {
+                                        togglePreview(fmt.rawValue)
                                     }
                                 }
                             }
@@ -342,12 +399,12 @@ struct NewColorHistoryCell: View {
             }
         }
         .onTapGesture {
-            let hex = engine.hexString(for: color)
+            let text = engine.formattedString(for: color)
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(hex, forType: .string)
+            NSPasteboard.general.setString(text, forType: .string)
         }
-        .help(engine.hexString(for: color))
-        .accessibilityLabel("\(engine.hexString(for: color))，点击复制")
+        .help(engine.formattedString(for: color))
+        .accessibilityLabel("\(engine.formattedString(for: color))，点击复制")
     }
 }
 

@@ -12,7 +12,7 @@
 
 一款专为 macOS 打造的高级效率增强工具，将 Finder 菜单增强、高级截图标注、高性能录屏、屏幕贴图、智能取色等常用效率功能一体化汇总，以纯原生 Swift 架构呈现，为您提供丝滑般尊贵的使用体验。
 
-[功能特性](#-功能特性) · [下载安装](#-下载安装) · [技术栈](#%EF%B8%8F-技术栈) · [编译构建](#-编译构建) · [联系作者](#-联系作者)
+[功能特性](#-功能特性) · [下载安装](#-下载安装) · [编译构建](#%EF%B8%8F-编译构建) · [联系作者](#-联系作者) · [官方网站](http://snapclick.cn/)
 
 [English](README_EN.md)
 
@@ -58,11 +58,11 @@
 
 ### 🎥 高性能屏幕录制
 
-- **底层SCK架构** — 基于 macOS 底层官方高性能 ScreenCaptureKit 架构，超低系统资源占用。
-- **多维度选区录屏** — 支持自定义录屏区域、全屏录制、特定应用窗口录制。
-- **极速高帧率录制** — 支持 30/60/120 FPS 极速高帧率与先进的 HEVC/H.264 编解码。
-- **多声道混合** — 支持同时捕获系统声音（麦克风输入与系统音频流混合）。
-- **HUD悬浮控制条** — 独立的浮动 HUD 控制面板，可快速进行录屏暂停、停止及时间、音频波形监视。
+- **底层 SCK 架构** — 基于 macOS 官方 ScreenCaptureKit 框架，硬件加速、超低系统资源占用。
+- **多维度选区录屏** — 支持自定义区域、全屏录制以及指定应用窗口录制三种模式。
+- **极速高帧率录制** — 支持 30/60/120 FPS 高帧率，支持 H.264 / HEVC 编解码与「原画」无损分辨率档位。
+- **双音轨独立录制** — 同时捕获系统内部声音（macOS 13+）与外接/内置麦克风，两条音轨独立保存便于后期混音。
+- **HUD 悬浮控制条** — 独立的浮动控制面板，提供录制时间显示、暂停 / 继续 / 停止操作。
 
 <br>
 <img src="docs/assets/recording_overlay.png" alt="屏幕录屏 HUD 与选区控制" width="700" style="border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25);">
@@ -94,9 +94,7 @@
 
 ***
 
-***
-
-# 📥 下载安装
+## 📥 下载安装
 
 ### 方式一：直接下载安装包（推荐）
 
@@ -174,12 +172,13 @@ sudo xattr -dr com.apple.quarantine /Applications/SnapClick.app
 
 ***
 
-##  联系作者
+## 📮 联系作者
 
 如果您在使用中遇到问题、有功能建议，或者想参与讨论，欢迎通过以下方式联系：
 
+- **官方网站**：<http://snapclick.cn/>
 - **联系邮箱**：<tyeerth@163.com>
-- **微信联系**： <img src="docs/assets/wechat_qr.png" width="220" alt="作者微信二维码" style="border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+- **微信交流群**： <img src="docs/assets/wechat_qr.png" width="220" alt="SnapClick 微信交流群二维码" style="border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
 
 ***
 
