@@ -530,7 +530,8 @@ private struct GeneralSettingsView: View {
                         title: "屏幕录制".localized,
                         description: "区域截图及取色所需".localized,
                         isGranted: permMgr.hasScreenRecordingPermission,
-                        onAction: { permMgr.requestScreenRecordingPermission() }
+                        onAction: { permMgr.requestScreenRecordingPermission() },
+                        onReset: { permMgr.resetScreenRecordingPermission() }
                     )
 
                     CardDivider()
@@ -541,7 +542,8 @@ private struct GeneralSettingsView: View {
                         title: "辅助功能".localized,
                         description: "全局快捷键拦截所需".localized,
                         isGranted: permMgr.hasAccessibilityPermission,
-                        onAction: { permMgr.requestAccessibilityPermission() }
+                        onAction: { permMgr.requestAccessibilityPermission() },
+                        onReset: { permMgr.resetAccessibilityPermission() }
                     )
 
                     CardDivider()
@@ -766,6 +768,7 @@ private struct PermissionRow: View {
     let isGranted: Bool
     var actionLabel: String? = nil
     let onAction: () -> Void
+    var onReset: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 14) {
@@ -792,21 +795,29 @@ private struct PermissionRow: View {
             Spacer()
 
             if isGranted {
-                HStack(spacing: 5) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(DT.successGreen)
-                    Text("已授权".localized)
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundStyle(DT.successGreen)
+                HStack(spacing: 8) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(DT.successGreen)
+                        Text("已授权".localized)
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundStyle(DT.successGreen)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(DT.successGreen.opacity(0.1))
+                            .overlay(Capsule().stroke(DT.successGreen.opacity(0.2), lineWidth: 0.75))
+                    )
+
+                    if let onReset {
+                        Button("重置".localized) { onReset() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(DT.successGreen.opacity(0.1))
-                        .overlay(Capsule().stroke(DT.successGreen.opacity(0.2), lineWidth: 0.75))
-                )
             } else {
                 HStack(spacing: 5) {
                     Image(systemName: "exclamationmark.triangle.fill")

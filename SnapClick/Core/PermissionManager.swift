@@ -102,6 +102,24 @@ final class PermissionManager: ObservableObject {
         startPolling()
     }
 
+    func resetScreenRecordingPermission() {
+        resetTCC(service: "ScreenCapture")
+        requestScreenRecordingPermission()
+    }
+
+    func resetAccessibilityPermission() {
+        resetTCC(service: "Accessibility")
+        requestAccessibilityPermission()
+    }
+
+    private func resetTCC(service: String) {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        task.arguments = ["reset", service, Bundle.main.bundleIdentifier ?? "com.snapclick.app"]
+        try? task.run()
+        task.waitUntilExit()
+    }
+
     func checkFinderExtensionPermission() -> Bool {
         // FIFinderSyncController 的查询 API 仅限扩展进程内使用
         // 主 App 只能通过 pluginkit 命令行工具检测扩展是否已启用

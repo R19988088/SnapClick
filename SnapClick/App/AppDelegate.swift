@@ -319,6 +319,10 @@ private final class DockScrollVolumeController {
 
     private func start() {
         guard monitor == nil else { return }
+        guard PermissionManager.shared.checkAccessibilityPermission() else {
+            PermissionManager.shared.requestAccessibilityPermission()
+            return
+        }
         monitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             self?.handle(event)
         }
@@ -354,12 +358,24 @@ private final class DockScrollVolumeController {
     }
 
     private func titleMatchesApp(in element: AXUIElement) -> Bool {
-        let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "SnapClick"
+        let names = [
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String,
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
+            ProcessInfo.processInfo.processName,
+            "SnapClick"
+        ].compactMap { $0 }
         var current: AXUIElement? = element
 
         for _ in 0..<4 {
             guard let item = current else { return false }
-            if axString(item, kAXTitleAttribute as String) == appName { return true }
+            let values = [
+                axString(item, kAXTitleAttribute as String),
+                axString(item, kAXDescriptionAttribute as String),
+                axString(item, kAXHelpAttribute as String)
+            ].compactMap { $0 }
+            if values.contains(where: { value in names.contains { value.localizedCaseInsensitiveContains($0) } }) {
+                return true
+            }
 
             var parent: CFTypeRef?
             AXUIElementCopyAttributeValue(item, kAXParentAttribute as CFString, &parent)

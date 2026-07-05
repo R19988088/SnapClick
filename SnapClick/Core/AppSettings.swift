@@ -293,6 +293,7 @@ public final class LanguageManager: ObservableObject {
             "未授权": "Unauthorized",
             "去授权": "Authorize",
             "去启用": "Enable",
+            "重置": "Reset",
             " / 3 已授权": " / 3 Authorized",
 
             // 通用设置页
@@ -539,6 +540,7 @@ public final class LanguageManager: ObservableObject {
             "未授权": "未承認",
             "去授权": "認証",
             "去启用": "有効化",
+            "重置": "リセット",
             " / 3 已授权": " / 3 承認済み",
 
             "权限状态概览": "権限の概要",
