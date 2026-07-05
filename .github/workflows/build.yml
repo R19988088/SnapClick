@@ -25,7 +25,7 @@ jobs:
             build
 
       - name: Install DMG tooling
-        run: python3 -m pip install --user pillow
+        run: python3 -m pip install --user --break-system-packages pillow
 
       - name: Build DMG
         run: |
