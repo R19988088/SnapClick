@@ -18,6 +18,10 @@ A premium productivity tool built exclusively for macOS, integrating Finder menu
 
 <br>
 
+<img src="docs/assets/introduce.png" alt="SnapClick Overview" width="100%" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+
+<br>
+
 <img src="docs/assets/hero_screenshot.png" alt="SnapClick Main UI" width="800" style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
 
 </div>
