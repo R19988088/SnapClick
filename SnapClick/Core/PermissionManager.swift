@@ -94,8 +94,10 @@ final class PermissionManager: ObservableObject {
             return
         }
 
-        // 直接打开对应的设置页面让用户手动开启辅助功能
-        // 不使用 kAXTrustedCheckOptionPrompt，避免弹出系统提示框
+        let options = [
+            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+        ] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
         openAccessibilityPreferences()
         startPolling()
     }
