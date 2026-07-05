@@ -310,7 +310,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 private final class DockScrollVolumeController {
-    private var monitor: Any?
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+    private var retryTimer: Timer?
     private var lastChange = Date.distantPast
 
     func setEnabled(_ enabled: Bool) {
@@ -318,30 +320,104 @@ private final class DockScrollVolumeController {
     }
 
     private func start() {
-        guard monitor == nil else { return }
+        guard eventTap == nil else { return }
         guard PermissionManager.shared.checkAccessibilityPermission() else {
             PermissionManager.shared.requestAccessibilityPermission()
+            startRetryingAfterPermissionGrant()
             return
         }
-        monitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            self?.handle(event)
+        stopRetrying()
+
+        let eventMask = (1 << CGEventType.scrollWheel.rawValue)
+            | (1 << CGEventType.tapDisabledByTimeout.rawValue)
+            | (1 << CGEventType.tapDisabledByUserInput.rawValue)
+
+        let callback: CGEventTapCallBack = { _, type, event, refcon in
+            guard let refcon else { return Unmanaged.passUnretained(event) }
+            let controller = Unmanaged<DockScrollVolumeController>.fromOpaque(refcon).takeUnretainedValue()
+
+            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                if let tap = controller.eventTap {
+                    CGEvent.tapEnable(tap: tap, enable: true)
+                }
+                return Unmanaged.passUnretained(event)
+            }
+
+            guard type == .scrollWheel else { return Unmanaged.passUnretained(event) }
+            let lineDelta = event.getIntegerValueField(.scrollWheelEventDeltaAxis1)
+            let pixelDelta = event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)
+            let delta = lineDelta != 0 ? lineDelta : pixelDelta
+            DispatchQueue.main.async {
+                controller.handleScroll(deltaY: delta)
+            }
+            return Unmanaged.passUnretained(event)
+        }
+
+        eventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: CGEventMask(eventMask),
+            callback: callback,
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        )
+
+        guard let eventTap else {
+            PermissionManager.shared.requestAccessibilityPermission()
+            startRetryingAfterPermissionGrant()
+            return
+        }
+
+        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
+        if let runLoopSource {
+            CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+            CGEvent.tapEnable(tap: eventTap, enable: true)
         }
     }
 
     private func stop() {
-        if let monitor {
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
+        stopRetrying()
+        if let eventTap {
+            CGEvent.tapEnable(tap: eventTap, enable: false)
+        }
+        if let runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        }
+        eventTap = nil
+        runLoopSource = nil
+    }
+
+    private func startRetryingAfterPermissionGrant() {
+        guard retryTimer == nil else { return }
+        retryTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+            guard AppSettings.shared.dockScrollVolumeEnabled else {
+                self.stop()
+                return
+            }
+            if PermissionManager.shared.checkAccessibilityPermission() {
+                timer.invalidate()
+                self.retryTimer = nil
+                self.start()
+            }
         }
     }
 
-    private func handle(_ event: NSEvent) {
-        guard abs(event.scrollingDeltaY) >= 0.1,
+    private func stopRetrying() {
+        retryTimer?.invalidate()
+        retryTimer = nil
+    }
+
+    private func handleScroll(deltaY: Int64) {
+        guard deltaY != 0,
               Date().timeIntervalSince(lastChange) > 0.08,
               isPointerOverAppDockIcon() else { return }
 
         lastChange = Date()
-        changeOutputVolume(by: event.scrollingDeltaY > 0 ? 5 : -5)
+        changeOutputVolume(by: deltaY > 0 ? 5 : -5)
     }
 
     private func isPointerOverAppDockIcon() -> Bool {

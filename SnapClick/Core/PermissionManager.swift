@@ -6,7 +6,9 @@ import FinderSync
 final class PermissionManager: ObservableObject {
 
     static let shared = PermissionManager()
+    private let autoResetKey = "privacyAutoResetSignature"
     private init() {
+        resetStalePermissionRecordsIfNeeded()
         hasAccessibilityPermission    = checkAccessibilityPermission()
         hasScreenRecordingPermission  = checkScreenRecordingPermission()
         // pluginkit 及完全磁盘访问检测放后台，不阻塞启动
@@ -118,6 +120,22 @@ final class PermissionManager: ObservableObject {
         task.arguments = ["reset", service, Bundle.main.bundleIdentifier ?? "com.snapclick.app"]
         try? task.run()
         task.waitUntilExit()
+    }
+
+    private func resetStalePermissionRecordsIfNeeded() {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let version = info["CFBundleShortVersionString"] as? String ?? "0"
+        let build = info["CFBundleVersion"] as? String ?? "0"
+        let signature = "\(Bundle.main.bundleIdentifier ?? "com.snapclick.app")-\(version)-\(build)"
+        guard UserDefaults.standard.string(forKey: autoResetKey) != signature else { return }
+        UserDefaults.standard.set(signature, forKey: autoResetKey)
+
+        if !CGPreflightScreenCaptureAccess() {
+            resetTCC(service: "ScreenCapture")
+        }
+        if !AXIsProcessTrusted() {
+            resetTCC(service: "Accessibility")
+        }
     }
 
     func checkFinderExtensionPermission() -> Bool {

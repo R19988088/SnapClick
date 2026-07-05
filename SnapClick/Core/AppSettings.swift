@@ -122,6 +122,9 @@ final class AppSettings: ObservableObject {
     @AppStorage("dockScrollVolumeEnabled")
     var dockScrollVolumeEnabled: Bool = false {
         didSet {
+            if dockScrollVolumeEnabled && !showInDock {
+                showInDock = true
+            }
             NotificationCenter.default.post(name: .dockScrollVolumeDidChange, object: nil)
         }
     }
