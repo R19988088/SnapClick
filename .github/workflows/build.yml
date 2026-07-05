@@ -18,7 +18,23 @@ jobs:
           xcodebuild \
             -project SnapClick.xcodeproj \
             -scheme SnapClick \
-            -configuration Debug \
+            -configuration Release \
             -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: Install DMG tooling
+        run: python3 -m pip install --user pillow
+
+      - name: Build DMG
+        run: |
+          scripts/build_dmg.sh build/DerivedData/Build/Products/Release/SnapClick.app
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v7
+        with:
+          archive: false
+          name: SnapClick.dmg
+          path: dist/SnapClick.dmg
+          if-no-files-found: error
