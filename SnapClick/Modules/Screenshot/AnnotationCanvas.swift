@@ -186,15 +186,24 @@ class AnnotationCanvas: NSView {
 
         context.saveGState()
         context.setStrokeColor(item.color.cgColor)
-        context.setLineWidth(item.lineWidth)
         context.setLineCap(.round)
         context.setLineJoin(.round)
 
-        context.move(to: item.points[0])
-        for point in item.points.dropFirst() {
-            context.addLine(to: point)
+        if item.pointLineWidths.count == item.points.count {
+            for index in 1..<item.points.count {
+                context.setLineWidth((item.pointLineWidths[index - 1] + item.pointLineWidths[index]) / 2)
+                context.move(to: item.points[index - 1])
+                context.addLine(to: item.points[index])
+                context.strokePath()
+            }
+        } else {
+            context.setLineWidth(item.lineWidth)
+            context.move(to: item.points[0])
+            for point in item.points.dropFirst() {
+                context.addLine(to: point)
+            }
+            context.strokePath()
         }
-        context.strokePath()
         context.restoreGState()
     }
 
@@ -326,6 +335,9 @@ class AnnotationCanvas: NSView {
             )
             if currentTool.isPathBased {
                 item.points = [loc]
+                if currentTool == .pen {
+                    item.pointLineWidths = [pressureLineWidth(for: event)]
+                }
             }
             currentDrawing = item
         }
@@ -342,6 +354,9 @@ class AnnotationCanvas: NSView {
 
         if drawing.type.isPathBased {
             drawing.points.append(loc)
+            if drawing.type == .pen {
+                drawing.pointLineWidths.append(pressureLineWidth(for: event))
+            }
         } else {
             drawing.endPoint = loc
         }
@@ -360,6 +375,9 @@ class AnnotationCanvas: NSView {
 
         if drawing.type.isPathBased {
             drawing.points.append(loc)
+            if drawing.type == .pen {
+                drawing.pointLineWidths.append(pressureLineWidth(for: event))
+            }
         } else {
             drawing.endPoint = loc
         }
@@ -549,5 +567,11 @@ class AnnotationCanvas: NSView {
     // MARK: - 辅助：backingScaleFactor
     private var backingScaleFactor: CGFloat {
         window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
+    }
+
+    private func pressureLineWidth(for event: NSEvent) -> CGFloat {
+        let pressure = CGFloat(event.pressure)
+        guard pressure > 0 else { return currentLineWidth }
+        return currentLineWidth * max(0.35, min(1.8, 0.4 + pressure * 1.4))
     }
 }

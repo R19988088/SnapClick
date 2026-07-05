@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -6,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var settingsWindow: NSWindow?
     private var welcomeWindow: NSWindow?
+    private let dockScrollVolumeController = DockScrollVolumeController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.applicationIconImage = NSImage(named: "AppIcon")
@@ -39,6 +41,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .showInDockDidChange,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateDockScrollVolume),
+            name: .dockScrollVolumeDidChange,
+            object: nil
+        )
+        updateDockScrollVolume()
 
         // 监听毛玻璃透明效果变化
         NotificationCenter.default.addObserver(
@@ -94,6 +103,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             NSApp.setActivationPolicy(.accessory)
         }
+    }
+
+    @objc private func updateDockScrollVolume() {
+        dockScrollVolumeController.setEnabled(AppSettings.shared.dockScrollVolumeEnabled)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -293,5 +306,80 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         welcomeWindow = window
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+private final class DockScrollVolumeController {
+    private var monitor: Any?
+    private var lastChange = Date.distantPast
+
+    func setEnabled(_ enabled: Bool) {
+        enabled ? start() : stop()
+    }
+
+    private func start() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            self?.handle(event)
+        }
+    }
+
+    private func stop() {
+        if let monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+    }
+
+    private func handle(_ event: NSEvent) {
+        guard abs(event.scrollingDeltaY) >= 0.1,
+              Date().timeIntervalSince(lastChange) > 0.08,
+              isPointerOverAppDockIcon() else { return }
+
+        lastChange = Date()
+        changeOutputVolume(by: event.scrollingDeltaY > 0 ? 5 : -5)
+    }
+
+    private func isPointerOverAppDockIcon() -> Bool {
+        let mouse = NSEvent.mouseLocation
+        let desktop = NSScreen.screens.map(\.frame).reduce(CGRect.null) { $0.union($1) }
+        let point = CGPoint(x: mouse.x, y: desktop.maxY - mouse.y)
+        let systemWide = AXUIElementCreateSystemWide()
+        var element: AXUIElement?
+
+        guard AXUIElementCopyElementAtPosition(systemWide, Float(point.x), Float(point.y), &element) == .success,
+              let element else { return false }
+
+        return titleMatchesApp(in: element)
+    }
+
+    private func titleMatchesApp(in element: AXUIElement) -> Bool {
+        let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "SnapClick"
+        var current: AXUIElement? = element
+
+        for _ in 0..<4 {
+            guard let item = current else { return false }
+            if axString(item, kAXTitleAttribute as String) == appName { return true }
+
+            var parent: CFTypeRef?
+            AXUIElementCopyAttributeValue(item, kAXParentAttribute as CFString, &parent)
+            current = parent.map { $0 as! AXUIElement }
+        }
+
+        return false
+    }
+
+    private func axString(_ element: AXUIElement, _ attribute: String) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
+        return value as? String
+    }
+
+    private func changeOutputVolume(by delta: Int) {
+        let script = """
+        set currentVolume to output volume of (get volume settings)
+        set volume output volume (max(0, min(100, currentVolume + \(delta))))
+        """
+        NSAppleScript(source: script)?.executeAndReturnError(nil)
     }
 }

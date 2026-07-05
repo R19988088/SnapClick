@@ -162,6 +162,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
     case pinAndColor = "pinAndColor"
     case contextMenu = "contextMenu"
     case shortcuts   = "shortcuts"
+    case other       = "other"
     case about       = "about"
 
     var id: String { rawValue }
@@ -174,6 +175,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
         case .pinAndColor: return "贴图 & 取色".localized
         case .contextMenu: return "Finder 右键".localized
         case .shortcuts:   return "快捷键".localized
+        case .other:       return "其他".localized
         case .about:       return "关于".localized
         }
     }
@@ -186,6 +188,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
         case .pinAndColor: return "pin.circle"
         case .contextMenu: return "folder.badge.gearshape"
         case .shortcuts:   return "keyboard"
+        case .other:       return "ellipsis.circle"
         case .about:       return "info.circle"
         }
     }
@@ -449,7 +452,19 @@ private struct DetailView: View {
             if let dest = selectedDestination {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(alignment: .leading, spacing: 20) {
-                        SettingsPageHeader(title: dest.localizedTitle)
+                        HStack {
+                            SettingsPageHeader(title: dest.localizedTitle)
+                            Spacer()
+                            if dest == .shortcuts {
+                                Button {
+                                    settings.resetHotkeys()
+                                    HotkeyManager.shared.registerAll()
+                                } label: {
+                                    Label("复位快捷键".localized, systemImage: "arrow.counterclockwise")
+                                }
+                                .controlSize(.small)
+                            }
+                        }
 
                         switch dest {
                         case .general:
@@ -464,6 +479,8 @@ private struct DetailView: View {
                             RightClickSettingsView()
                         case .shortcuts:
                             ShortcutsSettingsView()
+                        case .other:
+                            OtherSettingsView()
                         case .about:
                             AboutView()
                         }
@@ -716,6 +733,24 @@ private struct GeneralSettingsView: View {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+private struct OtherSettingsView: View {
+    @ObservedObject private var settings = AppSettings.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel(title: "其他".localized, icon: "ellipsis.circle", color: .purple)
+
+            DesignCard {
+                ToggleRow(
+                    title: "Dock 滚轮调节音量".localized,
+                    description: "鼠标悬停在 Dock 图标上滚动时调整系统音量".localized,
+                    isOn: $settings.dockScrollVolumeEnabled
+                )
             }
         }
     }

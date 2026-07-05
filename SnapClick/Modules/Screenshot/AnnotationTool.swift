@@ -110,6 +110,7 @@ struct AnnotationItem: Identifiable {
     var startPoint: CGPoint         // 起始点
     var endPoint:   CGPoint         // 终止点（矩形/椭圆/箭头/马赛克/高亮使用）
     var points:     [CGPoint] = []  // 路径点集合（画笔/橡皮使用）
+    var pointLineWidths: [CGFloat] = [] // 画笔路径逐点线宽（数位板压力）
 
     // 样式
     var color:     NSColor  = .systemRed
@@ -136,11 +137,12 @@ struct AnnotationItem: Identifiable {
         guard !points.isEmpty else { return .zero }
         let xs = points.map { $0.x }
         let ys = points.map { $0.y }
+        let maxWidth = max(lineWidth, pointLineWidths.max() ?? lineWidth)
         return CGRect(
-            x:      xs.min()! - lineWidth,
-            y:      ys.min()! - lineWidth,
-            width:  xs.max()! - xs.min()! + lineWidth * 2,
-            height: ys.max()! - ys.min()! + lineWidth * 2
+            x:      xs.min()! - maxWidth,
+            y:      ys.min()! - maxWidth,
+            width:  xs.max()! - xs.min()! + maxWidth * 2,
+            height: ys.max()! - ys.min()! + maxWidth * 2
         )
     }
 }

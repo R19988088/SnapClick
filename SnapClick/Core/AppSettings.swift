@@ -73,6 +73,17 @@ final class AppSettings: ObservableObject {
     @AppStorage("hotkeyPin")
     var hotkeyPin: String = "ctrl+shift+p"
 
+    func resetHotkeys() {
+        hotkeyAreaScreenshot = "ctrl+shift+a"
+        hotkeyWindowScreenshot = "ctrl+shift+w"
+        hotkeyLongScreenshot = "ctrl+shift+l"
+        hotkeyColorPicker = "ctrl+shift+c"
+        hotkeyPin = "ctrl+shift+p"
+        hotkeyRecordArea = "ctrl+shift+r"
+        hotkeyRecordScreen = "ctrl+shift+f"
+        hotkeyStopRecording = "ctrl+shift+s"
+    }
+
     // MARK: 通用设置
 
     /// 是否首次启动（用于显示引导页）
@@ -105,6 +116,13 @@ final class AppSettings: ObservableObject {
     var showInDock: Bool = false {
         didSet {
             NotificationCenter.default.post(name: .showInDockDidChange, object: nil)
+        }
+    }
+
+    @AppStorage("dockScrollVolumeEnabled")
+    var dockScrollVolumeEnabled: Bool = false {
+        didSet {
+            NotificationCenter.default.post(name: .dockScrollVolumeDidChange, object: nil)
         }
     }
 
@@ -259,6 +277,7 @@ public final class LanguageManager: ObservableObject {
             "截图与标注": "Screenshot & Annotation",
             "贴图 & 取色": "Pin & Color",
             "右键菜单": "Right-Click Menu",
+            "其他": "Other",
             "关于": "About",
             "请选择一个设置项": "Please select a setting",
             "从左侧侧边栏选择要配置的功能模块": "Select a module to configure from the sidebar",
@@ -294,6 +313,8 @@ public final class LanguageManager: ObservableObject {
             "在菜单栏显示图标": "Show Icon in Menu Bar",
             "在程序坞中显示图标": "Show Icon in Dock",
             "在下方程序坞中显示应用图标": "Show the application icon in the Dock",
+            "Dock 滚轮调节音量": "Adjust Volume from Dock",
+            "鼠标悬停在 Dock 图标上滚动时调整系统音量": "Adjust system volume by scrolling over the Dock icon",
             "语言与外观偏好": "Language & Appearance",
             "系统语言": "System Language",
             "应用界面及菜单的呈现语言": "Display language for the app interface and menus",
@@ -424,6 +445,7 @@ public final class LanguageManager: ObservableObject {
             "快速编辑": "Quick Edit",
             "打开标注编辑": "Open annotation editor",
             "点击录制": "Click to Record",
+            "复位快捷键": "Reset Shortcuts",
 
             // 关于页 - 新增
             "官方网站": "Official Website",
@@ -502,6 +524,7 @@ public final class LanguageManager: ObservableObject {
             "截图与标注": "スクリーンショットと注釈",
             "贴图 & 取色": "ピン留めとカラーピッカー",
             "右键菜单": "右クリックメニュー",
+            "其他": "その他",
             "关于": "情報",
             "请选择一个设置项": "設定項目を選択してください",
             "从左侧侧边栏选择要配置的功能模块": "左のサイドバーから設定するモジュールを選択",
@@ -535,6 +558,8 @@ public final class LanguageManager: ObservableObject {
             "在菜单栏显示图标": "メニューバーにアイコンを表示",
             "在程序坞中显示图标": "ドックにアイコンを表示",
             "在下方程序坞中显示应用图标": "ドックにアプリのアイコンを表示する",
+            "Dock 滚轮调节音量": "Dock スクロールで音量調整",
+            "鼠标悬停在 Dock 图标上滚动时调整系统音量": "Dock アイコン上でスクロールしてシステム音量を調整",
             "语言与外观偏好": "言語と外観",
             "系统语言": "システム言語",
             "应用界面及菜单的呈现语言": "アプリのインターフェイスとメニューの表示言語",
@@ -661,6 +686,7 @@ public final class LanguageManager: ObservableObject {
             "快速编辑": "クイック編集",
             "打开标注编辑": "注釈エディタを開く",
             "点击录制": "クリックして録画",
+            "复位快捷键": "ショートカットをリセット",
 
             // 情報ページ - 新增
             "官方网站": "公式サイト",
@@ -732,6 +758,7 @@ public extension Notification.Name {
     static let appLanguageDidChange = Notification.Name("AppLanguageDidChange")
     static let showInMenuBarDidChange = Notification.Name("ShowInMenuBarDidChange")
     static let showInDockDidChange = Notification.Name("ShowInDockDidChange")
+    static let dockScrollVolumeDidChange = Notification.Name("DockScrollVolumeDidChange")
     static let enableGlassEffectDidChange = Notification.Name("EnableGlassEffectDidChange")
 }
 
