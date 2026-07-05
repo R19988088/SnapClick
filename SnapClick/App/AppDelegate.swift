@@ -16,6 +16,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupFinderCommandObserver()
         handleFinderCommand()
 
+        // 启动时立即同步已安装的终端/开发工具到 SharedStore，
+        // 并预热常用目录 / 文件类型的图标 Data，
+        // 确保 FinderExtension 的 MenuBuilder 每次右键都直接命中缓存，
+        // 不再触发 NSWorkspace.urlForApplication / icon(forFile:) 等
+        // 会触发 TCC 弹窗的同步 I/O 调用。
+        preheatFinderMenuAssets()
+
+        // 监听收藏目录 / 文件模板变更，刷新图标缓存
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleFinderMenuAssetsChanged),
+            name: .finderMenuAssetsDidChange,
+            object: nil
+        )
+
         // 初始化并监听程序坞图标状态
         updateActivationPolicy()
         NotificationCenter.default.addObserver(
@@ -37,6 +52,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settings.isFirstLaunch {
             showWelcomeWindow()
         }
+    }
+
+    /// 将系统中已安装的终端 / 编辑器信息、常用目录 / 文件类型图标
+    /// 全部预加载并写入 SharedStore，供沙盒内的 FinderExtension 直接读取。
+    /// FinderExtension 之后不再调用任何会触发 TCC 的 NSWorkspace API。
+    private func preheatFinderMenuAssets() {
+        let terminalCandidates: [(name: String, bundleID: String)] = [
+            ("Terminal",  "com.apple.Terminal"),
+            ("iTerm2",    "com.googlecode.iterm2"),
+        ]
+        let editorCandidates: [(name: String, bundleID: String)] = [
+            ("VS Code",      "com.microsoft.VSCode"),
+            ("Xcode",        "com.apple.dt.Xcode"),
+            ("Sublime Text", "com.sublimetext.4"),
+            ("TextEdit",     "com.apple.TextEdit"),
+        ]
+        let devTools = terminalCandidates + editorCandidates
+
+        let dirPaths = FavoriteDirectoriesManager.shared.favorites.map { $0.path }
+        let exts = NewFileTemplateManager.shared.enabledTemplates.map { $0.ext.lowercased() }
+
+        // 同步预热：启动时一次性完成，所有 I/O 都在主进程进行，
+        // 不会在 FinderExtension 沙盒内触发 TCC 弹窗
+        IconCache.preheat(
+            devTools: devTools,
+            favoriteDirectoryPaths: dirPaths,
+            fileTemplateExts: exts
+        )
+    }
+
+    @objc private func handleFinderMenuAssetsChanged() {
+        preheatFinderMenuAssets()
     }
 
     @objc private func updateActivationPolicy() {
@@ -206,6 +253,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let dest = targetURL else { return }
                 let terminalBundleID = representedString ?? "com.apple.Terminal"
                 FileOperations.shared.openInTerminal(directory: dest, terminalBundleID: terminalBundleID)
+
+            case "openDirectory":
+                guard let path = representedString, !path.isEmpty else { return }
+                NSWorkspace.shared.open(URL(fileURLWithPath: path))
 
             case "airDrop":
                 FileOperations.shared.airDrop(items: selectedURLs)

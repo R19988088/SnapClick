@@ -9,17 +9,23 @@ final class PermissionManager: ObservableObject {
     private init() {
         hasAccessibilityPermission    = checkAccessibilityPermission()
         hasScreenRecordingPermission  = checkScreenRecordingPermission()
-        // pluginkit 检测放后台，不阻塞启动
+        // pluginkit 及完全磁盘访问检测放后台，不阻塞启动
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
-            let finder = self.checkFinderExtensionPermission()
-            DispatchQueue.main.async { self.hasFinderExtensionPermission = finder }
+            let finder   = self.checkFinderExtensionPermission()
+            let fullDisk = self.checkFullDiskAccessPermission()
+            DispatchQueue.main.async {
+                self.hasFinderExtensionPermission = finder
+                self.hasFullDiskAccessPermission  = fullDisk
+            }
         }
     }
 
     @Published var hasScreenRecordingPermission: Bool = false
     @Published var hasAccessibilityPermission: Bool = false
     @Published var hasFinderExtensionPermission: Bool = false
+    /// 完全磁盘访问权限（可选，用于外接磁盘场景）
+    @Published var hasFullDiskAccessPermission: Bool = false
     @Published var isRefreshing: Bool = false
 
     private var pollingTimer: Timer?
@@ -47,11 +53,13 @@ final class PermissionManager: ObservableObject {
             let screen        = self.checkScreenRecordingPermission()
             let accessibility = self.checkAccessibilityPermission()
             let finder        = self.checkFinderExtensionPermission()
+            let fullDisk      = self.checkFullDiskAccessPermission()
 
             DispatchQueue.main.async {
                 self.hasScreenRecordingPermission = screen
                 self.hasAccessibilityPermission   = accessibility
                 self.hasFinderExtensionPermission = finder
+                self.hasFullDiskAccessPermission  = fullDisk
                 self.isRefreshing = false
 
                 if screen && accessibility {
@@ -140,6 +148,29 @@ final class PermissionManager: ObservableObject {
             urlString = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"
         } else {
             urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        }
+        if let url = URL(string: urlString) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+    // MARK: - 完全磁盘访问权限（可选）
+
+    func checkFullDiskAccessPermission() -> Bool {
+        // 尝试读取仅完全磁盘访问权限才能访问的受保护目录来判断是否已授权
+        let protectedPath = "/Library/Application Support/com.apple.TCC/TCC.db"
+        return FileManager.default.isReadableFile(atPath: protectedPath)
+    }
+
+    func requestFullDiskAccessPermission() {
+        openFullDiskAccessPreferences()
+    }
+
+    private func openFullDiskAccessPreferences() {
+        let urlString: String
+        if #available(macOS 13.0, *) {
+            urlString = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles"
+        } else {
+            urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
         }
         if let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)

@@ -153,6 +153,9 @@ final class NewFileTemplateManager: ObservableObject {
             .filter { !$0.isBuiltin && $0.isEnabled }
             .map { ["name": $0.name, "ext": $0.ext, "content": $0.defaultContent] }
         store.set(customs, forKey: customKey)
+
+        // 通知 AppDelegate 重新预热文件类型图标缓存
+        NotificationCenter.default.post(name: .finderMenuAssetsDidChange, object: nil)
     }
 
     /// 内置模板列表

@@ -64,7 +64,7 @@ struct PinColorSettingsView: View {
             .padding(.horizontal, 1)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(red: 241/255, green: 245/255, blue: 249/255))
+                    .fill(DT.tabBg)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(DT.cardBorder, lineWidth: 0.75)
@@ -111,7 +111,7 @@ private struct PinColorTabButton: View {
                 Text(tab.label)
                     .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
             }
-            .foregroundStyle(isSelected ? .white : Color(red: 71/255, green: 85/255, blue: 105/255))
+            .foregroundStyle(isSelected ? .white : DT.unselectedTabText)
             .padding(.vertical, 7)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
@@ -174,7 +174,7 @@ private struct ColorPickerSettingsTab: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("全局快捷键".localized)
                                     .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                                    .foregroundStyle(.customPrimaryText)
                                 Text("在任意位置快速启动取色器".localized)
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
@@ -197,7 +197,7 @@ private struct ColorPickerSettingsTab: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("默认复制格式".localized)
                                     .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                                    .foregroundStyle(.customPrimaryText)
                                 Text("点击色块时写入剪贴板的格式".localized)
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
@@ -221,16 +221,19 @@ private struct ColorPickerSettingsTab: View {
                         CardDivider()
 
                         // 预览窗口显示格式行（可多选）
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("预览窗口显示格式".localized)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
-                                Text("取色器实时预览中要显示哪些格式（可多选）".localized)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
+                        // 描述文字较长，徽章组独占下方一行避免与左侧标题争抢横向空间
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("预览窗口显示格式".localized)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.customPrimaryText)
+                                    Text("取色器实时预览中要显示哪些格式（可多选）".localized)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
                             }
-                            Spacer()
                             HStack(spacing: 4) {
                                 ForEach(ColorFormat.allCases) { fmt in
                                     FormatSelectBadge(
@@ -296,7 +299,7 @@ private struct ColorPickerSettingsTab: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("使用提示".localized)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                        .foregroundStyle(.customPrimaryText)
                     Text("按下快捷键后，将鼠标悬停在目标颜色上并单击即可拾取，支持屏幕任意位置。".localized)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
@@ -306,10 +309,10 @@ private struct ColorPickerSettingsTab: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
-                    .fill(Color(red: 239/255, green: 246/255, blue: 255/255))
+                    .fill(DT.infoBannerBg)
                     .overlay(
                         RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
-                            .stroke(Color(red: 191/255, green: 219/255, blue: 254/255), lineWidth: 0.75)
+                            .stroke(DT.infoBannerBorder, lineWidth: 0.75)
                     )
             )
         }
@@ -342,12 +345,14 @@ private struct FormatSelectBadge: View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(isSelected ? .white : Color(red: 71/255, green: 85/255, blue: 105/255))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .foregroundStyle(isSelected ? .white : DT.unselectedTabText)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(isSelected ? DT.accent : Color(red: 241/255, green: 245/255, blue: 249/255))
+                        .fill(isSelected ? DT.accent : DT.tabBg)
                         .overlay(
                             RoundedRectangle(cornerRadius: 5, style: .continuous)
                                 .stroke(isSelected ? DT.accent : DT.cardBorder, lineWidth: 0.75)
@@ -436,7 +441,7 @@ private struct PinBoardSettingsTab: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("全局贴图快捷键".localized)
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                                .foregroundStyle(.customPrimaryText)
                             Text("从剪贴板抓取图片并钉在屏幕上".localized)
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
@@ -472,7 +477,7 @@ private struct PinBoardSettingsTab: View {
                         WindowControlButton(
                             icon: "eye.slash",
                             label: "隐藏全部".localized,
-                            color: Color(red: 71/255, green: 85/255, blue: 105/255)
+                            color: DT.unselectedTabText
                         ) { pinManager.hideAll() }
 
                         Divider().frame(height: 20)
@@ -565,7 +570,7 @@ private struct WindowControlButton: View {
                 Text(label)
                     .font(.system(size: 12.5, weight: .medium))
             }
-            .foregroundStyle(isHovered ? color : Color(red: 71/255, green: 85/255, blue: 105/255))
+            .foregroundStyle(isHovered ? color : DT.unselectedTabText)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
             .background(
@@ -591,13 +596,13 @@ struct EmptyHistoryCard: View {
             VStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 28))
-                    .foregroundStyle(Color(red: 203/255, green: 213/255, blue: 225/255))
+                    .foregroundStyle(DT.placeholderText)
                 Text(message)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+                    .foregroundStyle(.customSecondaryText)
                 Text(hint)
                     .font(.system(size: 11))
-                    .foregroundStyle(Color(red: 203/255, green: 213/255, blue: 225/255))
+                    .foregroundStyle(DT.placeholderText)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
@@ -623,7 +628,7 @@ struct NewPinHistoryCell: View {
                         .resizable()
                         .scaledToFill()
                 } else {
-                    Color(red: 241/255, green: 245/255, blue: 249/255)
+                    DT.tabBg
                         .overlay(
                             Image(systemName: "photo")
                                 .font(.system(size: 20))

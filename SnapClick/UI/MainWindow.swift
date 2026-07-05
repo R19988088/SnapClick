@@ -73,6 +73,84 @@ enum DT {
     static let cardRadius: CGFloat     = 10
     static let rowPadH: CGFloat        = 16
     static let rowPadV: CGFloat        = 11
+
+    // 悬浮玻璃侧边栏（四周统一边距）
+    static let sidebarWidth: CGFloat        = 196
+    static let sidebarInset: CGFloat        = 8
+    static let sidebarGap: CGFloat          = 4
+    static let sidebarCornerRadius: CGFloat = 12
+
+    // 外层背景（窗口底色，与侧边栏玻璃形成对比）
+    static let windowBackdrop = Color.dynamic(
+        light: Color(white: 0.93),
+        dark: Color(white: 0.08)
+    )
+
+    // Tab 栏背景（浅灰 / 深灰）
+    static let tabBg = Color.dynamic(
+        light: Color(red: 241/255, green: 245/255, blue: 249/255),
+        dark: Color(white: 1, opacity: 0.08)
+    )
+    // 信息提示横幅背景
+    static let infoBannerBg = Color.dynamic(
+        light: Color(red: 239/255, green: 246/255, blue: 255/255),
+        dark: Color(red: 59/255, green: 130/255, blue: 246/255).opacity(0.12)
+    )
+    // 信息提示横幅边框
+    static let infoBannerBorder = Color.dynamic(
+        light: Color(red: 191/255, green: 219/255, blue: 254/255),
+        dark: Color(red: 59/255, green: 130/255, blue: 246/255).opacity(0.25)
+    )
+    // 行悬停背景
+    static let rowHoverBg = Color.dynamic(
+        light: Color(red: 248/255, green: 250/255, blue: 252/255),
+        dark: Color(white: 1, opacity: 0.05)
+    )
+    // 表头背景
+    static let tableHeaderBg = Color.dynamic(
+        light: Color(red: 248/255, green: 250/255, blue: 252/255),
+        dark: Color(white: 1, opacity: 0.05)
+    )
+    // 内置标签背景
+    static let badgeBg = Color.dynamic(
+        light: Color(red: 241/255, green: 245/255, blue: 249/255),
+        dark: Color(white: 1, opacity: 0.10)
+    )
+    // 占位符/最浅文字
+    static let placeholderText = Color.dynamic(
+        light: Color(red: 203/255, green: 213/255, blue: 225/255),
+        dark: Color(white: 1, opacity: 0.25)
+    )
+    // KeyBadge 背景
+    static let keyBadgeBg = Color.dynamic(
+        light: Color.white,
+        dark: Color(white: 1, opacity: 0.12)
+    )
+    // KeyBadge 边框
+    static let keyBadgeBorder = Color.dynamic(
+        light: Color(red: 203/255, green: 213/255, blue: 225/255),
+        dark: Color(white: 1, opacity: 0.20)
+    )
+    // 未选中 Tab / 次要控件文字（与 customSecondaryText 一致）
+    static let unselectedTabText = Color.dynamic(
+        light: Color(red: 71/255, green: 85/255, blue: 105/255),
+        dark: Color(red: 156/255, green: 163/255, blue: 175/255)
+    )
+    // 未选中格式 Badge 背景
+    static let unselectedBadgeBg = Color.dynamic(
+        light: Color(red: 241/255, green: 245/255, blue: 249/255),
+        dark: Color(white: 1, opacity: 0.08)
+    )
+    // 未安装应用图标占位背景
+    static let appIconPlaceholderBg = Color.dynamic(
+        light: Color(red: 241/255, green: 245/255, blue: 249/255),
+        dark: Color(white: 1, opacity: 0.08)
+    )
+    // 空态图片占位背景
+    static let emptyImagePlaceholderBg = Color.dynamic(
+        light: Color(red: 241/255, green: 245/255, blue: 249/255),
+        dark: Color(white: 1, opacity: 0.08)
+    )
 }
 
 // MARK: - 侧边栏导航项
@@ -227,33 +305,24 @@ struct MainWindow: View {
 
     var body: some View {
         ZStack {
-            // ── 统一底面背景（毛玻璃或纯色） ────────────────────────────────
-            if settings.enableGlassEffect {
-                VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
-                    .ignoresSafeArea()
-            } else {
-                Color.dynamic(
-                    light: Color(white: 0.98),
-                    dark: Color(white: 0.12)
-                )
+            // ── 外层窗口底色（与侧边栏玻璃形成对比） ───────────────────────
+            DT.windowBackdrop
+                .opacity(settings.enableGlassEffect ? settings.glassOpacity : 1.0)
                 .ignoresSafeArea()
-            }
 
             HStack(spacing: 0) {
-                // ── 自定义侧边栏 ────────────────────────────────────────
-                SidebarView(selectedDestination: $selectedDestination)
+               // ── 悬浮玻璃侧边栏（四周留边距） ───────────────────────────
+               SidebarView(selectedDestination: $selectedDestination)
+                    .padding(.top, 0)
+                   .padding(.bottom, DT.sidebarInset)
+                   .padding(.leading, DT.sidebarInset)
+                   .padding(.trailing, DT.sidebarGap)
 
-                // ── 侧边栏与内容区之间的竖向分隔线（贯穿标题栏）──────────
-                Rectangle()
-                    .fill(Color.dynamic(
-                        light: Color(white: 0, opacity: 0.08),
-                        dark: Color(white: 1, opacity: 0.06)
-                    ))
-                    .frame(width: 0.75)
-                    .ignoresSafeArea()
-
-                // ── 内容工作区 ──────────────────────────────────────────
-                DetailView(selectedDestination: $selectedDestination)
+               // ── 内容工作区 ──────────────────────────────────────────
+               DetailView(selectedDestination: $selectedDestination)
+                    .padding(.top, 28)
+                   .padding(.trailing, DT.sidebarInset)
+                   .padding(.bottom, DT.sidebarInset)
             }
         }
         .frame(minWidth: 820, idealWidth: 880, minHeight: 540, idealHeight: 600)
@@ -308,9 +377,9 @@ private struct SidebarView: View {
 
                 Spacer()
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 48)
-            .padding(.bottom, 24)
+           .padding(.horizontal, 14)
+            .padding(.top, 42)
+           .padding(.bottom, 20)
 
             VStack(spacing: 2) {
                 ForEach(SettingsDestination.allCases) { dest in
@@ -335,19 +404,36 @@ private struct SidebarView: View {
             .padding(.horizontal, 14)
             .padding(.bottom, 18)
         }
-        .frame(width: 190)
+        .frame(width: DT.sidebarWidth)
         .background(
             Group {
                 if settings.enableGlassEffect {
-                    Color(red: 194/255, green: 193/255, blue: 193/255).opacity(0.5)
+                    ZStack {
+                        VisualEffectView(material: .contentBackground, blendingMode: .withinWindow)
+                        Color.dynamic(
+                            light: Color.white.opacity(0.55),
+                            dark: Color(white: 1, opacity: 0.09)
+                        )
+                    }
                 } else {
                     Color.dynamic(
-                        light: Color(white: 0.94),
+                        light: Color(white: 0.99),
                         dark: Color(white: 0.18)
                     )
                 }
             }
-            .ignoresSafeArea()  // 延伸到标题栏左侧区域
+            .clipShape(RoundedRectangle(cornerRadius: DT.sidebarCornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: DT.sidebarCornerRadius, style: .continuous)
+                    .stroke(
+                        Color.dynamic(
+                            light: Color.white.opacity(0.6),
+                            dark: Color(white: 1, opacity: 0.12)
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.10), radius: 8, x: 0, y: 2)
         )
     }
 }
@@ -384,7 +470,7 @@ private struct DetailView: View {
                     }
                     .padding(.horizontal, DT.contentPadding)
                     .padding(.bottom, DT.contentPadding)
-                    .padding(.top, DT.contentPadding + 28)
+                    .padding(.top, DT.contentPadding + 6)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(ScrollViewConfigurator())
                 }
@@ -402,19 +488,7 @@ private struct DetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            Group {
-                if settings.enableGlassEffect {
-                    DT.contentBg
-                } else {
-                    Color.dynamic(
-                        light: Color(white: 0.98),
-                        dark: Color(white: 0.12)
-                    )
-                }
-            }
-            .ignoresSafeArea()  // 延伸到标题栏右侧区域
-        )
+        .background(Color.clear)
     }
 }
 
@@ -463,6 +537,18 @@ private struct GeneralSettingsView: View {
                         isGranted: permMgr.hasFinderExtensionPermission,
                         actionLabel: "去启用".localized,
                         onAction: { permMgr.requestFinderExtensionPermission() }
+                    )
+
+                    CardDivider()
+
+                    // ── 可选权限：完全磁盘访问 ──────────────────────────
+                    OptionalPermissionRow(
+                        icon: "externaldrive.badge.checkmark",
+                        iconColor: .orange,
+                        title: "完全磁盘访问".localized,
+                        description: "可选 · 用于访问外接磁盘中的文件".localized,
+                        isGranted: permMgr.hasFullDiskAccessPermission,
+                        onAction: { permMgr.requestFullDiskAccessPermission() }
                     )
                 }
 
@@ -592,6 +678,43 @@ private struct GeneralSettingsView: View {
                         description: "使窗口背景呈现半透明的玻璃质感".localized,
                         isOn: $settings.enableGlassEffect
                     )
+
+                    if settings.enableGlassEffect {
+                        CardDivider()
+
+                        VStack(spacing: 8) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("面板透明度".localized)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.customPrimaryText)
+                                    Text("Panel Opacity")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text("\(Int(settings.glassOpacity * 100))%")
+                                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(DT.accent)
+                                    .frame(width: 46, alignment: .trailing)
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.top, DT.rowPadV)
+
+                            HStack(spacing: 8) {
+                                Text("透明".localized)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                Slider(value: $settings.glassOpacity, in: 0.3...1.0, step: 0.05)
+                                    .tint(DT.accent)
+                                Text("不透明".localized)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.bottom, DT.rowPadV)
+                        }
+                    }
                 }
             }
         }
@@ -663,6 +786,81 @@ private struct PermissionRow: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                     .tint(DT.accent)
+            }
+        }
+        .padding(.horizontal, DT.rowPadH)
+        .padding(.vertical, DT.rowPadV)
+    }
+}
+
+// MARK: - 可选权限行（视觉上区别于强制权限）
+
+private struct OptionalPermissionRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let description: String
+    let isGranted: Bool
+    let onAction: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(iconColor.opacity(0.10))
+                    .frame(width: 34, height: 34)
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(iconColor)
+            }
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.customPrimaryText)
+                    // "可选" 标签
+                    Text("可选".localized)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Color.orange.opacity(0.85))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(Color.orange.opacity(0.12))
+                                .overlay(Capsule().stroke(Color.orange.opacity(0.25), lineWidth: 0.75))
+                        )
+                }
+                Text(description)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            if isGranted {
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(DT.successGreen)
+                    Text("已授权".localized)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(DT.successGreen)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(DT.successGreen.opacity(0.1))
+                        .overlay(Capsule().stroke(DT.successGreen.opacity(0.2), lineWidth: 0.75))
+                )
+            } else {
+                Button("去开启".localized) { onAction() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(.orange)
             }
         }
         .padding(.horizontal, DT.rowPadH)
@@ -1158,10 +1356,10 @@ struct KeyBadge: View {
             .padding(.vertical, 3)
             .background(
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.white)
+                    .fill(DT.keyBadgeBg)
                     .overlay(
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(Color(red: 203/255, green: 213/255, blue: 225/255), lineWidth: 0.75)
+                            .stroke(DT.keyBadgeBorder, lineWidth: 0.75)
                     )
                     .shadow(color: Color.black.opacity(0.08), radius: 0, x: 0, y: 1)
             )
@@ -2037,4 +2235,3 @@ struct ScrollViewConfigurator: NSViewRepresentable {
     
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
-

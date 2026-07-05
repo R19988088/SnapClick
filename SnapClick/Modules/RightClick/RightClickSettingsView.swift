@@ -28,7 +28,7 @@ struct RightClickSettingsView: View {
             .padding(.horizontal, 1)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(red: 241/255, green: 245/255, blue: 249/255))
+                    .fill(DT.tabBg)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .stroke(DT.cardBorder, lineWidth: 0.75)
@@ -94,7 +94,7 @@ private struct TabButton: View {
                 Text(tab.title)
                     .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
             }
-            .foregroundStyle(isSelected ? .white : Color(red: 71/255, green: 85/255, blue: 105/255))
+            .foregroundStyle(isSelected ? .white : DT.unselectedTabText)
             .padding(.vertical, 7)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
@@ -124,7 +124,7 @@ private struct FavoriteDirectoriesSection: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("常用目录".localized)
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                        .foregroundStyle(.customPrimaryText)
                     Text("从右键菜单快速访问常用文件夹。".localized)
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
@@ -172,10 +172,10 @@ private struct FavoriteDirectoriesSection: View {
                             .frame(width: 60, alignment: .center)
                     }
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+                    .foregroundStyle(.customSecondaryText)
                     .padding(.horizontal, DT.rowPadH)
                     .padding(.vertical, 8)
-                    .background(Color(red: 248/255, green: 250/255, blue: 252/255))
+                    .background(DT.rowHoverBg)
 
                     Divider().opacity(0.5)
 
@@ -185,7 +185,7 @@ private struct FavoriteDirectoriesSection: View {
                             VStack(spacing: 8) {
                                 Image(systemName: "folder.badge.questionmark")
                                     .font(.system(size: 28))
-                                    .foregroundStyle(Color(red: 203/255, green: 213/255, blue: 225/255))
+                                    .foregroundStyle(DT.placeholderText)
                                 Text("暂无常用目录，请点击上方按钮添加".localized)
                                     .font(.system(size: 12))
                                     .foregroundStyle(.secondary)
@@ -222,7 +222,7 @@ private struct FavoriteDirectoriesSection: View {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color(red: 59/255, green: 130/255, blue: 246/255).opacity(0.1))
+                        .fill(DT.accent.opacity(0.1))
                         .frame(width: 34, height: 34)
                     Image(systemName: "arrow.up.arrow.down.circle.fill")
                         .font(.system(size: 16))
@@ -244,10 +244,10 @@ private struct FavoriteDirectoriesSection: View {
             .padding(.vertical, DT.rowPadV)
             .background(
                 RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
-                    .fill(Color(red: 239/255, green: 246/255, blue: 255/255))
+                    .fill(DT.infoBannerBg)
                     .overlay(
                         RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
-                            .stroke(Color(red: 191/255, green: 219/255, blue: 254/255), lineWidth: 0.75)
+                            .stroke(DT.infoBannerBorder, lineWidth: 0.75)
                     )
             )
         }
@@ -284,7 +284,7 @@ private struct DirectoryRow: View {
                 } else {
                     Text(fav.name)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                        .foregroundStyle(.customPrimaryText)
                 }
             }
             .frame(width: 130, alignment: .leading)
@@ -333,7 +333,7 @@ private struct DirectoryRow: View {
         }
         .padding(.horizontal, DT.rowPadH)
         .padding(.vertical, DT.rowPadV)
-        .background(isHovered ? Color(red: 248/255, green: 250/255, blue: 252/255) : Color.clear)
+        .background(isHovered ? DT.rowHoverBg : Color.clear)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.12), value: isHovered)
     }
@@ -366,7 +366,7 @@ private struct NewFileTemplatesSection: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("新建文件模板".localized)
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                        .foregroundStyle(.customPrimaryText)
                     Text("新建常用文件，这些文件将显示在右键菜单中。".localized)
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
@@ -415,10 +415,10 @@ private struct NewFileTemplatesSection: View {
                             .frame(width: 40, alignment: .center)
                     }
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+                    .foregroundStyle(.customSecondaryText)
                     .padding(.horizontal, DT.rowPadH)
                     .padding(.vertical, 8)
-                    .background(Color(red: 248/255, green: 250/255, blue: 252/255))
+                    .background(DT.rowHoverBg)
 
                     Divider().opacity(0.5)
 
@@ -435,7 +435,7 @@ private struct NewFileTemplatesSection: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("菜单行为".localized)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(red: 15/255, green: 23/255, blue: 42/255))
+                    .foregroundStyle(.customPrimaryText)
 
                 DesignCard {
                     ToggleRow(
@@ -491,7 +491,7 @@ private struct TemplateRow: View {
             Text(tpl.name)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(tpl.isEnabled
-                                 ? Color(red: 15/255, green: 23/255, blue: 42/255)
+                                 ? .customPrimaryText
                                  : Color.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -519,12 +519,12 @@ private struct TemplateRow: View {
                 } else {
                     Text("内置".localized)
                         .font(.system(size: 10.5))
-                        .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+                        .foregroundStyle(.customSecondaryText)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(
                             Capsule()
-                                .fill(Color(red: 241/255, green: 245/255, blue: 249/255))
+                                .fill(DT.tabBg)
                         )
                 }
             }
@@ -532,7 +532,7 @@ private struct TemplateRow: View {
         }
         .padding(.horizontal, DT.rowPadH)
         .padding(.vertical, 8)
-        .background(isHovered ? Color(red: 248/255, green: 250/255, blue: 252/255) : Color.clear)
+        .background(isHovered ? DT.rowHoverBg : Color.clear)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.1), value: isHovered)
     }
@@ -622,14 +622,23 @@ private struct AddTemplatePopover: View {
 
 private struct DevToolsSection: View {
 
-    private let tools: [(name: String, bundleID: String, icon: String, subtitle: String)] = [
-        ("Terminal",     "com.apple.Terminal",        "terminal.fill",                      "macOS 内置"),
-        ("iTerm2",       "com.googlecode.iterm2",     "terminal",                           "iterm2.com"),
-        ("VS Code",      "com.microsoft.VSCode",      "chevron.left.forwardslash.chevron.right", "code.visualstudio.com"),
-        ("Xcode",        "com.apple.dt.Xcode",        "hammer.fill",                        "developer.apple.com"),
-        ("Sublime Text", "com.sublimetext.4",         "square.and.pencil",                  "sublimetext.com"),
-        ("TextEdit",     "com.apple.TextEdit",        "doc.text",                           "macOS 内置"),
+    /// 终端类工具（用于「在终端中打开」菜单）
+    private let terminalTools: [(name: String, bundleID: String, icon: String, subtitle: String)] = [
+        ("Terminal",     "com.apple.Terminal",    "terminal.fill", "macOS 内置"),
+        ("iTerm2",       "com.googlecode.iterm2", "terminal",      "iterm2.com"),
     ]
+
+    /// 编辑器 / IDE 类工具（用于「用…打开」菜单）
+    private let editorTools: [(name: String, bundleID: String, icon: String, subtitle: String)] = [
+        ("VS Code",      "com.microsoft.VSCode",  "chevron.left.forwardslash.chevron.right", "code.visualstudio.com"),
+        ("Xcode",        "com.apple.dt.Xcode",    "hammer.fill",                            "developer.apple.com"),
+        ("Sublime Text", "com.sublimetext.4",      "square.and.pencil",                      "sublimetext.com"),
+        ("TextEdit",     "com.apple.TextEdit",     "doc.text",                               "macOS 内置"),
+    ]
+
+    private var allTools: [(name: String, bundleID: String, icon: String, subtitle: String)] {
+        terminalTools + editorTools
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -647,10 +656,10 @@ private struct DevToolsSection: View {
             .padding(.vertical, 9)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(red: 239/255, green: 246/255, blue: 255/255))
+                    .fill(DT.infoBannerBg)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Color(red: 191/255, green: 219/255, blue: 254/255), lineWidth: 0.75)
+                            .stroke(DT.infoBannerBorder, lineWidth: 0.75)
                     )
             )
 
@@ -665,22 +674,46 @@ private struct DevToolsSection: View {
                             .frame(width: 90, alignment: .trailing)
                     }
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+                    .foregroundStyle(.customSecondaryText)
                     .padding(.horizontal, DT.rowPadH)
                     .padding(.vertical, 8)
-                    .background(Color(red: 248/255, green: 250/255, blue: 252/255))
+                    .background(DT.rowHoverBg)
 
                     Divider().opacity(0.5)
 
-                    ForEach(tools, id: \.bundleID) { tool in
+                    ForEach(allTools, id: \.bundleID) { tool in
                         let installed = NSWorkspace.shared.urlForApplication(withBundleIdentifier: tool.bundleID) != nil
                         DevToolRow(tool: tool, installed: installed)
-                        if tool.bundleID != tools.last?.bundleID {
+                        if tool.bundleID != allTools.last?.bundleID {
                             Divider().padding(.horizontal, DT.rowPadH).opacity(0.4)
                         }
                     }
                 }
             }
+        }
+        .onAppear {
+            syncInstalledToolsToSharedStore()
+        }
+    }
+
+    /// 将已安装的工具写入 SharedStore，供 FinderExtension 的 MenuBuilder 读取
+    private func syncInstalledToolsToSharedStore() {
+        let store = AppGroup.defaults
+
+        // 终端类：写入 cachedInstalledTerminals
+        let installedTerminals = terminalTools
+            .filter { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleID) != nil }
+            .map { ["name": $0.name, "bundleID": $0.bundleID] }
+        if let data = try? JSONEncoder().encode(installedTerminals) {
+            store.set(data, forKey: "cachedInstalledTerminals")
+        }
+
+        // 编辑器/IDE 类：写入 cachedInstalledDevTools
+        let installedEditors = editorTools
+            .filter { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.bundleID) != nil }
+            .map { ["name": $0.name, "bundleID": $0.bundleID] }
+        if let data = try? JSONEncoder().encode(installedEditors) {
+            store.set(data, forKey: "cachedInstalledDevTools")
         }
     }
 }
@@ -704,7 +737,7 @@ private struct DevToolRow: View {
                 } else {
                     ZStack {
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color(red: 241/255, green: 245/255, blue: 249/255))
+                            .fill(DT.tabBg)
                             .frame(width: 28, height: 28)
                         Image(systemName: tool.icon)
                             .font(.system(size: 13))
@@ -718,11 +751,11 @@ private struct DevToolRow: View {
                 Text(tool.name)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(installed
-                                    ? Color(red: 15/255, green: 23/255, blue: 42/255)
+                                    ? .customPrimaryText
                                     : Color.secondary)
                 Text(tool.bundleID)
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(Color(red: 148/255, green: 163/255, blue: 184/255))
+                    .foregroundStyle(.customSecondaryText)
             }
 
             Spacer()
@@ -757,7 +790,7 @@ private struct DevToolRow: View {
         .padding(.horizontal, DT.rowPadH)
         .padding(.vertical, DT.rowPadV)
         .opacity(installed ? 1.0 : 0.55)
-        .background(isHovered && installed ? Color(red: 248/255, green: 250/255, blue: 252/255) : Color.clear)
+        .background(isHovered && installed ? DT.rowHoverBg : Color.clear)
         .onHover { if installed { isHovered = $0 } }
         .animation(.easeOut(duration: 0.1), value: isHovered)
     }

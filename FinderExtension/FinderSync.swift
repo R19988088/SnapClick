@@ -137,4 +137,9 @@ class FinderSyncExtension: FIFinderSync {
         let obj = MenuBuilder.getRepresentedObject(for: sender.tag)
         sendCommand("airDrop", selectedItems: finderSelectedItems, targetDir: finderTargetDirectory, representedObject: obj)
     }
+
+    @objc func openFavoriteDirectory(_ sender: NSMenuItem) {
+        let obj = MenuBuilder.getRepresentedObject(for: sender.tag)
+        sendCommand("openDirectory", selectedItems: [], targetDir: finderTargetDirectory, representedObject: obj)
+    }
 }

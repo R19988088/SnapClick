@@ -106,6 +106,18 @@ final class HotkeyManager: ObservableObject {
             }
         }
         
+        register(settings.hotkeyStopRecording, name: "停止录制") {
+            Task { @MainActor in
+                guard ScreenRecordingEngine.shared.isRecording else { return }
+                do {
+                    let fileURL = try await ScreenRecordingEngine.shared.stopRecording()
+                    NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                } catch {
+                    print("停止录制失败: \(error.localizedDescription)")
+                }
+            }
+        }
+        
         if eventTap == nil {
             startListening()
         }

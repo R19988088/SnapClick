@@ -61,9 +61,13 @@ struct ShortcutsSettingsView: View {
                         subtitle: "立即录制全屏".localized,
                         hotkey: $settings.hotkeyRecordScreen
                     )
-                    // 占位，保持三列对齐
-                    Color.clear
-                        .frame(maxWidth: .infinity)
+                    ShortcutCard(
+                        icon: "stop.circle.fill",
+                        iconColor: Color(red: 239/255, green: 68/255, blue: 68/255),
+                        title: "停止录制".localized,
+                        subtitle: "停止并保存录制文件".localized,
+                        hotkey: $settings.hotkeyStopRecording
+                    )
                 }
             }
 
@@ -110,10 +114,10 @@ struct ShortcutsSettingsView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
-                    .fill(Color(red: 239/255, green: 246/255, blue: 255/255))
+                    .fill(DT.infoBannerBg)
                     .overlay(
                         RoundedRectangle(cornerRadius: DT.cardRadius, style: .continuous)
-                            .stroke(Color(red: 191/255, green: 219/255, blue: 254/255), lineWidth: 0.75)
+                            .stroke(DT.infoBannerBorder, lineWidth: 0.75)
                     )
             )
         }

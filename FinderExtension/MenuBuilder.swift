@@ -9,11 +9,28 @@ enum MenuBuilder {
         let menu = NSMenu(title: "")
 
         let hasSelection = (menuKind != .contextualMenuForContainer)
+        let isContainer  = (menuKind == .contextualMenuForContainer)
+
+        // 打开常用目录（仅在点击空白处时显示）
+        if isContainer, let favItem = makeOpenFavDirItem(target: target) {
+            menu.addItem(favItem)
+        }
 
         menu.addItem(makeNewFileItem(target: target))
 
         if let termItem = makeOpenInTerminalItem(target: target) {
             menu.addItem(termItem)
+        }
+
+        // 编辑器 / IDE 类工具（无论是空白处还是选中文件都显示）
+        let devItems = makeDevToolItems(target: target)
+        if !devItems.isEmpty {
+            let devMenu = NSMenuItem(title: "用其他软件打开", action: nil, keyEquivalent: "")
+            devMenu.image = sfSymbol("square.grid.2x2", size: 14)
+            let devSub = NSMenu(title: "用其他软件打开")
+            devItems.forEach { devSub.addItem($0) }
+            devMenu.submenu = devSub
+            menu.addItem(devMenu)
         }
 
         if hasSelection {
@@ -66,26 +83,48 @@ enum MenuBuilder {
         return item
     }
 
-    private static func makeOpenInTerminalItem(target: AnyObject) -> NSMenuItem? {
-        var terminals = cachedTerminals()
-        if terminals.isEmpty {
-            terminals = [["name": "Terminal", "bundleID": "com.apple.Terminal"]]
-        }
+    /// 打开常用目录（带文件夹真实图标）—仅在空白处右键时显示
+    private static func makeOpenFavDirItem(target: AnyObject) -> NSMenuItem? {
+        let dirs = cachedFavoriteDirectories()
+        guard !dirs.isEmpty else { return nil }
 
-        let item = NSMenuItem(title: "在终端中打开", action: nil, keyEquivalent: "")
-        item.image = sfSymbol("terminal.fill", size: 14)
+        let item = NSMenuItem(title: "打开常用目录", action: nil, keyEquivalent: "")
+        item.image = sfSymbol("folder.fill.badge.plus", size: 14)
 
-        let subMenu = NSMenu(title: "在终端中打开")
-        for term in terminals {
-            let name = term["name"] ?? "Terminal"
-            let bundleID = term["bundleID"] ?? "com.apple.Terminal"
-            let mi = NSMenuItem(title: name, action: #selector(FinderSyncExtension.openInTerminal(_:)), keyEquivalent: "")
+        let subMenu = NSMenu(title: "打开常用目录")
+        for dir in dirs {
+            let name = dir["name"] ?? ""
+            let path = dir["path"] ?? ""
+            guard !path.isEmpty else { continue }
+
+            let mi = NSMenuItem(
+                title: name,
+                action: #selector(FinderSyncExtension.openFavoriteDirectory(_:)),
+                keyEquivalent: ""
+            )
             mi.target = target
-            MenuBuilder.setRepresentedObject(bundleID, for: mi)
-            mi.image = sfSymbol("terminal.fill", size: 14)
+            MenuBuilder.setRepresentedObject(path, for: mi)
+
+            // 优先使用主 App 预热好的真实文件夹图标 Data，
+            // 命中失败时回退到 SF Symbol（不再调用 icon(forFile:)）
+            if let img = cachedDirectoryIcon(for: path) {
+                mi.image = img
+            } else {
+                mi.image = sfSymbol("folder", size: 14)
+            }
+
             subMenu.addItem(mi)
         }
+
         item.submenu = subMenu
+        return item
+    }
+
+    private static func makeOpenInTerminalItem(target: AnyObject) -> NSMenuItem? {
+        let item = NSMenuItem(title: "在终端中打开", action: #selector(FinderSyncExtension.openInTerminal(_:)), keyEquivalent: "")
+        item.target = target
+        item.image = sfSymbol("terminal.fill", size: 14)
+        MenuBuilder.setRepresentedObject("com.apple.Terminal", for: item)
         return item
     }
 
@@ -155,26 +194,10 @@ enum MenuBuilder {
     }
 
     private static func makeCopyPathItem(target: AnyObject) -> NSMenuItem {
-        let item = NSMenuItem(title: "拷贝路径", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: "拷贝路径", action: #selector(FinderSyncExtension.copyPath(_:)), keyEquivalent: "")
+        item.target = target
         item.image = sfSymbol("link", size: 14)
-
-        let subMenu = NSMenu(title: "拷贝路径")
-
-        let options = [
-            (title: "完整路径", kind: "full"),
-            (title: "仅文件名", kind: "filename"),
-            (title: "File URL", kind: "url")
-        ]
-
-        for opt in options {
-            let mi = NSMenuItem(title: opt.title, action: #selector(FinderSyncExtension.copyPath(_:)), keyEquivalent: "")
-            mi.target = target
-            MenuBuilder.setRepresentedObject(opt.kind, for: mi)
-            mi.image = sfSymbol("doc.on.clipboard", size: 14)
-            subMenu.addItem(mi)
-        }
-
-        item.submenu = subMenu
+        MenuBuilder.setRepresentedObject("full", for: item)
         return item
     }
 
@@ -184,10 +207,16 @@ enum MenuBuilder {
         for tool in tools {
             let name = tool["name"] ?? "开发工具"
             let bundleID = tool["bundleID"] ?? ""
-            let mi = NSMenuItem(title: "用 \(name) 打开", action: #selector(FinderSyncExtension.openWithDevTool(_:)), keyEquivalent: "")
+            let mi = NSMenuItem(title: name, action: #selector(FinderSyncExtension.openWithDevTool(_:)), keyEquivalent: "")
             mi.target = target
             MenuBuilder.setRepresentedObject(bundleID, for: mi)
-            mi.image = sfSymbol("hammer.fill", size: 14)
+            // 优先使用主 App 预热好的应用图标 Data，
+            // 不再调用 urlForApplication / icon(forFile:)（会触发 TCC）
+            if let img = cachedDevToolIcon(for: bundleID) {
+                mi.image = img
+            } else {
+                mi.image = sfSymbol("app.badge", size: 14)
+            }
             items.append(mi)
         }
         return items
@@ -245,23 +274,39 @@ enum MenuBuilder {
         return decoded
     }
 
-    private static func fileTypeIcon(ext: String) -> NSImage? {
-        if #available(macOS 12.0, *) {
-            if let uttype = UTType(filenameExtension: ext) {
-                let icon = NSWorkspace.shared.icon(for: uttype)
-                icon.size = NSSize(width: 16, height: 16)
-                return icon
-            }
+    /// 从 SharedStore 读取常用目录列表
+    private static func cachedFavoriteDirectories() -> [[String: String]] {
+        struct FavDir: Codable { var id: String; var name: String; var path: String }
+        let ud = AppGroup.defaults
+        guard let data = ud.data(forKey: "favoriteDirectories"),
+              let decoded = try? JSONDecoder().decode([FavDir].self, from: data),
+              !decoded.isEmpty else {
+            // 回退默认目录
+            let home = NSHomeDirectory()
+            return [
+                ["name": "桌面",   "path": "\(home)/Desktop"],
+                ["name": "文稿",   "path": "\(home)/Documents"],
+                ["name": "下载",   "path": "\(home)/Downloads"],
+                ["name": "图片",   "path": "\(home)/Pictures"],
+            ]
         }
-        let icon = NSWorkspace.shared.icon(forFileType: ext)
-        icon.size = NSSize(width: 16, height: 16)
-        return icon
+        return decoded.map { ["name": $0.name, "path": $0.path] }
+    }
+
+
+    private static func fileTypeIcon(ext: String) -> NSImage? {
+        // 优先读取主 App 预热好的图标 Data（避免每次 NSWorkspace.icon(for:) 同步调用）
+        if let data = IconCache.fileTypeIconData(for: ext),
+           let img = NSImage(data: data) {
+            img.size = NSSize(width: 16, height: 16)
+            return img
+        }
+        // 冷启动场景：主 App 还没来得及预热，回退到 SF Symbol 占位
+        return sfSymbol("doc.text", size: 14)
     }
 
     private static func sfSymbol(_ name: String, size: CGFloat = 14) -> NSImage? {
-        let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)
-        img?.size = NSSize(width: size, height: size)
-        return img
+        return cachedSFSymbol(name, size: size)
     }
 
     private static func defaultTemplates() -> [TemplateEntry] {
@@ -291,6 +336,73 @@ enum MenuBuilder {
     static func resetActionData() {
         actionData.removeAll()
         nextTag = 1
+    }
+
+    // MARK: - 图标内存缓存（NSCache）
+    // SharedStore 的 PNG Data 在同一次右键中可能被多次引用（NSCache 按需懒加载），
+    // 命中失败时再去读 SharedStore，并写回 NSCache；冷启动时如果主 App 还没预热，
+    // 也由 NSCache 兜底。finderMenuAssetsDidChange 通知会清空所有缓存。
+
+    private static let devToolIconCache: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.countLimit = 64
+        return c
+    }()
+
+    private static let directoryIconCache: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.countLimit = 64
+        return c
+    }()
+
+    private static let sfSymbolCache: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.countLimit = 128
+        return c
+    }()
+
+    /// 收到资源变更通知时清空所有内存图标缓存
+    static func clearInMemoryIconCaches() {
+        devToolIconCache.removeAllObjects()
+        directoryIconCache.removeAllObjects()
+        sfSymbolCache.removeAllObjects()
+    }
+
+    private static func cachedDevToolIcon(for bundleID: String) -> NSImage? {
+        let key = bundleID as NSString
+        if let cached = devToolIconCache.object(forKey: key) {
+            return cached
+        }
+        guard let data = IconCache.devToolIconData(for: bundleID),
+              let img = NSImage(data: data) else { return nil }
+        img.size = NSSize(width: 16, height: 16)
+        devToolIconCache.setObject(img, forKey: key)
+        return img
+    }
+
+    private static func cachedDirectoryIcon(for path: String) -> NSImage? {
+        let key = path as NSString
+        if let cached = directoryIconCache.object(forKey: key) {
+            return cached
+        }
+        guard let data = IconCache.directoryIconData(for: path),
+              let img = NSImage(data: data) else { return nil }
+        img.size = NSSize(width: 16, height: 16)
+        directoryIconCache.setObject(img, forKey: key)
+        return img
+    }
+
+    private static func cachedSFSymbol(_ name: String, size: CGFloat) -> NSImage? {
+        let key = "\(name)@\(Int(size))" as NSString
+        if let cached = sfSymbolCache.object(forKey: key) {
+            return cached
+        }
+        guard let img = NSImage(systemSymbolName: name, accessibilityDescription: nil) else {
+            return nil
+        }
+        img.size = NSSize(width: size, height: size)
+        sfSymbolCache.setObject(img, forKey: key)
+        return img
     }
 }
 

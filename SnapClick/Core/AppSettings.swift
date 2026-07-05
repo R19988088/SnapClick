@@ -120,6 +120,14 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    /// 玻璃面板透明度（0.3 ~ 1.0，值越小越透明）
+    @AppStorage("glassOpacity")
+    var glassOpacity: Double = 1.0 {
+        didSet {
+            NotificationCenter.default.post(name: .enableGlassEffectDidChange, object: nil)
+        }
+    }
+
     private func updateLaunchAtLogin() {
         if #available(macOS 13.0, *) {
             do {
@@ -190,6 +198,10 @@ final class AppSettings: ObservableObject {
     /// 全屏录制快捷键
     @AppStorage("hotkeyRecordScreen")
     var hotkeyRecordScreen: String = "ctrl+shift+f"
+
+    /// 停止录制快捷键
+    @AppStorage("hotkeyStopRecording")
+    var hotkeyStopRecording: String = "ctrl+shift+s"
 
     /// 默认录制范围/模式（"area" / "screen" / "window"）
     @AppStorage("recordDefaultMode")
@@ -290,6 +302,9 @@ public final class LanguageManager: ObservableObject {
             "日本語": "Japanese",
             "毛玻璃效果": "Glass Effect",
             "使窗口背景呈现半透明的玻璃质感": "Make window backgrounds translucent and glassy",
+            "面板透明度": "Panel Opacity",
+            "透明": "Transparent",
+            "不透明": "Opaque",
             "全局快捷键": "Global Shortcuts",
             "截图": "Screenshot",
             "区域截图": "Screenshot",
@@ -455,6 +470,12 @@ public final class LanguageManager: ObservableObject {
             "单击选取录制区域": "Click to select recording area",
             "高帧率（流畅）": "High FPS (Smooth)",
             "无损": "Lossless",
+            "取消录制？": "Cancel Recording?",
+            "当前录制的视频将被丢弃且无法恢复。如需保留，请先点击停止按钮。": "The current recording will be discarded and cannot be recovered. To keep it, click Stop first.",
+            "取消录制": "Cancel Recording",
+            "继续录制": "Continue Recording",
+            "取消并删除": "Cancel & Delete",
+            "停止并保存": "Stop & Save",
         ],
         "ja": [
             "SnapClick": "SnapClick",
@@ -522,6 +543,9 @@ public final class LanguageManager: ObservableObject {
             "日本語": "日本語",
             "毛玻璃效果": "すりガラス効果",
             "使窗口背景呈现半透明的玻璃质感": "ウィンドウの背景を半透明でガラスのような質感にします",
+            "面板透明度": "パネル透明度",
+            "透明": "透明",
+            "不透明": "不透明",
             "全局快捷键": "グローバルショートカット",
             "截图": "スクリーンショット",
             "区域截图": "スクリーンショット",
@@ -683,6 +707,12 @@ public final class LanguageManager: ObservableObject {
             "单击选取录制区域": "クリックして録画範囲を選択",
             "高帧率（流畅）": "高フレームレート（スムーズ）",
             "无损": "ロスレス",
+            "取消录制？": "録画をキャンセルしますか？",
+            "当前录制的视频将被丢弃且无法恢复。如需保留，请先点击停止按钮。": "現在の録画は破棄され、復元できません。残す場合は、先に停止ボタンをクリックしてください。",
+            "取消录制": "録画をキャンセル",
+            "继续录制": "録画を続行",
+            "取消并删除": "キャンセルして削除",
+            "停止并保存": "停止して保存",
         ]
     ]
 

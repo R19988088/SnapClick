@@ -237,6 +237,7 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
             timeOffset = .zero
             lastAppendedPTS = .zero
             needsResumeAdjustment = false
+            closeRecordingHUD()
             NotificationCenter.default.post(name: .recordingDidStop, object: nil)
             throw ScreenRecordingError.saveFailed("未捕获到任何画面，录制时间过短或选区无效")
         }
@@ -268,6 +269,9 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
         timeOffset = .zero
         lastAppendedPTS = .zero
         needsResumeAdjustment = false
+
+        // 关闭 HUD 控制浮条
+        closeRecordingHUD()
 
         // 广播通知，重置状态栏图标
         NotificationCenter.default.post(name: .recordingDidStop, object: nil)
@@ -733,7 +737,7 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
         isRecording = true
         isPaused = false
         recordingDuration = 0
-        
+
         durationTimer = Timer.publish(every: 1, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
@@ -746,6 +750,9 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
 
         // 广播录像启动通知，状态栏改为闪烁录制态
         NotificationCenter.default.post(name: .recordingDidStart, object: nil)
+
+        // 弹出 HUD 控制浮条（暂停/停止/取消）
+        showRecordingHUD()
     }
 
     // MARK: - 录制 HUD 浮显控制
@@ -770,10 +777,41 @@ final class ScreenRecordingEngine: NSObject, ObservableObject {
                         print("[ScreenRecordingEngine] 结束录像出错: \(error)")
                     }
                 }
+            },
+            onCancel: { [weak self] in
+                guard let self = self else { return }
+                // 销毁性操作：先弹确认对话框，避免误触导致文件丢失
+                self.confirmCancelRecording()
             }
         )
         self.hudWindow = hud
         hud.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: - 确认取消录制（销毁性操作前的二次确认）
+    private func confirmCancelRecording() {
+        let alert = NSAlert()
+        alert.messageText = "取消录制？"
+        alert.informativeText = "当前录制的视频将被丢弃且无法恢复。如需保留，请先点击停止按钮。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "取消录制")
+        alert.addButton(withTitle: "继续录制")
+        // 默认按钮为"继续录制"（右侧安全项），符合 HIG 销毁性操作规范
+        if let buttons = alert.buttons as? [NSButton] {
+            buttons[1].keyEquivalent = "\r"      // Enter -> 继续录制
+            buttons[0].keyEquivalent = "\u{1B}"   // Esc  -> 取消录制
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            Task {
+                do {
+                    try await self.cancelRecording()
+                } catch {
+                    print("[ScreenRecordingEngine] 取消录制出错: \(error)")
+                }
+            }
+        }
     }
 
     private func closeRecordingHUD() {

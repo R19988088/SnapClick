@@ -94,6 +94,9 @@ final class FavoriteDirectoriesManager: ObservableObject {
     private func save() {
         guard let encoded = try? JSONEncoder().encode(favorites) else { return }
         store.set(encoded, forKey: storageKey)
+
+        // 通知 AppDelegate 重新预热常用目录的图标缓存
+        NotificationCenter.default.post(name: .finderMenuAssetsDidChange, object: nil)
     }
 
     /// 默认收藏目录列表（首次启动时写入）

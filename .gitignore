@@ -82,3 +82,8 @@ website/
 .juejin-article-*.md
 .release-notes-*.md
 
+# Personal / local-only files
+CSDN_POST.md
+snapclick_promotion.png
+xhs_post/
+

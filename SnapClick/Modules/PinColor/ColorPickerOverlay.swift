@@ -169,14 +169,29 @@ struct MagnifierCard: View {
 
     private let cardBg = Color(red: 0.10, green: 0.11, blue: 0.18)
 
-    // 浅色卡片底配色
-    private let panelBg    = Color(red: 0.96, green: 0.96, blue: 0.97)
-    private let panelBorder = Color.black.opacity(0.10)
+    // 卡片底配色（适配深色模式）
+    private let panelBg    = Color.dynamic(
+        light: Color(red: 0.96, green: 0.96, blue: 0.97),
+        dark: Color(white: 0.14)
+    )
+    private let panelBorder = Color.dynamic(
+        light: Color.black.opacity(0.10),
+        dark: Color.white.opacity(0.12)
+    )
 
-    // 高对比度的标签/数值文字配色
-    private let labelColor = Color(red: 0.38, green: 0.40, blue: 0.46)
-    private let valueColor = Color(red: 0.10, green: 0.12, blue: 0.18)
-    private let accentBlue = Color(red: 0.10, green: 0.40, blue: 0.92)
+    // 高对比度的标签/数值文字配色（适配深色模式）
+    private let labelColor = Color.dynamic(
+        light: Color(red: 0.38, green: 0.40, blue: 0.46),
+        dark: Color(white: 0.55)
+    )
+    private let valueColor = Color.dynamic(
+        light: Color(red: 0.10, green: 0.12, blue: 0.18),
+        dark: Color(white: 0.85)
+    )
+    private let accentBlue = Color.dynamic(
+        light: Color(red: 0.10, green: 0.40, blue: 0.92),
+        dark: Color(red: 0.35, green: 0.60, blue: 1.0)
+    )
 
     // 主格式（用户在设置中选择的，将以大字 + 蓝色突出显示，并写入剪贴板）
     private var primaryFormat: String { defaultFormat.uppercased() }
