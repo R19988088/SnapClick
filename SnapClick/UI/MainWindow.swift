@@ -749,6 +749,35 @@ private struct OtherSettingsView: View {
 
             DesignCard {
                 ToggleRow(
+                    title: "屏幕圆角".localized,
+                    description: "在屏幕四角叠加圆角遮罩，壁纸和桌面实时生效".localized,
+                    isOn: $settings.screenCornerEnabled
+                )
+                CardDivider()
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("屏幕圆角尺寸".localized)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.customPrimaryText)
+                        Text("调整圆角遮罩半径".localized)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text("\(Int(settings.screenCornerRadius)) px")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(DT.accent)
+                        .frame(width: 52, alignment: .trailing)
+                }
+                .padding(.horizontal, DT.rowPadH)
+                .padding(.top, DT.rowPadV)
+                Slider(value: $settings.screenCornerRadius, in: 0...80, step: 1)
+                    .disabled(!settings.screenCornerEnabled)
+                    .tint(DT.accent)
+                    .padding(.horizontal, DT.rowPadH)
+                    .padding(.bottom, DT.rowPadV)
+                CardDivider()
+                ToggleRow(
                     title: "Dock 滚轮调节音量".localized,
                     description: "鼠标悬停在 Dock 图标上滚动时调整系统音量".localized,
                     isOn: $settings.dockScrollVolumeEnabled

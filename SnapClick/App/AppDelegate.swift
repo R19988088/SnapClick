@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var welcomeWindow: NSWindow?
     private let dockScrollVolumeController = DockScrollVolumeController()
     private let finderKeyActionController = FinderKeyActionController()
+    private let screenCornerOverlayController = ScreenCornerOverlayController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.applicationIconImage = NSImage(named: "AppIcon")
@@ -57,8 +58,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .finderKeyActionsDidChange,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateScreenCorners),
+            name: .screenCornerDidChange,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateScreenCorners),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
         updateDockScrollVolume()
         updateFinderKeyActions()
+        updateScreenCorners()
 
         // 监听毛玻璃透明效果变化
         NotificationCenter.default.addObserver(
@@ -124,6 +138,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         finderKeyActionController.setEnabled(
             AppSettings.shared.finderDeleteToTrashEnabled || AppSettings.shared.finderDoubleShiftCopyNamesEnabled
         )
+    }
+
+    @objc private func updateScreenCorners() {
+        screenCornerOverlayController.setEnabled(AppSettings.shared.screenCornerEnabled)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

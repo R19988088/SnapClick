@@ -143,6 +143,20 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @AppStorage("screenCornerEnabled")
+    var screenCornerEnabled: Bool = true {
+        didSet {
+            NotificationCenter.default.post(name: .screenCornerDidChange, object: nil)
+        }
+    }
+
+    @AppStorage("screenCornerRadius")
+    var screenCornerRadius: Double = 24 {
+        didSet {
+            NotificationCenter.default.post(name: .screenCornerDidChange, object: nil)
+        }
+    }
+
     /// 外观模式（"light" / "dark" / "auto"）
     @AppStorage("appAppearance")
     var appAppearance: String = "auto"
@@ -331,6 +345,10 @@ public final class LanguageManager: ObservableObject {
             "在菜单栏显示图标": "Show Icon in Menu Bar",
             "在程序坞中显示图标": "Show Icon in Dock",
             "在下方程序坞中显示应用图标": "Show the application icon in the Dock",
+            "屏幕圆角": "Screen Rounded Corners",
+            "在屏幕四角叠加圆角遮罩，壁纸和桌面实时生效": "Overlay rounded masks on the screen corners, visible on wallpaper and desktop in real time",
+            "屏幕圆角尺寸": "Screen Corner Size",
+            "调整圆角遮罩半径": "Adjust the corner mask radius",
             "Dock 滚轮调节音量": "Adjust Volume from Dock",
             "鼠标悬停在 Dock 图标上滚动时调整系统音量": "Adjust system volume by scrolling over the Dock icon",
             "Del 删除到废纸篓": "Delete to Trash with Del",
@@ -581,6 +599,10 @@ public final class LanguageManager: ObservableObject {
             "在菜单栏显示图标": "メニューバーにアイコンを表示",
             "在程序坞中显示图标": "ドックにアイコンを表示",
             "在下方程序坞中显示应用图标": "ドックにアプリのアイコンを表示する",
+            "屏幕圆角": "画面の角丸",
+            "在屏幕四角叠加圆角遮罩，壁纸和桌面实时生效": "画面の四隅に角丸マスクを重ね、壁紙とデスクトップにリアルタイムで反映",
+            "屏幕圆角尺寸": "画面角丸サイズ",
+            "调整圆角遮罩半径": "角丸マスクの半径を調整",
             "Dock 滚轮调节音量": "Dock スクロールで音量調整",
             "鼠标悬停在 Dock 图标上滚动时调整系统音量": "Dock アイコン上でスクロールしてシステム音量を調整",
             "Del 删除到废纸篓": "Del でゴミ箱へ移動",
@@ -788,6 +810,7 @@ public extension Notification.Name {
     static let dockScrollVolumeDidChange = Notification.Name("DockScrollVolumeDidChange")
     static let finderKeyActionsDidChange = Notification.Name("FinderKeyActionsDidChange")
     static let enableGlassEffectDidChange = Notification.Name("EnableGlassEffectDidChange")
+    static let screenCornerDidChange = Notification.Name("ScreenCornerDidChange")
 }
 
 // MARK: - String Extension

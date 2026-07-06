@@ -16,6 +16,7 @@
 		21C6264DF180501773134310 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0433B561482FC0EC58A4A1B6 /* HotkeyManager.swift */; };
 		2A1C62886ACA6FD00DB9BD98 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6872E5C78F239D82BE8D993 /* MainWindow.swift */; };
 		40D27421D7CEFA593BB883E1 /* ColorPickerOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD418F2D1FF7DD0732DE2DD3 /* ColorPickerOverlay.swift */; };
+		4AB9C5D1E7F3428190A6B3C8 /* ScreenCornerOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C6E2A910D54F8BA7C3912D /* ScreenCornerOverlayController.swift */; };
 		4EFB1CDBDACE80A604A368D2 /* ScreenCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B20B6D6EE1640BF54BBC935 /* ScreenCaptureEngine.swift */; };
 		5A4F0DDD0D3DE99A38DEB030 /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C728AC70204FB78B11F8127 /* FileOperations.swift */; };
 		63D489A2BA6224A7E6B06C65 /* RecordingCountdownWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86BCA83AFB4416988C85463C /* RecordingCountdownWindow.swift */; };
@@ -96,6 +97,7 @@
 		6B99FD79048A7735A9956942 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		6C728AC70204FB78B11F8127 /* FileOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOperations.swift; sourceTree = "<group>"; };
 		6F42E9623E68A7BA1FAFF7B5 /* Notifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Notifications.swift; sourceTree = "<group>"; };
+		73C6E2A910D54F8BA7C3912D /* ScreenCornerOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCornerOverlayController.swift; sourceTree = "<group>"; };
 		74ED8107A2EFF5B9CAFCE061 /* RightClickSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightClickSettingsView.swift; sourceTree = "<group>"; };
 		7B67219E48B82E5EBAC7D2CA /* FinderSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderSync.swift; sourceTree = "<group>"; };
 		80DAA1AF1121ECCDCBD7B156 /* FinderExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FinderExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -170,6 +172,7 @@
 			isa = PBXGroup;
 			children = (
 				EB2198C875A4A24E3B059D9A /* AppDelegate.swift */,
+				73C6E2A910D54F8BA7C3912D /* ScreenCornerOverlayController.swift */,
 				444974DA6DAF9FA9AA13F497 /* SnapClickApp.swift */,
 			);
 			path = App;
@@ -378,6 +381,7 @@
 				9365899555B15A4038717ADA /* PinWindowManager.swift in Sources */,
 				1BB1A74A956E7AE476C9D07A /* RightClickSettingsView.swift in Sources */,
 				4EFB1CDBDACE80A604A368D2 /* ScreenCaptureEngine.swift in Sources */,
+				4AB9C5D1E7F3428190A6B3C8 /* ScreenCornerOverlayController.swift in Sources */,
 				A47A6942859E9F4C173A99CC /* ScreenshotSettings.swift in Sources */,
 				CDD10FAA8245BB8A646015CD /* SnapClickApp.swift in Sources */,
 				13625153C5688129F44086E9 /* StatusBarController.swift in Sources */,
