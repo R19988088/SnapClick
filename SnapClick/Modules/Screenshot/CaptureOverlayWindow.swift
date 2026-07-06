@@ -1600,7 +1600,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             btn.state = isSelected ? .on : .off
             btn.contentTintColor = iconColor
             btn.layer?.backgroundColor = isSelected ? selectedFill.cgColor : NSColor.clear.cgColor
-            (btn as? ToolAdjustButton)?.update(value: canvas?.currentLineWidth ?? 2, expanded: isSelected)
+            (btn as? ToolAdjustButton)?.update(value: canvas?.size(for: type) ?? 2, expanded: isSelected)
         }
         
         // 更新颜色块的选中高亮状态
@@ -1769,14 +1769,13 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     }
     
     private func selectTool(_ tool: AnnotationToolType) {
-        canvas?.currentTool = tool
+        canvas?.selectTool(tool)
         updateButtonStates()
     }
 
     private func setToolSize(_ value: CGFloat) {
-        canvas?.currentLineWidth = value
-        canvas?.currentFontSize = value * 4
-        canvas?.mosaicBlockSize = Int(max(2, value.rounded()))
+        guard let canvas else { return }
+        canvas.setSize(value, for: canvas.currentTool)
         updateButtonStates()
     }
     

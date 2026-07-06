@@ -441,7 +441,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
     }
 
     private func selectTool(_ tool: AnnotationToolType) {
-        canvas.currentTool = tool
+        canvas.selectTool(tool)
 
         // 更新按钮高亮状态 (vibrant hover 效果)
         let iconColor = toolbarIconColor
@@ -453,7 +453,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
                 : .none
             btn.state = isSelected ? .on : .off
             btn.contentTintColor = iconColor
-            (btn as? ToolAdjustButton)?.update(value: canvas.currentLineWidth, expanded: isSelected)
+            (btn as? ToolAdjustButton)?.update(value: canvas.size(for: t), expanded: isSelected)
         }
     }
 
@@ -469,9 +469,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
     }
 
     private func setToolSize(_ val: CGFloat) {
-        canvas.currentLineWidth = val
-        canvas.currentFontSize  = val * 4  // 字号为线宽 4 倍
-        canvas.mosaicBlockSize  = Int(max(2, val.rounded()))
+        canvas.setSize(val, for: canvas.currentTool)
         selectTool(canvas.currentTool)
     }
 

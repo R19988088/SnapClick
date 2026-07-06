@@ -45,6 +45,7 @@ class AnnotationCanvas: NSView {
     var currentLineWidth: CGFloat            = 2.0
     var currentFontSize:  CGFloat            = 16.0
     var mosaicBlockSize:  Int                = 12
+    private var toolSizes: [AnnotationToolType: CGFloat] = [.text: 4, .mosaic: 12]
 
     // MARK: - 底图（截图）
     var baseImage: NSImage? {
@@ -86,6 +87,28 @@ class AnnotationCanvas: NSView {
             userInfo: nil
         )
         addTrackingArea(tracking)
+    }
+
+    func selectTool(_ tool: AnnotationToolType) {
+        currentTool = tool
+        applySize(size(for: tool))
+    }
+
+    func size(for tool: AnnotationToolType) -> CGFloat {
+        toolSizes[tool] ?? 2
+    }
+
+    func setSize(_ size: CGFloat, for tool: AnnotationToolType) {
+        toolSizes[tool] = size
+        if currentTool == tool {
+            applySize(size)
+        }
+    }
+
+    private func applySize(_ size: CGFloat) {
+        currentLineWidth = size
+        currentFontSize = size * 4
+        mosaicBlockSize = Int(max(2, size.rounded()))
     }
 
     // MARK: - 首响应者
@@ -239,9 +262,10 @@ class AnnotationCanvas: NSView {
             height: rect.height   * scale
         )
 
+        let blockSize = Int(max(2, item.lineWidth.rounded()))
         if let pixelated = MosaicHelper.pixelate(image: cgImage,
                                                   rect: srcRect,
-                                                  blockSize: mosaicBlockSize) {
+                                                  blockSize: blockSize) {
             context.saveGState()
             context.interpolationQuality = .none
             context.draw(pixelated, in: rect)
