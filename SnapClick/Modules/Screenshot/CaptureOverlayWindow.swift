@@ -72,7 +72,7 @@ class CaptureOverlayWindow: NSWindow {
         self.level                   = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
         self.backgroundColor         = .clear
         self.isOpaque                = false
-        self.hasShadow               = false
+        self.hasShadow               = true
         self.ignoresMouseEvents      = false
         self.collectionBehavior      = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.contentView             = overlayView
@@ -196,8 +196,6 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     private var copyButton: NSButton!
     private var shareButton: NSButton!
     private var colorWell: NSColorWell!
-    private var sizeSlider: NSSlider!
-    private var sizeLabel: NSTextField!
 
     // MARK: - 初始化
     init(frame: NSRect,
@@ -233,19 +231,10 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         // 1. 绘制底部截图背景
         backgroundImage.draw(in: bounds)
 
-        // 2. 绘制半透明暗化遮罩
-        context.setFillColor(NSColor(calibratedRed: 0, green: 0, blue: 0, alpha: 0.35).cgColor)
-
         if (mode == .areaSelection || mode == .combined) && (isDragging || isAnnotating || isScrollingCaptureActive || isWindowSelectedPending) {
             // 区域选择或正在就地标注：只在选区外侧暗化
-            let outerPath = CGMutablePath()
-            outerPath.addRect(bounds)
-            
             let rectToClear = isAnnotating || isWindowSelectedPending ? selectedRect : normalizedSelectedRect()
-            outerPath.addRect(rectToClear)
-
-            context.addPath(outerPath)
-            context.fillPath(using: .evenOdd)
+            drawDimmedOverlay(context: context, excluding: [rectToClear])
 
             if isScrollingCaptureActive {
                 // 长截图捕获中：绘制红色边框和状态提示
@@ -262,14 +251,14 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
                 drawWindowConfirmHint(context: context)
             }
         } else if mode == .windowSelection || mode == .combined {
-            context.fill(bounds)
+            drawDimmedOverlay(context: context)
             if let win = hoveredWindow {
                 drawWindowHighlight(window: win, context: context)
                 drawWindowTooltip(window: win, rect: winToViewRect(win), context: context)
             }
         } else {
-            // 未开始拖拽且未标注：整体半透明暗化
-            context.fill(bounds)
+            // 未开始拖拽且未标注：整体暗化
+            drawDimmedOverlay(context: context)
         }
 
         // 3. 拖拽选择阶段（放大镜功能已按需求移除）
@@ -287,6 +276,22 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         let w = abs(currentPoint.x - startPoint.x)
         let h = abs(currentPoint.y - startPoint.y)
         return CGRect(x: x, y: y, width: w, height: h)
+    }
+
+    private func drawDimmedOverlay(context: CGContext, excluding rects: [CGRect] = []) {
+        context.saveGState()
+        if !rects.isEmpty {
+            let path = CGMutablePath()
+            path.addRect(bounds)
+            for rect in rects where rect.width > 1 && rect.height > 1 {
+                path.addRect(rect)
+            }
+            context.addPath(path)
+            context.clip(using: .evenOdd)
+        }
+        context.setFillColor(NSColor(calibratedRed: 0, green: 0, blue: 0, alpha: 0.35).cgColor)
+        context.fill(bounds)
+        context.restoreGState()
     }
 
     private func drawSelectionBorder(context: CGContext) {
@@ -609,15 +614,16 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         mainStack?.layoutSubtreeIfNeeded()
         let targetWidth = mainStack != nil ? (mainStack!.fittingSize.width + 24) : 633
         
-        var tbY = selectedRect.minY - 56
+        var tbY = selectedRect.minY - 88
         if tbY < 10 { tbY = selectedRect.maxY + 12 }
         let tbX = selectedRect.midX - targetWidth / 2
         toolbar.frame = CGRect(
             x:      max(10, min(tbX, bounds.width - targetWidth - 10)),
             y:      tbY,
             width:  targetWidth,
-            height: 44
+            height: 76
         )
+        AnnotationToolbarChrome.apply(to: toolbar)
     }
 
     // MARK: - 鼠标事件
@@ -896,20 +902,13 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             window?.makeFirstResponder(annotationCanvas)
         }
 
-        // 3. 原位初始化悬浮底栏 editorToolbar (Vibrant-dark 材质)
+        // 3. 原位初始化悬浮底栏 editorToolbar
         let toolbar = NSVisualEffectView()
-        toolbar.material = .hudWindow
-        toolbar.blendingMode = .withinWindow
-        toolbar.state = .active
-        toolbar.wantsLayer = true
-        toolbar.layer?.cornerRadius = 22
-        toolbar.layer?.masksToBounds = true
-        toolbar.layer?.borderColor = NSColor(white: 1.0, alpha: 0.15).cgColor
-        toolbar.layer?.borderWidth = 0.5
         addSubview(toolbar)
         self.editorToolbar = toolbar
 
         layoutToolbar()
+        AnnotationToolbarChrome.apply(to: toolbar)
 
         // 初始化隐藏的 colorWell 用于承载高级调色盘
         colorWell = NSColorWell()
@@ -940,27 +939,24 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     private func setupToolbarControls() {
         guard let toolbar = editorToolbar else { return }
 
-        let mainStack = NSStackView()
-        mainStack.orientation = .horizontal
-        mainStack.spacing = 2 // 控制组间最小间距
-        mainStack.alignment = .centerY
-        
-        // 1. 全部工具组合并，消除它们之间的额外分隔符
         let toolsStack = makeAllToolsGroup()
-        mainStack.addArrangedSubview(toolsStack)
-        
-        // 自定义紧凑间距，让颜色球组紧贴长截图按钮
-        mainStack.setCustomSpacing(2, after: toolsStack)
-        
-        // 2. 颜色球选择组
+
+        let topRow = NSStackView()
+        topRow.orientation = .horizontal
+        topRow.spacing = 8
+        topRow.alignment = .centerY
+        topRow.addArrangedSubview(toolsStack)
+        topRow.addArrangedSubview(makeSeparator())
+        topRow.addArrangedSubview(makeActionButtonsGroup())
+
         let colorGroup = makeColorPresetGroup()
+
+        let mainStack = NSStackView()
+        mainStack.orientation = .vertical
+        mainStack.spacing = 6
+        mainStack.alignment = .centerX
+        mainStack.addArrangedSubview(topRow)
         mainStack.addArrangedSubview(colorGroup)
-        
-        mainStack.addArrangedSubview(makeSeparator())
-        
-        // 3. 右侧动作组
-        let actionGroup = makeActionButtonsGroup()
-        mainStack.addArrangedSubview(actionGroup)
         
         toolbar.addSubview(mainStack)
         mainStack.translatesAutoresizingMaskIntoConstraints = false
@@ -985,21 +981,15 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         
         let stack = NSStackView(views: buttons)
         stack.orientation = .horizontal
-        stack.spacing = 0 // 更紧凑的各个工具间距
+        stack.spacing = 4
         return stack
     }
 
     private func makeColorPresetGroup() -> NSStackView {
-        let colors: [NSColor] = [
-            .systemBlue,
-            .systemRed,
-            .systemGreen,
-            .systemOrange
-        ]
         var views: [NSView] = []
         colorPresetButtons.removeAll()
         
-        for color in colors {
+        for color in AnnotationColorPreset.presets {
             let btn = ColorPresetButton(color: color, parentView: self)
             colorPresetButtons.append(btn)
             views.append(btn)
@@ -1011,7 +1001,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         
         let stack = NSStackView(views: views)
         stack.orientation = .horizontal
-        stack.spacing = 2
+        stack.spacing = 5
         return stack
     }
 
@@ -1047,23 +1037,11 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     }
 
     private func makeToolButton(for tool: AnnotationToolType) -> HoverButton {
-        let btn = HoverButton(frame: CGRect(x: 0, y: 0, width: 34, height: 34))
-        btn.bezelStyle    = .regularSquare
-        btn.isBordered    = false
-        btn.imagePosition = .imageOnly
-        btn.wantsLayer    = true
-        btn.layer?.cornerRadius = 17
-        
-        let pointSize: CGFloat = tool == .text ? 20 : 16
-        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
-        if let img = NSImage(systemSymbolName: tool.iconName, accessibilityDescription: tool.displayName)?
-            .withSymbolConfiguration(config) {
-             btn.image = img
-        } else {
-            btn.title = tool.shortcutKey
+        let btn = ToolAdjustButton(tool: tool, value: canvas?.currentLineWidth ?? 2)
+        btn.onSizeChange = { [weak self] value in
+            self?.setToolSize(value)
         }
-        
-        btn.contentTintColor = .white
+        btn.contentTintColor = toolbarIconColor
         btn.customToolTip    = "\(tool.displayName) (\(tool.shortcutKey))"
         btn.onHover          = { [weak self] isHovered, button in
             self?.handleButtonHover(isHovered: isHovered, button: button)
@@ -1071,9 +1049,6 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         btn.target           = self
         btn.action           = #selector(toolButtonClicked(_:))
         btn.tag              = AnnotationToolType.allCases.firstIndex(of: tool) ?? 0
-        
-        btn.widthAnchor.constraint(equalToConstant: 34).isActive = true
-        btn.heightAnchor.constraint(equalToConstant: 34).isActive = true
         return btn
     }
 
@@ -1084,12 +1059,12 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         btn.wantsLayer = true
         btn.layer?.cornerRadius = 16
         
-        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         if let img = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)?
             .withSymbolConfiguration(config) {
             btn.image = img
         }
-        btn.contentTintColor = .white
+        btn.contentTintColor = toolbarIconColor
         btn.target   = self
         btn.action   = action
         btn.customToolTip = tip
@@ -1105,7 +1080,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     private func makeSeparator() -> NSView {
         let sep = NSView()
         sep.wantsLayer = true
-        sep.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.12).cgColor
+        sep.layer?.backgroundColor = AnnotationToolbarChrome.separatorColor(in: editorToolbar ?? self).cgColor
         sep.widthAnchor.constraint(equalToConstant: 1).isActive = true
         sep.heightAnchor.constraint(equalToConstant: 20).isActive = true
         return sep
@@ -1116,6 +1091,10 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         label.textColor = NSColor.white.withAlphaComponent(0.7)
         label.font      = NSFont.systemFont(ofSize: 10.5, weight: .medium)
         return label
+    }
+
+    private var toolbarIconColor: NSColor {
+        AnnotationToolbarChrome.iconColor(in: editorToolbar ?? self)
     }
 
     // MARK: - 自定义 ToolTip
@@ -1188,15 +1167,16 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             let targetWidth = mainStack != nil ? (mainStack!.fittingSize.width + 24) : 633
             
             // 重新计算工具栏 frame
-            var tbY = selectedRect.minY - 56
+            var tbY = selectedRect.minY - 88
             if tbY < 10 { tbY = selectedRect.maxY + 12 }
             let tbX = selectedRect.midX - targetWidth / 2
             toolbar.animator().frame = CGRect(
                 x:      max(10, min(tbX, bounds.width - targetWidth - 10)),
                 y:      tbY,
                 width:  targetWidth,
-                height: 44
+                height: 76
             )
+            AnnotationToolbarChrome.apply(to: toolbar)
         }
     }
 
@@ -1525,9 +1505,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
                         }
                     } else {
                         // 复制到剪贴板
-                        let pasteboard = NSPasteboard.general
-                        pasteboard.clearContents()
-                        pasteboard.writeObjects([finalImage])
+                        ScreenCaptureEngine.shared.copyToClipboard(finalImage)
                         
                         // 保存到设置目录
                         if let tiffData = finalImage.tiffRepresentation,
@@ -1615,11 +1593,14 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     }
 
     fileprivate func updateButtonStates() {
+        let iconColor = toolbarIconColor
+        let selectedFill = AnnotationToolbarChrome.selectedFill(in: editorToolbar ?? self)
         for (type, btn) in toolButtons {
             let isSelected = (canvas?.currentTool == type)
             btn.state = isSelected ? .on : .off
-            // 添加阴影选中样式：选中时带有半透明白色背景，未选中时背景透明
-            btn.layer?.backgroundColor = isSelected ? NSColor.white.withAlphaComponent(0.2).cgColor : NSColor.clear.cgColor
+            btn.contentTintColor = iconColor
+            btn.layer?.backgroundColor = isSelected ? selectedFill.cgColor : NSColor.clear.cgColor
+            (btn as? ToolAdjustButton)?.update(value: canvas?.currentLineWidth ?? 2, expanded: isSelected)
         }
         
         // 更新颜色块的选中高亮状态
@@ -1694,9 +1675,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         }
 
         if let img = imageToCopy {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.writeObjects([img])
+            ScreenCaptureEngine.shared.copyToClipboard(ScreenCaptureEngine.shared.applyScreenshotEffects(to: img))
         }
 
         // 关闭覆盖层
@@ -1722,19 +1701,24 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         return NSImage(cgImage: cropped, size: viewRect.size)
     }
 
-    private func getFinalImage() -> NSImage? {
+    private func getFinalImage(applyingOutputEffects: Bool = true) -> NSImage? {
+        let image: NSImage?
         if let exported = canvas?.exportAsImage() {
-            return exported
+            image = exported
+        } else {
+            let cropRect = self.selectedRect
+            if let cgImg = self.backgroundImage.cgImage(forProposedRect: nil, context: nil, hints: nil)?.cropping(to: NSRect(x: cropRect.minX, y: self.backgroundImage.size.height - cropRect.maxY, width: cropRect.width, height: cropRect.height)) {
+                image = NSImage(cgImage: cgImg, size: cropRect.size)
+            } else {
+                image = nil
+            }
         }
-        let cropRect = self.selectedRect
-        if let cgImg = self.backgroundImage.cgImage(forProposedRect: nil, context: nil, hints: nil)?.cropping(to: NSRect(x: cropRect.minX, y: self.backgroundImage.size.height - cropRect.maxY, width: cropRect.width, height: cropRect.height)) {
-            return NSImage(cgImage: cgImg, size: cropRect.size)
-        }
-        return nil
+        guard let image else { return nil }
+        return applyingOutputEffects ? ScreenCaptureEngine.shared.applyScreenshotEffects(to: image) : image
     }
 
     @objc private func pinAction() {
-        if let image = getFinalImage() {
+        if let image = getFinalImage(applyingOutputEffects: false) {
             // 计算当前选区在屏幕上的精确坐标与大小，实现就地贴图
             let rectInScreen = self.window?.convertToScreen(self.convert(self.selectedRect, to: nil)) ?? self.selectedRect
             PinWindowManager.shared.pin(image: image, at: rectInScreen)
@@ -1745,32 +1729,25 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
 
     @objc private func saveToLocalAction() {
         guard let image = getFinalImage() else { return }
-        
-        // 先关闭当前的覆盖层，否则覆盖层层级（screenSaver+1）过高会把保存对话框遮挡在后面，导致看似无响应
-        parentWindow?.onFinished?()
-        self.window?.close()
-        
-        // 延时到下一个事件循环展示保存对话框，确保覆盖层已经完全退出
-        DispatchQueue.main.async {
-            let panel = NSSavePanel()
-            panel.allowedContentTypes = [.png]
-            panel.nameFieldStringValue = "Screenshot_\(Int(Date().timeIntervalSince1970)).png"
-            
-            if panel.runModal() == .OK, let url = panel.url {
-                if let tiffData = image.tiffRepresentation,
-                   let bitmap = NSBitmapImageRep(data: tiffData),
-                   let pngData = bitmap.representation(using: .png, properties: [:]) {
-                    try? pngData.write(to: url)
-                }
-            }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH.mm.ss"
+        let desktopURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Desktop")
+        let url = desktopURL.appendingPathComponent("SnapClick_截图_\(formatter.string(from: Date())).png")
+
+        do {
+            let data = try ScreenCaptureEngine.shared.pngData(for: image)
+            try data.write(to: url, options: .atomic)
+            showToast("已保存到桌面")
+        } catch {
+            showToast("保存失败")
         }
     }
 
     @objc private func doneAction() {
         if let image = getFinalImage() {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.writeObjects([image])
+            ScreenCaptureEngine.shared.copyToClipboard(image)
         }
         parentWindow?.onFinished?()
         self.window?.close()
@@ -1792,12 +1769,14 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     }
     
     private func selectTool(_ tool: AnnotationToolType) {
-        if canvas?.currentTool == tool {
-            // 如果再次点击已经选中的工具，则取消选中（恢复到默认拖动状态）
-            canvas?.currentTool = .drag
-        } else {
-            canvas?.currentTool = tool
-        }
+        canvas?.currentTool = tool
+        updateButtonStates()
+    }
+
+    private func setToolSize(_ value: CGFloat) {
+        canvas?.currentLineWidth = value
+        canvas?.currentFontSize = value * 4
+        canvas?.mosaicBlockSize = Int(max(2, value.rounded()))
         updateButtonStates()
     }
     
@@ -1999,7 +1978,7 @@ class ColorPresetButton: NSButton {
         // 核心彩色填充层 (保持直径 16)
         fillLayer.path = CGPath(ellipseIn: bounds.insetBy(dx: 4, dy: 4), transform: nil)
         fillLayer.fillColor = color.cgColor
-        fillLayer.strokeColor = NSColor(white: 1.0, alpha: 0.15).cgColor
+        fillLayer.strokeColor = AnnotationToolbarChrome.swatchStroke(for: color).cgColor
         fillLayer.lineWidth = 0.5
         self.layer?.addSublayer(fillLayer)
         
@@ -2311,20 +2290,12 @@ class LongScreenshotBorderView: NSView {
         
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         
-        // 1. 绘制四周的半透明黑色遮罩层（使用 evenOdd 挖空选区）
-        context.setFillColor(NSColor(calibratedRed: 0, green: 0, blue: 0, alpha: 0.35).cgColor)
-        let outerPath = CGMutablePath()
-        outerPath.addRect(bounds)
-        outerPath.addRect(selectedRect)
-        context.addPath(outerPath)
-        context.fillPath(using: .evenOdd)
-        
-        // 2. 绘制选区蓝色边框
+        // 1. 绘制选区蓝色边框
         context.setStrokeColor(NSColor.systemBlue.cgColor)
         context.setLineWidth(3)
         context.stroke(selectedRect)
         
-        // 3. 绘制四角标记（基于 selectedRect 绘制）
+        // 2. 绘制四角标记（基于 selectedRect 绘制）
         let cornerLength: CGFloat = 16
         let cornerWidth: CGFloat = 4
         context.setFillColor(NSColor.systemBlue.cgColor)

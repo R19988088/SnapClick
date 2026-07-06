@@ -92,8 +92,10 @@ struct AnnotationColorPreset {
         .systemOrange,
         .systemYellow,
         .systemGreen,
+        .systemTeal,
         .systemBlue,
         .systemPurple,
+        .systemPink,
         .white,
         .black
     ]
@@ -305,5 +307,158 @@ class HoverButton: NSButton {
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
         onHover?(false, self)
+    }
+}
+
+enum AnnotationToolbarChrome {
+    static func isDark(in view: NSView) -> Bool {
+        switch AppSettings.shared.appAppearance {
+        case "light": return false
+        case "dark": return true
+        default: break
+        }
+        return view.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+
+    static func iconColor(in view: NSView) -> NSColor {
+        isDark(in: view) ? .white : .black
+    }
+
+    static func selectedFill(in view: NSView) -> NSColor {
+        isDark(in: view) ? NSColor.white.withAlphaComponent(0.18) : NSColor.black.withAlphaComponent(0.10)
+    }
+
+    static func separatorColor(in view: NSView) -> NSColor {
+        isDark(in: view) ? NSColor.white.withAlphaComponent(0.14) : NSColor.black.withAlphaComponent(0.12)
+    }
+
+    static func swatchStroke(for color: NSColor) -> NSColor {
+        let rgb = color.usingColorSpace(.deviceRGB)
+        let brightness = ((rgb?.redComponent ?? 0) + (rgb?.greenComponent ?? 0) + (rgb?.blueComponent ?? 0)) / 3
+        return brightness > 0.86 ? NSColor.black.withAlphaComponent(0.30) : NSColor.white.withAlphaComponent(0.22)
+    }
+
+    static func apply(to toolbar: NSVisualEffectView) {
+        let dark = isDark(in: toolbar)
+        toolbar.material = dark ? .hudWindow : .popover
+        toolbar.blendingMode = .withinWindow
+        toolbar.state = .active
+        toolbar.wantsLayer = true
+        toolbar.layer?.cornerRadius = 22
+        toolbar.layer?.masksToBounds = false
+        toolbar.layer?.borderColor = (dark ? NSColor.white.withAlphaComponent(0.14) : NSColor.black.withAlphaComponent(0.10)).cgColor
+        toolbar.layer?.borderWidth = 0.5
+        toolbar.layer?.shadowColor = NSColor.black.cgColor
+        toolbar.layer?.shadowOpacity = dark ? 0.32 : 0.18
+        toolbar.layer?.shadowRadius = 16
+        toolbar.layer?.shadowOffset = NSSize(width: 0, height: -6)
+
+        let topKey = "annotationToolbarTopGlow"
+        toolbar.layer?.sublayers?.removeAll { $0.name == topKey }
+        let topGlow = CALayer()
+        topGlow.name = topKey
+        topGlow.backgroundColor = (dark ? NSColor.white.withAlphaComponent(0.22) : NSColor.white.withAlphaComponent(0.85)).cgColor
+        topGlow.frame = CGRect(x: 1, y: max(0, toolbar.bounds.height - 1), width: max(0, toolbar.bounds.width - 2), height: 1)
+        topGlow.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
+        toolbar.layer?.addSublayer(topGlow)
+    }
+}
+
+final class ToolAdjustButton: HoverButton {
+    let tool: AnnotationToolType
+    var onSizeChange: ((CGFloat) -> Void)?
+
+    private var widthConstraint: NSLayoutConstraint!
+    private var value: CGFloat
+    private var dragStartX: CGFloat = 0
+    private var dragStartValue: CGFloat = 0
+
+    init(tool: AnnotationToolType, value: CGFloat) {
+        self.tool = tool
+        self.value = Self.clamped(value)
+        super.init(frame: CGRect(x: 0, y: 0, width: 34, height: 34))
+
+        bezelStyle = .regularSquare
+        isBordered = false
+        imagePosition = .imageOnly
+        wantsLayer = true
+        layer?.cornerRadius = 17
+        font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+
+        let pointSize: CGFloat = tool == .text ? 20 : 16
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
+        if let img = NSImage(systemSymbolName: tool.iconName, accessibilityDescription: tool.displayName)?
+            .withSymbolConfiguration(config) {
+            image = img
+        } else {
+            title = tool.shortcutKey
+        }
+
+        widthConstraint = widthAnchor.constraint(equalToConstant: 34)
+        widthConstraint.isActive = true
+        heightAnchor.constraint(equalToConstant: 34).isActive = true
+        update(value: value, expanded: false)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(value newValue: CGFloat, expanded: Bool) {
+        value = Self.clamped(newValue)
+        widthConstraint.constant = expanded ? 76 : 34
+        imagePosition = expanded ? .imageLeading : .imageOnly
+        title = expanded ? "\(Int(value.rounded()))px" : ""
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        dragStartX = event.locationInWindow.x
+        dragStartValue = value
+        var didAdjust = false
+
+        guard let window else {
+            if let action {
+                NSApp.sendAction(action, to: target, from: self)
+            }
+            return
+        }
+
+        while true {
+            guard let next = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) else { break }
+            if next.type == .leftMouseDragged, state == .on {
+                didAdjust = true
+                setValue(dragStartValue + (next.locationInWindow.x - dragStartX) / 4)
+            } else if next.type == .leftMouseUp {
+                break
+            }
+        }
+
+        if !didAdjust {
+            if let action {
+                NSApp.sendAction(action, to: target, from: self)
+            }
+        }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard state == .on else { return }
+        setValue(dragStartValue + (event.locationInWindow.x - dragStartX) / 4)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        guard state == .on else { return }
+        let delta = event.scrollingDeltaY == 0 ? event.scrollingDeltaX : event.scrollingDeltaY
+        guard delta != 0 else { return }
+        setValue(value + (delta > 0 ? 1 : -1))
+    }
+
+    private func setValue(_ newValue: CGFloat) {
+        value = Self.clamped(newValue)
+        update(value: value, expanded: true)
+        onSizeChange?(value)
+    }
+
+    private static func clamped(_ value: CGFloat) -> CGFloat {
+        min(max(value, 1), 40)
     }
 }

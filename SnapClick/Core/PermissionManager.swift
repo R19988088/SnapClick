@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import ApplicationServices
 import FinderSync
+import IOKit.hidsystem
 
 final class PermissionManager: ObservableObject {
 
@@ -135,6 +136,9 @@ final class PermissionManager: ObservableObject {
         }
         if !AXIsProcessTrusted() {
             resetTCC(service: "Accessibility")
+        }
+        if IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted {
+            resetTCC(service: "ListenEvent")
         }
     }
 

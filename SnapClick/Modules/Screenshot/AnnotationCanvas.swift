@@ -4,6 +4,28 @@
 
 import AppKit
 import CoreGraphics
+import CoreImage
+
+private let reducedContrastCIContext = CIContext()
+
+extension NSImage {
+    func reducedContrastImage() -> NSImage? {
+        guard let cgImage = cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let filter = CIFilter(name: "CIColorControls") else { return nil }
+
+        let input = CIImage(cgImage: cgImage)
+        filter.setValue(input, forKey: kCIInputImageKey)
+        filter.setValue(0.8, forKey: kCIInputContrastKey)
+        filter.setValue(0.8, forKey: kCIInputSaturationKey)
+
+        guard let output = filter.outputImage,
+              let outputCGImage = reducedContrastCIContext.createCGImage(output, from: input.extent) else {
+            return nil
+        }
+
+        return NSImage(cgImage: outputCGImage, size: size)
+    }
+}
 
 // MARK: - 标注画布委托
 protocol AnnotationCanvasDelegate: AnyObject {
@@ -83,7 +105,7 @@ class AnnotationCanvas: NSView {
             bounds.fill()
         }
 
-        // 2. 绘制高亮工具的暗化蒙层
+        // 2. 绘制高亮工具的低对比度底图
         drawHighlightMask(context: context)
 
         // 3. 绘制所有已完成的标注
@@ -97,35 +119,27 @@ class AnnotationCanvas: NSView {
         }
     }
 
-    // MARK: - 高亮蒙层
+    // MARK: - 高亮低对比度处理
     private func drawHighlightMask(context: CGContext) {
         let highlightItems = items.filter { $0.type == .highlight }
             + (currentDrawing.map { [$0] } ?? []).filter { $0.type == .highlight }
 
-        guard !highlightItems.isEmpty else { return }
+        guard !highlightItems.isEmpty,
+              let reducedImage = baseImage?.reducedContrastImage() else { return }
 
-        // 整体暗化蒙层
         context.saveGState()
-        context.setFillColor(NSColor.black.withAlphaComponent(0.45).cgColor)
-        context.fill(bounds)
 
-        // 把每个高亮区域清除掉（恢复原图）
+        let maskPath = CGMutablePath()
+        maskPath.addRect(bounds)
         for item in highlightItems {
             let rect = item.normalizedRect
             if rect.width > 1 && rect.height > 1 {
-                // 清除蒙层
-                context.clear(rect)
-
-                // 从底图重新绘制该区域（带色调）
-                if let image = baseImage {
-                    image.draw(in: rect, from: rect, operation: .sourceOver, fraction: 1.0)
-                }
-
-                // 叠加高亮色调
-                context.setFillColor(item.color.withAlphaComponent(0.25).cgColor)
-                context.fill(rect)
+                maskPath.addRect(rect)
             }
         }
+        context.addPath(maskPath)
+        context.clip(using: .evenOdd)
+        reducedImage.draw(in: bounds)
         context.restoreGState()
     }
 
@@ -353,10 +367,7 @@ class AnnotationCanvas: NSView {
         let loc = convert(event.locationInWindow, from: nil)
 
         if drawing.type.isPathBased {
-            drawing.points.append(loc)
-            if drawing.type == .pen {
-                drawing.pointLineWidths.append(pressureLineWidth(for: event))
-            }
+            appendPathPoint(loc, event: event, to: &drawing)
         } else {
             drawing.endPoint = loc
         }
@@ -374,10 +385,7 @@ class AnnotationCanvas: NSView {
         let loc = convert(event.locationInWindow, from: nil)
 
         if drawing.type.isPathBased {
-            drawing.points.append(loc)
-            if drawing.type == .pen {
-                drawing.pointLineWidths.append(pressureLineWidth(for: event))
-            }
+            appendPathPoint(loc, event: event, to: &drawing)
         } else {
             drawing.endPoint = loc
         }
@@ -532,8 +540,22 @@ class AnnotationCanvas: NSView {
     // MARK: - 导出图像
     func exportAsImage() -> NSImage {
         let size = bounds.size
+        if let rep = bitmapImageRepForCachingDisplay(in: bounds) {
+            cacheDisplay(in: bounds, to: rep)
+            let image = NSImage(size: size)
+            image.addRepresentation(rep)
+            return image
+        }
+
         let result = NSImage(size: size)
         result.lockFocus()
+        guard let context = NSGraphicsContext.current?.cgContext else {
+            result.unlockFocus()
+            return result
+        }
+
+        context.translateBy(x: 0, y: size.height)
+        context.scaleBy(x: 1, y: -1)
 
         // 先画底图
         if let image = baseImage {
@@ -541,11 +563,9 @@ class AnnotationCanvas: NSView {
         }
 
         // 再绘制所有标注（与 draw(_:) 逻辑一致）
-        if let context = NSGraphicsContext.current?.cgContext {
-            drawHighlightMask(context: context)
-            for item in items {
-                drawAnnotationItem(item, in: context)
-            }
+        drawHighlightMask(context: context)
+        for item in items {
+            drawAnnotationItem(item, in: context)
         }
 
         result.unlockFocus()
@@ -570,8 +590,33 @@ class AnnotationCanvas: NSView {
     }
 
     private func pressureLineWidth(for event: NSEvent) -> CGFloat {
-        let pressure = CGFloat(event.pressure)
-        guard pressure > 0 else { return currentLineWidth }
-        return currentLineWidth * max(0.35, min(1.8, 0.4 + pressure * 1.4))
+        let pressure = max(0, min(1, CGFloat(event.pressure)))
+        return currentLineWidth * min(1.8, pressure * 1.8)
+    }
+
+    private func appendPathPoint(_ point: CGPoint, event: NSEvent, to drawing: inout AnnotationItem) {
+        guard let lastPoint = drawing.points.last else {
+            drawing.points.append(point)
+            if drawing.type == .pen {
+                drawing.pointLineWidths.append(pressureLineWidth(for: event))
+            }
+            return
+        }
+
+        let nextWidth = drawing.type == .pen ? pressureLineWidth(for: event) : drawing.lineWidth
+        let lastWidth = drawing.pointLineWidths.last ?? nextWidth
+        let distance = hypot(point.x - lastPoint.x, point.y - lastPoint.y)
+        let steps = max(1, min(8, Int(ceil(distance / 4))))
+
+        for step in 1...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            drawing.points.append(CGPoint(
+                x: lastPoint.x + (point.x - lastPoint.x) * t,
+                y: lastPoint.y + (point.y - lastPoint.y) * t
+            ))
+            if drawing.type == .pen {
+                drawing.pointLineWidths.append(lastWidth + (nextWidth - lastWidth) * t)
+            }
+        }
     }
 }

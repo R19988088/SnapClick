@@ -432,11 +432,23 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     /// 返回的图片尺寸与窗口逻辑大小相同（点为单位）
     func captureSingleWindow(_ window: SCWindow) async throws -> NSImage {
         let cgID = window.windowID
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+
+        // CGWindowListCreateImage 不带 .boundsIgnoreFraming 时会保留窗口外框/投影。
+        let framedImage: CGImage? = await Task.detached(priority: .userInitiated) {
+            CGWindowListCreateImage(.null, .optionIncludingWindow, cgID, [.bestResolution])
+                ?? CGWindowListCreateImage(.null, .optionIncludingWindow, cgID, [])
+        }.value
+        if let img = framedImage {
+            return NSImage(
+                cgImage: img,
+                size: NSSize(width: CGFloat(img.width) / scale, height: CGFloat(img.height) / scale)
+            )
+        }
 
         if #available(macOS 14.0, *) {
             let filter = SCContentFilter(desktopIndependentWindow: window)
             let cfg = SCStreamConfiguration()
-            let scale = NSScreen.main?.backingScaleFactor ?? 2.0
             cfg.width  = max(1, Int(window.frame.width  * scale))
             cfg.height = max(1, Int(window.frame.height * scale))
             cfg.showsCursor = false
@@ -452,16 +464,19 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
             if let cg = CGWindowListCreateImage(.null,
                                                 .optionIncludingWindow,
                                                 cgID,
-                                                [.boundsIgnoreFraming, .nominalResolution]) {
+                                                [.nominalResolution]) {
                 return cg
             }
             return CGWindowListCreateImage(.null,
                                            .optionIncludingWindow,
                                            cgID,
-                                           [.boundsIgnoreFraming, .bestResolution])
+                                           [])
         }.value
         if let img = img {
-            return NSImage(cgImage: img, size: window.frame.size)
+            return NSImage(
+                cgImage: img,
+                size: NSSize(width: CGFloat(img.width) / scale, height: CGFloat(img.height) / scale)
+            )
         }
         throw ScreenCaptureError.imageConversionFailed
     }
@@ -469,6 +484,15 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     // MARK: - 图像后处理
     /// 应用圆角和阴影，然后显示标注编辑器
     func processAndShowEditor(_ image: NSImage) {
+        let processed = applyScreenshotEffects(to: image)
+
+        // 显示标注编辑器窗口
+        let editorWindow = AnnotationEditorWindow(screenshot: processed)
+        editorWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applyScreenshotEffects(to image: NSImage) -> NSImage {
         let settings = ScreenshotSettings.shared
         var processed = image
 
@@ -478,11 +502,7 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         if settings.enableShadow {
             processed = applyShadow(to: processed)
         }
-
-        // 显示标注编辑器窗口
-        let editorWindow = AnnotationEditorWindow(screenshot: processed)
-        editorWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        return processed
     }
 
     // MARK: - 圆角处理
@@ -581,6 +601,14 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         return url
     }
 
+    func pngData(for image: NSImage) throws -> Data {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let data = NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:]) else {
+            throw ScreenCaptureError.saveFailed("无法编码 PNG 图像数据")
+        }
+        return data
+    }
+
     /// 根据命名规则生成文件名并保存到默认目录
     @discardableResult
     func saveWithAutoName(_ image: NSImage) throws -> URL {
@@ -604,7 +632,13 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     func copyToClipboard(_ image: NSImage) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.writeObjects([image])
+        if let data = try? pngData(for: image) {
+            let item = NSPasteboardItem()
+            item.setData(data, forType: .png)
+            pasteboard.writeObjects([item])
+        } else {
+            pasteboard.writeObjects([image])
+        }
     }
 
     // MARK: - 工具方法

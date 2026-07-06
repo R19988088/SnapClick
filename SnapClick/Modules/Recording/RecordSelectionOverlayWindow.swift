@@ -187,21 +187,14 @@ final class RecordSelectionOverlayView: NSView {
             return
         }
 
-        // 区域选择模式：保留原有"快照 + 暗化蒙层 + 选区高亮"交互
+        // 区域选择模式：保留原有"快照 + 低对比度底图 + 选区高亮"交互
         // 1. 绘制背景底图
         backgroundImage.draw(in: bounds)
-
-        // 2. 绘制暗化蒙层
-        context.setFillColor(NSColor(calibratedRed: 0, green: 0, blue: 0, alpha: 0.4).cgColor)
 
         let rect = isDragging && activeHandle == nil ? normalizedSelectedRect() : selectedRect
 
         if rect.width > 2 && rect.height > 2 {
-            let outerPath = CGMutablePath()
-            outerPath.addRect(bounds)
-            outerPath.addRect(rect)
-            context.addPath(outerPath)
-            context.fillPath(using: .evenOdd)
+            drawReducedContrastBackground(context: context, excluding: [rect])
 
             if let winImg = selectedWindowImage, selectedWindow != nil {
                 winImg.draw(in: rect)
@@ -210,9 +203,26 @@ final class RecordSelectionOverlayView: NSView {
             drawSelectionBorder(rect: rect, context: context)
             drawSizeTooltip(rect: rect, context: context)
         } else {
-            context.fill(bounds)
+            drawReducedContrastBackground(context: context)
             drawHintText(context: context)
         }
+    }
+
+    private func drawReducedContrastBackground(context: CGContext, excluding rects: [CGRect] = []) {
+        guard let reducedImage = backgroundImage.reducedContrastImage() else { return }
+
+        context.saveGState()
+        if !rects.isEmpty {
+            let path = CGMutablePath()
+            path.addRect(bounds)
+            for rect in rects where rect.width > 1 && rect.height > 1 {
+                path.addRect(rect)
+            }
+            context.addPath(path)
+            context.clip(using: .evenOdd)
+        }
+        reducedImage.draw(in: bounds)
+        context.restoreGState()
     }
     
     private func drawWindowTooltip(window: SCWindow, rect: CGRect, context: CGContext) {
@@ -998,5 +1008,3 @@ struct HUDSeparator: View {
             .frame(width: 1, height: 26)
     }
 }
-
-

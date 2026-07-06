@@ -31,11 +31,9 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
 
     // MARK: - 颜色和大小控件
     private var colorWell:    NSColorWell!
-    private var sizeSlider:   NSSlider!
-    private var sizeLabel:    NSTextField!
 
     // MARK: - 常量
-    private let toolbarH:     CGFloat = 44
+    private let toolbarH:     CGFloat = 76
     private let canvasInset:  CGFloat = 20  // 画布内边距
 
     // MARK: - 初始化
@@ -69,16 +67,8 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         canvas = AnnotationCanvas(frame: canvasFrame)
         canvas.baseImage = screenshot
 
-        // 初始化 editorToolbar 为 vibrancy-dark 毛玻璃
         editorToolbar = NSVisualEffectView()
-        editorToolbar.material = .hudWindow
-        editorToolbar.blendingMode = .withinWindow
-        editorToolbar.state = .active
-        editorToolbar.wantsLayer = true
-        editorToolbar.layer?.cornerRadius = 22
-        editorToolbar.layer?.masksToBounds = true
-        editorToolbar.layer?.borderColor = NSColor(white: 1.0, alpha: 0.15).cgColor
-        editorToolbar.layer?.borderWidth = 0.5
+        AnnotationToolbarChrome.apply(to: editorToolbar)
 
         // 初始化 scrollView（包裹 canvas）
         scrollView = NSScrollView(frame: CGRect(
@@ -127,35 +117,35 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
             editorToolbar.centerXAnchor.constraint(equalTo: contentView!.centerXAnchor),
             editorToolbar.bottomAnchor.constraint(equalTo: contentView!.bottomAnchor, constant: -20),
             editorToolbar.heightAnchor.constraint(equalToConstant: toolbarH),
-            editorToolbar.widthAnchor.constraint(equalToConstant: 800)
+            editorToolbar.widthAnchor.constraint(equalToConstant: 820)
         ])
 
-        // 左侧：工具按钮组
         let toolGroup = makeToolButtonGroup()
-        editorToolbar.addSubview(toolGroup)
-        toolGroup.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            toolGroup.leadingAnchor.constraint(equalTo: editorToolbar.leadingAnchor, constant: 12),
-            toolGroup.centerYAnchor.constraint(equalTo: editorToolbar.centerYAnchor)
-        ])
-
-        // 中间：颜色 + 尺寸调节
-        let styleGroup = makeStyleControls()
-        editorToolbar.addSubview(styleGroup)
-        styleGroup.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            styleGroup.centerXAnchor.constraint(equalTo: editorToolbar.centerXAnchor),
-            styleGroup.centerYAnchor.constraint(equalTo: editorToolbar.centerYAnchor)
-        ])
-
-        // 右侧：操作按钮
         let actionGroup = makeActionButtons()
-        editorToolbar.addSubview(actionGroup)
-        actionGroup.translatesAutoresizingMaskIntoConstraints = false
+
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let topRow = NSStackView(views: [toolGroup, spacer, actionGroup])
+        topRow.orientation = .horizontal
+        topRow.spacing = 10
+        topRow.alignment = .centerY
+
+        let bottomRow = makeStyleControls()
+        let stack = NSStackView(views: [topRow, bottomRow])
+        stack.orientation = .vertical
+        stack.spacing = 6
+        stack.alignment = .centerX
+
+        editorToolbar.addSubview(stack)
+        stack.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            actionGroup.trailingAnchor.constraint(equalTo: editorToolbar.trailingAnchor, constant: -12),
-            actionGroup.centerYAnchor.constraint(equalTo: editorToolbar.centerYAnchor)
+            stack.leadingAnchor.constraint(equalTo: editorToolbar.leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: editorToolbar.trailingAnchor, constant: -12),
+            stack.centerYAnchor.constraint(equalTo: editorToolbar.centerYAnchor)
         ])
+        editorToolbar.layoutSubtreeIfNeeded()
+        AnnotationToolbarChrome.apply(to: editorToolbar)
     }
 
     // MARK: 工具按钮组
@@ -179,23 +169,12 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
     }
 
     private func makeToolButton(for tool: AnnotationToolType) -> HoverButton {
-        let btn = HoverButton(frame: CGRect(x: 0, y: 0, width: 32, height: 32))
-        btn.bezelStyle      = .regularSquare
-        btn.isBordered      = false
-        btn.imagePosition   = .imageOnly
-        btn.wantsLayer      = true
-        btn.layer?.cornerRadius = 16 // 圆形按钮
-
-        let pointSize: CGFloat = tool == .text ? 17 : 13
-        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
-        if let img = NSImage(systemSymbolName: tool.iconName, accessibilityDescription: tool.displayName)?
-            .withSymbolConfiguration(config) {
-            btn.image = img
-        } else {
-            btn.title = tool.shortcutKey
+        let btn = ToolAdjustButton(tool: tool, value: canvas.currentLineWidth)
+        btn.layer?.cornerRadius = 16
+        btn.onSizeChange = { [weak self] value in
+            self?.setToolSize(value)
         }
-
-        btn.contentTintColor  = NSColor.white.withAlphaComponent(0.85)
+        btn.contentTintColor  = toolbarIconColor
         btn.customToolTip    = "\(tool.displayName) (\(tool.shortcutKey))"
         btn.onHover          = { [weak self] isHovered, button in
             self?.handleButtonHover(isHovered: isHovered, button: button)
@@ -222,16 +201,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
             colorButtons.append(swatch)
         }
 
-        // 大小调节滑块
-        sizeLabel = makeLabel("2")
-        sizeSlider = NSSlider(value: 2, minValue: 1, maxValue: 20, target: self,
-                              action: #selector(sizeSliderChanged(_:)))
-        sizeSlider.frame = CGRect(x: 0, y: 0, width: 70, height: 20)
-        sizeSlider.toolTip = "线条与字体尺寸"
-
-        let views: [NSView] = [colorWell]
-            + colorButtons
-            + [makeSeparator(), makeLabel("大小:"), sizeSlider, sizeLabel]
+        let views: [NSView] = [colorWell] + colorButtons
 
         let stack = NSStackView(views: views)
         stack.orientation = .horizontal
@@ -283,12 +253,12 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         btn.wantsLayer = true
         btn.layer?.cornerRadius = 15
 
-        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
         if let img = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)?
             .withSymbolConfiguration(config) {
             btn.image = img
         }
-        btn.contentTintColor = NSColor.white.withAlphaComponent(0.8)
+        btn.contentTintColor = toolbarIconColor
         btn.customToolTip = tip
         btn.onHover       = { [weak self] isHovered, button in
             self?.handleButtonHover(isHovered: isHovered, button: button)
@@ -301,7 +271,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
     private func makeSeparator() -> NSView {
         let sep = NSView(frame: CGRect(x: 0, y: 0, width: 1, height: 22))
         sep.wantsLayer = true
-        sep.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.15).cgColor
+        sep.layer?.backgroundColor = AnnotationToolbarChrome.separatorColor(in: editorToolbar).cgColor
         sep.widthAnchor.constraint(equalToConstant: 1).isActive = true
         sep.heightAnchor.constraint(equalToConstant: 22).isActive = true
         return sep
@@ -312,6 +282,10 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         label.textColor = NSColor.white.withAlphaComponent(0.7)
         label.font      = NSFont.systemFont(ofSize: 10.5, weight: .medium)
         return label
+    }
+
+    private var toolbarIconColor: NSColor {
+        AnnotationToolbarChrome.iconColor(in: editorToolbar)
     }
 
     // MARK: - 自定义 ToolTip
@@ -470,11 +444,16 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         canvas.currentTool = tool
 
         // 更新按钮高亮状态 (vibrant hover 效果)
+        let iconColor = toolbarIconColor
+        let selectedFill = AnnotationToolbarChrome.selectedFill(in: editorToolbar)
         for (t, btn) in toolButtons {
+            let isSelected = (t == tool)
             btn.layer?.backgroundColor = (t == tool)
-                ? NSColor.white.withAlphaComponent(0.18).cgColor
+                ? selectedFill.cgColor
                 : .none
-            btn.contentTintColor = (t == tool) ? .white : NSColor.white.withAlphaComponent(0.7)
+            btn.state = isSelected ? .on : .off
+            btn.contentTintColor = iconColor
+            (btn as? ToolAdjustButton)?.update(value: canvas.currentLineWidth, expanded: isSelected)
         }
     }
 
@@ -486,25 +465,21 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
     func setColor(_ color: NSColor) {
         canvas.currentColor = color
         colorWell?.color    = color
-        
-        // 触发所有子色块重绘，以显示/隐藏白描边高亮态
-        for view in editorToolbar.subviews {
-            if let stack = view as? NSStackView {
-                for item in stack.views {
-                    if let swatch = item as? ColorSwatch {
-                        swatch.updateHighlightState(selectedColor: color)
-                    }
-                }
-            }
-        }
+        updateColorSwatches(in: editorToolbar, selectedColor: color)
     }
 
-    // MARK: - 大小滑块
-    @objc private func sizeSliderChanged(_ sender: NSSlider) {
-        let val = CGFloat(sender.doubleValue)
+    private func setToolSize(_ val: CGFloat) {
         canvas.currentLineWidth = val
         canvas.currentFontSize  = val * 4  // 字号为线宽 4 倍
-        sizeLabel.stringValue   = "\(Int(val))"
+        canvas.mosaicBlockSize  = Int(max(2, val.rounded()))
+        selectTool(canvas.currentTool)
+    }
+
+    private func updateColorSwatches(in view: NSView, selectedColor: NSColor) {
+        if let swatch = view as? ColorSwatch {
+            swatch.updateHighlightState(selectedColor: selectedColor)
+        }
+        view.subviews.forEach { updateColorSwatches(in: $0, selectedColor: selectedColor) }
     }
 
     // MARK: - 工具操作
@@ -626,7 +601,7 @@ private class ColorSwatch: NSView {
         // 内部彩色填充层
         fillLayer.path = CGPath(ellipseIn: bounds.insetBy(dx: 3, dy: 3), transform: nil)
         fillLayer.fillColor = color.cgColor
-        fillLayer.strokeColor = NSColor(white: 1.0, alpha: 0.15).cgColor
+        fillLayer.strokeColor = AnnotationToolbarChrome.swatchStroke(for: color).cgColor
         fillLayer.lineWidth = 0.5
         self.layer?.addSublayer(fillLayer)
         

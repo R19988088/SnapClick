@@ -62,7 +62,7 @@ final class StatusBarController: NSObject {
         let icon = NSImage(
             systemSymbolName: "camera.viewfinder",
             accessibilityDescription: "SnapClick"
-        )
+        )?.withSymbolConfiguration(.init(pointSize: 16, weight: .semibold))
         icon?.isTemplate = true  // 自动适应深色/浅色菜单栏
         button.image = icon
         button.toolTip = "SnapClick".localized
@@ -241,7 +241,7 @@ final class StatusBarController: NSObject {
 
         // 设置 SF Symbol 小图标
         if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: title) {
-            var config = NSImage.SymbolConfiguration(scale: .small)
+            var config = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
             config = config.applying(.init(paletteColors: [.labelColor]))
             item.image = image.withSymbolConfiguration(config)
         }
@@ -482,7 +482,8 @@ final class StatusBarController: NSObject {
         flashState.toggle()
         
         // 设置图标
-        let config = NSImage.SymbolConfiguration(paletteColors: [.systemRed])
+        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
+            .applying(.init(paletteColors: [.systemRed]))
         if engine.isPaused {
             // 暂停状态使用 pause.circle.fill，红色常亮不闪烁
             if let pauseImage = NSImage(systemSymbolName: "pause.circle.fill", accessibilityDescription: nil) {
@@ -551,4 +552,3 @@ extension StatusBarController: NSMenuDelegate {
         }
     }
 }
-

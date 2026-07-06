@@ -1,5 +1,8 @@
 import AppKit
 import ApplicationServices
+import AudioToolbox
+import CoreAudio
+import IOKit.hidsystem
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -324,6 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 private final class DockScrollVolumeController {
+    private var globalMonitor: Any?
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var retryTimer: Timer?
@@ -334,13 +338,27 @@ private final class DockScrollVolumeController {
     }
 
     private func start() {
-        guard eventTap == nil else { return }
+        guard globalMonitor == nil && eventTap == nil else { return }
         guard PermissionManager.shared.checkAccessibilityPermission() else {
             PermissionManager.shared.requestAccessibilityPermission()
             startRetryingAfterPermissionGrant()
             return
         }
-        stopRetrying()
+
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            DispatchQueue.main.async {
+                let delta = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : event.scrollingDeltaX
+                guard delta != 0 else { return }
+                self?.handleScroll(deltaY: Int64(delta < 0 ? -1 : 1))
+            }
+        }
+
+        if !InputMonitoringPermission.isGranted {
+            InputMonitoringPermission.request()
+            startRetryingAfterPermissionGrant()
+        } else {
+            stopRetrying()
+        }
 
         let eventMask = (1 << CGEventType.scrollWheel.rawValue)
             | (1 << CGEventType.tapDisabledByTimeout.rawValue)
@@ -368,9 +386,271 @@ private final class DockScrollVolumeController {
         }
 
         eventTap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
+            tap: .cghidEventTap,
             place: .headInsertEventTap,
             options: .listenOnly,
+            eventsOfInterest: CGEventMask(eventMask),
+            callback: callback,
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        )
+
+        guard let eventTap else {
+            startRetryingAfterPermissionGrant()
+            return
+        }
+
+        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
+        if let runLoopSource {
+            CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+            CGEvent.tapEnable(tap: eventTap, enable: true)
+        }
+    }
+
+    private func stop() {
+        stopRetrying()
+        if let globalMonitor {
+            NSEvent.removeMonitor(globalMonitor)
+        }
+        if let eventTap {
+            CGEvent.tapEnable(tap: eventTap, enable: false)
+        }
+        if let runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        }
+        globalMonitor = nil
+        eventTap = nil
+        runLoopSource = nil
+    }
+
+    private func startRetryingAfterPermissionGrant() {
+        guard retryTimer == nil else { return }
+        retryTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+            guard AppSettings.shared.dockScrollVolumeEnabled else {
+                self.stop()
+                return
+            }
+            if PermissionManager.shared.checkAccessibilityPermission(), InputMonitoringPermission.isGranted {
+                timer.invalidate()
+                self.retryTimer = nil
+                self.start()
+            }
+        }
+    }
+
+    private func stopRetrying() {
+        retryTimer?.invalidate()
+        retryTimer = nil
+    }
+
+    private func handleScroll(deltaY: Int64) {
+        guard deltaY != 0,
+              Date().timeIntervalSince(lastChange) > 0.08,
+              isPointerInDockEdgeRegion() else { return }
+
+        lastChange = Date()
+        SystemOutputVolumeController.changeVolume(byPercent: deltaY > 0 ? 5 : -5)
+    }
+
+    private func isPointerInDockEdgeRegion() -> Bool {
+        let mouse = NSEvent.mouseLocation
+        if currentDockRects().contains(where: { $0.contains(mouse) }) {
+            return true
+        }
+        return fallbackDockRects().contains { $0.contains(mouse) }
+    }
+
+    private func currentDockRects() -> [CGRect] {
+        guard PermissionManager.shared.checkAccessibilityPermission(),
+              let pid = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.dock" })?.processIdentifier else {
+            return []
+        }
+
+        let dock = AXUIElementCreateApplication(pid)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(dock, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement] else {
+            return []
+        }
+
+        let maxY = NSScreen.screens.map(\.frame.maxY).max() ?? 0
+        return windows.flatMap { window -> [CGRect] in
+            var posValue: CFTypeRef?
+            var sizeValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &posValue) == .success,
+                  AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
+                  let posAX = posValue,
+                  let sizeAX = sizeValue,
+                  CFGetTypeID(posAX) == AXValueGetTypeID(),
+                  CFGetTypeID(sizeAX) == AXValueGetTypeID() else {
+                return []
+            }
+
+            var point = CGPoint.zero
+            var size = CGSize.zero
+            AXValueGetValue(posAX as! AXValue, .cgPoint, &point)
+            AXValueGetValue(sizeAX as! AXValue, .cgSize, &size)
+            let raw = CGRect(origin: point, size: size)
+            let converted = CGRect(x: raw.minX, y: maxY - raw.maxY, width: raw.width, height: raw.height)
+            return [raw, converted].filter { !$0.isEmpty }
+        }
+    }
+
+    private func fallbackDockRects() -> [CGRect] {
+        let orientation = CFPreferencesCopyAppValue("orientation" as CFString, "com.apple.dock" as CFString) as? String ?? "bottom"
+        let tileSize = (CFPreferencesCopyAppValue("tilesize" as CFString, "com.apple.dock" as CFString) as? NSNumber)?.doubleValue ?? 64
+        let edge = CGFloat(max(96, tileSize + 56))
+
+        return NSScreen.screens.map { screen in
+            let frame = screen.frame
+            switch orientation {
+            case "left":
+                return CGRect(x: frame.minX, y: frame.minY, width: edge, height: frame.height)
+            case "right":
+                return CGRect(x: frame.maxX - edge, y: frame.minY, width: edge, height: frame.height)
+            default:
+                return CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: edge)
+            }
+        }
+    }
+}
+
+private enum SystemOutputVolumeController {
+    static func changeVolume(byPercent delta: Float32) {
+        guard let deviceID = defaultOutputDeviceID(),
+              let current = readVolume(deviceID: deviceID) else { return }
+        let next = min(1, max(0, current + delta / 100))
+        unmute(deviceID: deviceID)
+        _ = setVolume(deviceID: deviceID, value: next)
+    }
+
+    private static func defaultOutputDeviceID() -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var deviceID = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &deviceID) == noErr,
+              deviceID != AudioDeviceID(kAudioObjectUnknown) else {
+            return nil
+        }
+        return deviceID
+    }
+
+    private static func readVolume(deviceID: AudioDeviceID) -> Float32? {
+        if let volume = getScalar(deviceID: deviceID, selector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume, element: kAudioObjectPropertyElementMain) {
+            return volume
+        }
+        if let volume = getScalar(deviceID: deviceID, selector: kAudioDevicePropertyVolumeScalar, element: kAudioObjectPropertyElementMain) {
+            return volume
+        }
+
+        let channels = [AudioObjectPropertyElement(1), AudioObjectPropertyElement(2)]
+            .compactMap { getScalar(deviceID: deviceID, selector: kAudioDevicePropertyVolumeScalar, element: $0) }
+        guard !channels.isEmpty else { return nil }
+        return channels.reduce(0, +) / Float32(channels.count)
+    }
+
+    @discardableResult
+    private static func setVolume(deviceID: AudioDeviceID, value: Float32) -> Bool {
+        if setScalar(deviceID: deviceID, selector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume, element: kAudioObjectPropertyElementMain, value: value) {
+            return true
+        }
+        if setScalar(deviceID: deviceID, selector: kAudioDevicePropertyVolumeScalar, element: kAudioObjectPropertyElementMain, value: value) {
+            return true
+        }
+
+        let left = setScalar(deviceID: deviceID, selector: kAudioDevicePropertyVolumeScalar, element: 1, value: value)
+        let right = setScalar(deviceID: deviceID, selector: kAudioDevicePropertyVolumeScalar, element: 2, value: value)
+        return left || right
+    }
+
+    private static func getScalar(deviceID: AudioDeviceID, selector: AudioObjectPropertySelector, element: AudioObjectPropertyElement) -> Float32? {
+        var address = AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioDevicePropertyScopeOutput, mElement: element)
+        guard AudioObjectHasProperty(deviceID, &address) else { return nil }
+        var value = Float32(0)
+        var size = UInt32(MemoryLayout<Float32>.size)
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &value) == noErr else { return nil }
+        return value
+    }
+
+    private static func setScalar(deviceID: AudioDeviceID, selector: AudioObjectPropertySelector, element: AudioObjectPropertyElement, value: Float32) -> Bool {
+        var address = AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioDevicePropertyScopeOutput, mElement: element)
+        guard AudioObjectHasProperty(deviceID, &address) else { return false }
+        var settable = DarwinBoolean(false)
+        guard AudioObjectIsPropertySettable(deviceID, &address, &settable) == noErr, settable.boolValue else { return false }
+        var newValue = value
+        let size = UInt32(MemoryLayout<Float32>.size)
+        return AudioObjectSetPropertyData(deviceID, &address, 0, nil, size, &newValue) == noErr
+    }
+
+    private static func unmute(deviceID: AudioDeviceID) {
+        for element in [kAudioObjectPropertyElementMain, AudioObjectPropertyElement(1), AudioObjectPropertyElement(2)] {
+            var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyMute, mScope: kAudioDevicePropertyScopeOutput, mElement: element)
+            guard AudioObjectHasProperty(deviceID, &address) else { continue }
+            var settable = DarwinBoolean(false)
+            guard AudioObjectIsPropertySettable(deviceID, &address, &settable) == noErr, settable.boolValue else { continue }
+            var muted = UInt32(0)
+            _ = AudioObjectSetPropertyData(deviceID, &address, 0, nil, UInt32(MemoryLayout<UInt32>.size), &muted)
+        }
+    }
+}
+
+private final class FinderKeyActionController {
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+    private var retryTimer: Timer?
+    private var lastShiftDown = Date.distantPast
+
+    func setEnabled(_ enabled: Bool) {
+        enabled ? start() : stop()
+    }
+
+    private func start() {
+        guard eventTap == nil else { return }
+        guard PermissionManager.shared.checkAccessibilityPermission() else {
+            PermissionManager.shared.requestAccessibilityPermission()
+            startRetryingAfterPermissionGrant()
+            return
+        }
+        guard InputMonitoringPermission.isGranted else {
+            InputMonitoringPermission.request()
+            startRetryingAfterPermissionGrant()
+            return
+        }
+        stopRetrying()
+
+        let eventMask = (1 << CGEventType.keyDown.rawValue)
+            | (1 << CGEventType.flagsChanged.rawValue)
+            | (1 << CGEventType.tapDisabledByTimeout.rawValue)
+            | (1 << CGEventType.tapDisabledByUserInput.rawValue)
+
+        let callback: CGEventTapCallBack = { _, type, event, refcon in
+            guard let refcon else { return Unmanaged.passUnretained(event) }
+            let controller = Unmanaged<FinderKeyActionController>.fromOpaque(refcon).takeUnretainedValue()
+
+            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                if let tap = controller.eventTap {
+                    CGEvent.tapEnable(tap: tap, enable: true)
+                }
+                return Unmanaged.passUnretained(event)
+            }
+
+            if controller.handle(type: type, event: event) {
+                return nil
+            }
+            return Unmanaged.passUnretained(event)
+        }
+
+        eventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
             eventsOfInterest: CGEventMask(eventMask),
             callback: callback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
@@ -408,11 +688,12 @@ private final class DockScrollVolumeController {
                 timer.invalidate()
                 return
             }
-            guard AppSettings.shared.dockScrollVolumeEnabled else {
+            let settings = AppSettings.shared
+            guard settings.finderDeleteToTrashEnabled || settings.finderDoubleShiftCopyNamesEnabled else {
                 self.stop()
                 return
             }
-            if PermissionManager.shared.checkAccessibilityPermission() {
+            if PermissionManager.shared.checkAccessibilityPermission(), InputMonitoringPermission.isGranted {
                 timer.invalidate()
                 self.retryTimer = nil
                 self.start()
@@ -425,105 +706,6 @@ private final class DockScrollVolumeController {
         retryTimer = nil
     }
 
-    private func handleScroll(deltaY: Int64) {
-        guard deltaY != 0,
-              Date().timeIntervalSince(lastChange) > 0.08,
-              isPointerInDockEdgeRegion() else { return }
-
-        lastChange = Date()
-        changeOutputVolume(by: deltaY > 0 ? 5 : -5)
-    }
-
-    private func isPointerInDockEdgeRegion() -> Bool {
-        let mouse = NSEvent.mouseLocation
-        let edge: CGFloat = 120
-        for screen in NSScreen.screens {
-            let frame = screen.frame
-            if frame.insetBy(dx: edge, dy: edge).contains(mouse) { continue }
-            if frame.contains(mouse) { return true }
-        }
-        return false
-    }
-
-    private func changeOutputVolume(by delta: Int) {
-        let script = """
-        set currentVolume to output volume of (get volume settings)
-        set volume output volume (max(0, min(100, currentVolume + \(delta))))
-        """
-        NSAppleScript(source: script)?.executeAndReturnError(nil)
-    }
-}
-
-private final class FinderKeyActionController {
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
-    private var lastShiftDown = Date.distantPast
-
-    func setEnabled(_ enabled: Bool) {
-        enabled ? start() : stop()
-    }
-
-    private func start() {
-        guard eventTap == nil else { return }
-        guard PermissionManager.shared.checkAccessibilityPermission() else {
-            PermissionManager.shared.requestAccessibilityPermission()
-            return
-        }
-
-        let eventMask = (1 << CGEventType.keyDown.rawValue)
-            | (1 << CGEventType.flagsChanged.rawValue)
-            | (1 << CGEventType.tapDisabledByTimeout.rawValue)
-            | (1 << CGEventType.tapDisabledByUserInput.rawValue)
-
-        let callback: CGEventTapCallBack = { _, type, event, refcon in
-            guard let refcon else { return Unmanaged.passUnretained(event) }
-            let controller = Unmanaged<FinderKeyActionController>.fromOpaque(refcon).takeUnretainedValue()
-
-            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                if let tap = controller.eventTap {
-                    CGEvent.tapEnable(tap: tap, enable: true)
-                }
-                return Unmanaged.passUnretained(event)
-            }
-
-            if controller.handle(type: type, event: event) {
-                return nil
-            }
-            return Unmanaged.passUnretained(event)
-        }
-
-        eventTap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: CGEventMask(eventMask),
-            callback: callback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        )
-
-        guard let eventTap else {
-            PermissionManager.shared.requestAccessibilityPermission()
-            return
-        }
-
-        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
-        if let runLoopSource {
-            CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-            CGEvent.tapEnable(tap: eventTap, enable: true)
-        }
-    }
-
-    private func stop() {
-        if let eventTap {
-            CGEvent.tapEnable(tap: eventTap, enable: false)
-        }
-        if let runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-        }
-        eventTap = nil
-        runLoopSource = nil
-    }
-
     private func handle(type: CGEventType, event: CGEvent) -> Bool {
         guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder" else { return false }
 
@@ -532,9 +714,11 @@ private final class FinderKeyActionController {
 
         if type == .keyDown,
            settings.finderDeleteToTrashEnabled,
-           keyCode == 51,
+           (keyCode == 51 || keyCode == 117),
            event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty {
-            trashFinderSelection()
+            DispatchQueue.main.async {
+                self.trashFinderSelection()
+            }
             return true
         }
 
@@ -545,7 +729,9 @@ private final class FinderKeyActionController {
             let now = Date()
             defer { lastShiftDown = now }
             if now.timeIntervalSince(lastShiftDown) < 0.35 {
-                copySelectedFinderNames()
+                DispatchQueue.main.async {
+                    self.copySelectedFinderNames()
+                }
             }
         }
 
@@ -553,8 +739,14 @@ private final class FinderKeyActionController {
     }
 
     private func trashFinderSelection() {
+        var moved = false
         for url in selectedFinderURLs() {
-            try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
+            if (try? FileManager.default.trashItem(at: url, resultingItemURL: nil)) != nil {
+                moved = true
+            }
+        }
+        if moved {
+            playTrashSound()
         }
     }
 
@@ -582,5 +774,29 @@ private final class FinderKeyActionController {
         return result
             .split(separator: "\n")
             .map { URL(fileURLWithPath: String($0)) }
+    }
+
+    private func playTrashSound() {
+        let path = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/dock/drag to trash.aif"
+        NSSound(contentsOfFile: path, byReference: true)?.play()
+    }
+}
+
+private enum InputMonitoringPermission {
+    static var isGranted: Bool {
+        IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
+    }
+
+    static func request() {
+        _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+        let urlString: String
+        if #available(macOS 13.0, *) {
+            urlString = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ListenEvent"
+        } else {
+            urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+        }
+        if let url = URL(string: urlString) {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
