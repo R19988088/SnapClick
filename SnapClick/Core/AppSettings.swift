@@ -129,6 +129,20 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @AppStorage("finderDeleteToTrashEnabled")
+    var finderDeleteToTrashEnabled: Bool = false {
+        didSet {
+            NotificationCenter.default.post(name: .finderKeyActionsDidChange, object: nil)
+        }
+    }
+
+    @AppStorage("finderDoubleShiftCopyNamesEnabled")
+    var finderDoubleShiftCopyNamesEnabled: Bool = false {
+        didSet {
+            NotificationCenter.default.post(name: .finderKeyActionsDidChange, object: nil)
+        }
+    }
+
     /// 外观模式（"light" / "dark" / "auto"）
     @AppStorage("appAppearance")
     var appAppearance: String = "auto"
@@ -319,6 +333,10 @@ public final class LanguageManager: ObservableObject {
             "在下方程序坞中显示应用图标": "Show the application icon in the Dock",
             "Dock 滚轮调节音量": "Adjust Volume from Dock",
             "鼠标悬停在 Dock 图标上滚动时调整系统音量": "Adjust system volume by scrolling over the Dock icon",
+            "Del 删除到废纸篓": "Delete to Trash with Del",
+            "Finder 中按 Del 将选中文件移到废纸篓": "Press Del in Finder to move selected files to Trash",
+            "双击 Shift 复制文件名": "Double Shift to Copy Names",
+            "Finder 多选时连按两次 Shift 复制文件名，每行一个并按名称排序": "Double press Shift with multiple Finder selections to copy sorted names, one per line",
             "语言与外观偏好": "Language & Appearance",
             "系统语言": "System Language",
             "应用界面及菜单的呈现语言": "Display language for the app interface and menus",
@@ -565,6 +583,10 @@ public final class LanguageManager: ObservableObject {
             "在下方程序坞中显示应用图标": "ドックにアプリのアイコンを表示する",
             "Dock 滚轮调节音量": "Dock スクロールで音量調整",
             "鼠标悬停在 Dock 图标上滚动时调整系统音量": "Dock アイコン上でスクロールしてシステム音量を調整",
+            "Del 删除到废纸篓": "Del でゴミ箱へ移動",
+            "Finder 中按 Del 将选中文件移到废纸篓": "Finder で Del を押すと選択項目をゴミ箱へ移動",
+            "双击 Shift 复制文件名": "Shift 2 回で名前をコピー",
+            "Finder 多选时连按两次 Shift 复制文件名，每行一个并按名称排序": "Finder で複数選択時に Shift を 2 回押すと名前をソートして行ごとにコピー",
             "语言与外观偏好": "言語と外観",
             "系统语言": "システム言語",
             "应用界面及菜单的呈现语言": "アプリのインターフェイスとメニューの表示言語",
@@ -764,6 +786,7 @@ public extension Notification.Name {
     static let showInMenuBarDidChange = Notification.Name("ShowInMenuBarDidChange")
     static let showInDockDidChange = Notification.Name("ShowInDockDidChange")
     static let dockScrollVolumeDidChange = Notification.Name("DockScrollVolumeDidChange")
+    static let finderKeyActionsDidChange = Notification.Name("FinderKeyActionsDidChange")
     static let enableGlassEffectDidChange = Notification.Name("EnableGlassEffectDidChange")
 }
 

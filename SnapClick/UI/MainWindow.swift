@@ -753,6 +753,18 @@ private struct OtherSettingsView: View {
                     description: "鼠标悬停在 Dock 图标上滚动时调整系统音量".localized,
                     isOn: $settings.dockScrollVolumeEnabled
                 )
+                CardDivider()
+                ToggleRow(
+                    title: "Del 删除到废纸篓".localized,
+                    description: "Finder 中按 Del 将选中文件移到废纸篓".localized,
+                    isOn: $settings.finderDeleteToTrashEnabled
+                )
+                CardDivider()
+                ToggleRow(
+                    title: "双击 Shift 复制文件名".localized,
+                    description: "Finder 多选时连按两次 Shift 复制文件名，每行一个并按名称排序".localized,
+                    isOn: $settings.finderDoubleShiftCopyNamesEnabled
+                )
             }
         }
     }

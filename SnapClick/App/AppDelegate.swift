@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var welcomeWindow: NSWindow?
     private let dockScrollVolumeController = DockScrollVolumeController()
+    private let finderKeyActionController = FinderKeyActionController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.applicationIconImage = NSImage(named: "AppIcon")
@@ -47,7 +48,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .dockScrollVolumeDidChange,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateFinderKeyActions),
+            name: .finderKeyActionsDidChange,
+            object: nil
+        )
         updateDockScrollVolume()
+        updateFinderKeyActions()
 
         // 监听毛玻璃透明效果变化
         NotificationCenter.default.addObserver(
@@ -107,6 +115,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func updateDockScrollVolume() {
         dockScrollVolumeController.setEnabled(AppSettings.shared.dockScrollVolumeEnabled)
+    }
+
+    @objc private func updateFinderKeyActions() {
+        finderKeyActionController.setEnabled(
+            AppSettings.shared.finderDeleteToTrashEnabled || AppSettings.shared.finderDoubleShiftCopyNamesEnabled
+        )
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -414,57 +428,21 @@ private final class DockScrollVolumeController {
     private func handleScroll(deltaY: Int64) {
         guard deltaY != 0,
               Date().timeIntervalSince(lastChange) > 0.08,
-              isPointerOverAppDockIcon() else { return }
+              isPointerInDockEdgeRegion() else { return }
 
         lastChange = Date()
         changeOutputVolume(by: deltaY > 0 ? 5 : -5)
     }
 
-    private func isPointerOverAppDockIcon() -> Bool {
+    private func isPointerInDockEdgeRegion() -> Bool {
         let mouse = NSEvent.mouseLocation
-        let desktop = NSScreen.screens.map(\.frame).reduce(CGRect.null) { $0.union($1) }
-        let point = CGPoint(x: mouse.x, y: desktop.maxY - mouse.y)
-        let systemWide = AXUIElementCreateSystemWide()
-        var element: AXUIElement?
-
-        guard AXUIElementCopyElementAtPosition(systemWide, Float(point.x), Float(point.y), &element) == .success,
-              let element else { return false }
-
-        return titleMatchesApp(in: element)
-    }
-
-    private func titleMatchesApp(in element: AXUIElement) -> Bool {
-        let names = [
-            Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String,
-            Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
-            ProcessInfo.processInfo.processName,
-            "SnapClick"
-        ].compactMap { $0 }
-        var current: AXUIElement? = element
-
-        for _ in 0..<4 {
-            guard let item = current else { return false }
-            let values = [
-                axString(item, kAXTitleAttribute as String),
-                axString(item, kAXDescriptionAttribute as String),
-                axString(item, kAXHelpAttribute as String)
-            ].compactMap { $0 }
-            if values.contains(where: { value in names.contains { value.localizedCaseInsensitiveContains($0) } }) {
-                return true
-            }
-
-            var parent: CFTypeRef?
-            AXUIElementCopyAttributeValue(item, kAXParentAttribute as CFString, &parent)
-            current = parent.map { $0 as! AXUIElement }
+        let edge: CGFloat = 120
+        for screen in NSScreen.screens {
+            let frame = screen.frame
+            if frame.insetBy(dx: edge, dy: edge).contains(mouse) { continue }
+            if frame.contains(mouse) { return true }
         }
-
         return false
-    }
-
-    private func axString(_ element: AXUIElement, _ attribute: String) -> String? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
-        return value as? String
     }
 
     private func changeOutputVolume(by delta: Int) {
@@ -473,5 +451,136 @@ private final class DockScrollVolumeController {
         set volume output volume (max(0, min(100, currentVolume + \(delta))))
         """
         NSAppleScript(source: script)?.executeAndReturnError(nil)
+    }
+}
+
+private final class FinderKeyActionController {
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+    private var lastShiftDown = Date.distantPast
+
+    func setEnabled(_ enabled: Bool) {
+        enabled ? start() : stop()
+    }
+
+    private func start() {
+        guard eventTap == nil else { return }
+        guard PermissionManager.shared.checkAccessibilityPermission() else {
+            PermissionManager.shared.requestAccessibilityPermission()
+            return
+        }
+
+        let eventMask = (1 << CGEventType.keyDown.rawValue)
+            | (1 << CGEventType.flagsChanged.rawValue)
+            | (1 << CGEventType.tapDisabledByTimeout.rawValue)
+            | (1 << CGEventType.tapDisabledByUserInput.rawValue)
+
+        let callback: CGEventTapCallBack = { _, type, event, refcon in
+            guard let refcon else { return Unmanaged.passUnretained(event) }
+            let controller = Unmanaged<FinderKeyActionController>.fromOpaque(refcon).takeUnretainedValue()
+
+            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                if let tap = controller.eventTap {
+                    CGEvent.tapEnable(tap: tap, enable: true)
+                }
+                return Unmanaged.passUnretained(event)
+            }
+
+            if controller.handle(type: type, event: event) {
+                return nil
+            }
+            return Unmanaged.passUnretained(event)
+        }
+
+        eventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(eventMask),
+            callback: callback,
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        )
+
+        guard let eventTap else {
+            PermissionManager.shared.requestAccessibilityPermission()
+            return
+        }
+
+        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
+        if let runLoopSource {
+            CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+            CGEvent.tapEnable(tap: eventTap, enable: true)
+        }
+    }
+
+    private func stop() {
+        if let eventTap {
+            CGEvent.tapEnable(tap: eventTap, enable: false)
+        }
+        if let runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        }
+        eventTap = nil
+        runLoopSource = nil
+    }
+
+    private func handle(type: CGEventType, event: CGEvent) -> Bool {
+        guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder" else { return false }
+
+        let settings = AppSettings.shared
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+
+        if type == .keyDown,
+           settings.finderDeleteToTrashEnabled,
+           keyCode == 51,
+           event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty {
+            trashFinderSelection()
+            return true
+        }
+
+        if type == .flagsChanged,
+           settings.finderDoubleShiftCopyNamesEnabled,
+           (keyCode == 56 || keyCode == 60),
+           event.flags.contains(.maskShift) {
+            let now = Date()
+            defer { lastShiftDown = now }
+            if now.timeIntervalSince(lastShiftDown) < 0.35 {
+                copySelectedFinderNames()
+            }
+        }
+
+        return false
+    }
+
+    private func trashFinderSelection() {
+        for url in selectedFinderURLs() {
+            try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
+        }
+    }
+
+    private func copySelectedFinderNames() {
+        let urls = selectedFinderURLs()
+        guard urls.count > 1 else { return }
+        let names = urls.map(\.lastPathComponent).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(names.joined(separator: "\n"), forType: .string)
+    }
+
+    private func selectedFinderURLs() -> [URL] {
+        let script = """
+        tell application "Finder"
+            if frontmost is false then return ""
+            set output to ""
+            repeat with itemRef in (selection as list)
+                set output to output & POSIX path of (itemRef as alias) & linefeed
+            end repeat
+            return output
+        end tell
+        """
+        var error: NSDictionary?
+        let result = NSAppleScript(source: script)?.executeAndReturnError(&error).stringValue ?? ""
+        return result
+            .split(separator: "\n")
+            .map { URL(fileURLWithPath: String($0)) }
     }
 }
