@@ -338,29 +338,24 @@ enum AnnotationToolbarChrome {
         return brightness > 0.86 ? NSColor.black.withAlphaComponent(0.30) : NSColor.white.withAlphaComponent(0.22)
     }
 
-    static func apply(to toolbar: NSVisualEffectView) {
+    static func toolbarFill(in view: NSView) -> NSColor {
+        isDark(in: view)
+            ? NSColor(calibratedWhite: 0.10, alpha: 1)
+            : NSColor(calibratedWhite: 0.96, alpha: 1)
+    }
+
+    static func apply(to toolbar: NSView) {
         let dark = isDark(in: toolbar)
-        toolbar.material = dark ? .hudWindow : .popover
-        toolbar.blendingMode = .withinWindow
-        toolbar.state = .active
         toolbar.wantsLayer = true
         toolbar.layer?.cornerRadius = 22
         toolbar.layer?.masksToBounds = false
-        toolbar.layer?.borderColor = (dark ? NSColor.white.withAlphaComponent(0.14) : NSColor.black.withAlphaComponent(0.10)).cgColor
+        toolbar.layer?.backgroundColor = toolbarFill(in: toolbar).cgColor
+        toolbar.layer?.borderColor = (dark ? NSColor.white.withAlphaComponent(0.12) : NSColor.black.withAlphaComponent(0.10)).cgColor
         toolbar.layer?.borderWidth = 0.5
         toolbar.layer?.shadowColor = NSColor.black.cgColor
         toolbar.layer?.shadowOpacity = dark ? 0.32 : 0.18
-        toolbar.layer?.shadowRadius = 16
-        toolbar.layer?.shadowOffset = NSSize(width: 0, height: -6)
-
-        let topKey = "annotationToolbarTopGlow"
-        toolbar.layer?.sublayers?.removeAll { $0.name == topKey }
-        let topGlow = CALayer()
-        topGlow.name = topKey
-        topGlow.backgroundColor = (dark ? NSColor.white.withAlphaComponent(0.22) : NSColor.white.withAlphaComponent(0.85)).cgColor
-        topGlow.frame = CGRect(x: 1, y: max(0, toolbar.bounds.height - 1), width: max(0, toolbar.bounds.width - 2), height: 1)
-        topGlow.autoresizingMask = [.layerWidthSizable, .layerMinYMargin]
-        toolbar.layer?.addSublayer(topGlow)
+        toolbar.layer?.shadowRadius = 14
+        toolbar.layer?.shadowOffset = NSSize(width: 0, height: -5)
     }
 }
 

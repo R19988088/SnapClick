@@ -170,7 +170,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     // MARK: ── 就地标注模式属性 ──────────────────────────────────────────
     private var isAnnotating = false
     fileprivate var canvas: AnnotationCanvas?
-    private var editorToolbar: NSVisualEffectView?
+    private var editorToolbar: NSView?
     
     // 智能模式：窗口已选中等待确认（点击窗口后进入此状态，可调整选区，按 Enter 或双击确认）
     private var isWindowSelectedPending = false
@@ -903,7 +903,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         }
 
         // 3. 原位初始化悬浮底栏 editorToolbar
-        let toolbar = NSVisualEffectView()
+        let toolbar = NSView()
         addSubview(toolbar)
         self.editorToolbar = toolbar
 

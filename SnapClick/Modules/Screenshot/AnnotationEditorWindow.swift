@@ -17,7 +17,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
 
     // MARK: - 子视图
     fileprivate let canvas:       AnnotationCanvas
-    private let editorToolbar: NSVisualEffectView
+    private let editorToolbar: NSView
     private let scrollView:   NSScrollView
 
     // MARK: - 工具栏按钮
@@ -67,7 +67,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         canvas = AnnotationCanvas(frame: canvasFrame)
         canvas.baseImage = screenshot
 
-        editorToolbar = NSVisualEffectView()
+        editorToolbar = NSView()
         AnnotationToolbarChrome.apply(to: editorToolbar)
 
         // 初始化 scrollView（包裹 canvas）
