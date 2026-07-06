@@ -6,14 +6,23 @@
 - Prefer small AppKit-native changes over new dependencies.
 
 ## Build And Verification
-- Local compile check:
+- Before any push for code changes, build and verify a local DMG first. Follow this order:
+  1. Debug compile check.
+  2. Release compile with `CODE_SIGNING_ALLOWED=NO` and `-derivedDataPath build/DerivedData`.
+  3. Build `dist/SnapClick.dmg` from the Release app using `scripts/build_dmg.sh`.
+  4. Verify the DMG with `hdiutil verify`.
+  5. Record the DMG SHA-256 with `shasum -a 256`.
+  6. Only then commit, push, and watch GitHub Actions.
+- Debug compile check:
   `xcodebuild -project SnapClick.xcodeproj -scheme SnapClick -configuration Debug CODE_SIGNING_ALLOWED=NO build`
-- CI-equivalent release build:
+- CI-equivalent Release build:
   `xcodebuild -project SnapClick.xcodeproj -scheme SnapClick -configuration Release -destination 'platform=macOS' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build`
 - DMG packaging:
   `scripts/build_dmg.sh build/DerivedData/Build/Products/Release/SnapClick.app`
 - DMG verification:
   `hdiutil verify dist/SnapClick.dmg`
+- DMG checksum:
+  `shasum -a 256 dist/SnapClick.dmg`
 - Normal signed local builds need the configured Mac Development certificate. Use `CODE_SIGNING_ALLOWED=NO` for compile-only verification.
 
 ## Screenshot Contracts
@@ -30,6 +39,6 @@
 - Input Monitoring and Accessibility permission paths must keep retry behavior after permission grant.
 
 ## Push Checklist
-- Run the local verification commands before push.
+- Do not push code changes until the local Release DMG has been built and verified.
 - Push to `origin/main` unless a task explicitly asks for another branch.
 - After pushing, check the GitHub Actions `Build` workflow result before calling the task done.
