@@ -18,6 +18,7 @@
 		40D27421D7CEFA593BB883E1 /* ColorPickerOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD418F2D1FF7DD0732DE2DD3 /* ColorPickerOverlay.swift */; };
 		4AB9C5D1E7F3428190A6B3C8 /* ScreenCornerOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C6E2A910D54F8BA7C3912D /* ScreenCornerOverlayController.swift */; };
 		4EFB1CDBDACE80A604A368D2 /* ScreenCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B20B6D6EE1640BF54BBC935 /* ScreenCaptureEngine.swift */; };
+		57D1F5B0C65E4C4D8A04632E /* PrintScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D1F5B0C65E4C4D8A04632D /* PrintScreenCapture.swift */; };
 		5A4F0DDD0D3DE99A38DEB030 /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C728AC70204FB78B11F8127 /* FileOperations.swift */; };
 		63D489A2BA6224A7E6B06C65 /* RecordingCountdownWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86BCA83AFB4416988C85463C /* RecordingCountdownWindow.swift */; };
 		65E31D69DFC1729AEFF67CE5 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99A6C8E8517F9F68D84B9D4F /* AppGroup.swift */; };
@@ -89,6 +90,7 @@
 		444974DA6DAF9FA9AA13F497 /* SnapClickApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapClickApp.swift; sourceTree = "<group>"; };
 		49AECAC44BA8CFCA81B4F3F1 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		51A2065576FD6FDA4A762340 /* ScreenRecordingEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ScreenRecordingEngine.swift; path = ScreenRecordingEngine.swift; sourceTree = "<group>"; };
+		57D1F5B0C65E4C4D8A04632D /* PrintScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrintScreenCapture.swift; sourceTree = "<group>"; };
 		55F876CA3F012723C042EAC1 /* MenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBuilder.swift; sourceTree = "<group>"; };
 		56A649C4A715F98C5C33BBF1 /* NewFileTemplateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewFileTemplateManager.swift; sourceTree = "<group>"; };
 		5B618C795C91C6275CCF7FE7 /* PinWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinWindowController.swift; sourceTree = "<group>"; };
@@ -218,6 +220,7 @@
 				062788C3D91FF29E6DDD9906 /* AnnotationEditorWindow.swift */,
 				877DB63F0C874C583636ADFA /* AnnotationTool.swift */,
 				9CD49210FC7B57F9047CCFB5 /* CaptureOverlayWindow.swift */,
+				57D1F5B0C65E4C4D8A04632D /* PrintScreenCapture.swift */,
 				6B20B6D6EE1640BF54BBC935 /* ScreenCaptureEngine.swift */,
 				1C1A3385902B220B27E2707E /* ScreenshotSettings.swift */,
 			);
@@ -380,6 +383,7 @@
 				C14E9B6617CB509E5887A7AF /* PinWindowController.swift in Sources */,
 				9365899555B15A4038717ADA /* PinWindowManager.swift in Sources */,
 				1BB1A74A956E7AE476C9D07A /* RightClickSettingsView.swift in Sources */,
+				57D1F5B0C65E4C4D8A04632E /* PrintScreenCapture.swift in Sources */,
 				4EFB1CDBDACE80A604A368D2 /* ScreenCaptureEngine.swift in Sources */,
 				4AB9C5D1E7F3428190A6B3C8 /* ScreenCornerOverlayController.swift in Sources */,
 				A47A6942859E9F4C173A99CC /* ScreenshotSettings.swift in Sources */,
@@ -424,7 +428,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				APP_GROUP_ID = group.4DAY66XCT4.com.snapclick.shared;
+				APP_GROUP_ID = group.HQ6YY6QF8H.com.snapclick.shared;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -457,7 +461,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 4DAY66XCT4;
+				DEVELOPMENT_TEAM = HQ6YY6QF8H;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -484,7 +488,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				APP_GROUP_ID = group.4DAY66XCT4.com.snapclick.shared;
+				APP_GROUP_ID = group.HQ6YY6QF8H.com.snapclick.shared;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -517,7 +521,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 4DAY66XCT4;
+				DEVELOPMENT_TEAM = HQ6YY6QF8H;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -554,7 +558,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapClick/SnapClick.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 4DAY66XCT4;
+				DEVELOPMENT_TEAM = HQ6YY6QF8H;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SnapClick/App/Info.plist;
@@ -576,7 +580,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapClick/SnapClick.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 4DAY66XCT4;
+				DEVELOPMENT_TEAM = HQ6YY6QF8H;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SnapClick/App/Info.plist;
@@ -597,7 +601,7 @@
 				CODE_SIGN_ENTITLEMENTS = FinderExtension/FinderExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 4DAY66XCT4;
+				DEVELOPMENT_TEAM = HQ6YY6QF8H;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = FinderExtension/Info.plist;
@@ -619,7 +623,7 @@
 				CODE_SIGN_ENTITLEMENTS = FinderExtension/FinderExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 4DAY66XCT4;
+				DEVELOPMENT_TEAM = HQ6YY6QF8H;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = FinderExtension/Info.plist;

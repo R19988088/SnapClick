@@ -612,16 +612,18 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         
         let mainStack = toolbar.subviews.compactMap { $0 as? NSStackView }.first
         mainStack?.layoutSubtreeIfNeeded()
-        let targetWidth = mainStack != nil ? (mainStack!.fittingSize.width + 24) : 633
+        let targetWidth = mainStack != nil
+            ? (mainStack!.fittingSize.width + AnnotationToolbarChrome.horizontalPadding * 2)
+            : 633
         
-        var tbY = selectedRect.minY - 88
+        var tbY = selectedRect.minY - (AnnotationToolbarChrome.height + 12)
         if tbY < 10 { tbY = selectedRect.maxY + 12 }
         let tbX = selectedRect.midX - targetWidth / 2
         toolbar.frame = CGRect(
             x:      max(10, min(tbX, bounds.width - targetWidth - 10)),
             y:      tbY,
             width:  targetWidth,
-            height: 76
+            height: AnnotationToolbarChrome.height
         )
         AnnotationToolbarChrome.apply(to: toolbar)
     }
@@ -943,7 +945,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
 
         let topRow = NSStackView()
         topRow.orientation = .horizontal
-        topRow.spacing = 8
+        topRow.spacing = AnnotationToolbarChrome.groupSpacing
         topRow.alignment = .centerY
         topRow.addArrangedSubview(toolsStack)
         topRow.addArrangedSubview(makeSeparator())
@@ -953,7 +955,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
 
         let mainStack = NSStackView()
         mainStack.orientation = .vertical
-        mainStack.spacing = 6
+        mainStack.spacing = AnnotationToolbarChrome.rowSpacing
         mainStack.alignment = .centerX
         mainStack.addArrangedSubview(topRow)
         mainStack.addArrangedSubview(colorGroup)
@@ -962,8 +964,8 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         mainStack.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             mainStack.centerXAnchor.constraint(equalTo: toolbar.centerXAnchor),
-            mainStack.topAnchor.constraint(equalTo: toolbar.topAnchor),
-            mainStack.bottomAnchor.constraint(equalTo: toolbar.bottomAnchor)
+            mainStack.topAnchor.constraint(equalTo: toolbar.topAnchor, constant: AnnotationToolbarChrome.verticalPadding),
+            mainStack.bottomAnchor.constraint(equalTo: toolbar.bottomAnchor, constant: -AnnotationToolbarChrome.verticalPadding)
         ])
     }
 
@@ -981,7 +983,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         
         let stack = NSStackView(views: buttons)
         stack.orientation = .horizontal
-        stack.spacing = 4
+        stack.spacing = AnnotationToolbarChrome.itemSpacing
         return stack
     }
 
@@ -1001,7 +1003,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         
         let stack = NSStackView(views: views)
         stack.orientation = .horizontal
-        stack.spacing = 5
+        stack.spacing = AnnotationToolbarChrome.itemSpacing
         return stack
     }
 
@@ -1012,11 +1014,11 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         let saveBtn = makeIconButton(symbol: "square.and.arrow.down", tip: "保存至本地", action: #selector(saveToLocalAction))
         
         // Done 胶囊按钮
-        doneButton = NSButton(frame: CGRect(x: 0, y: 0, width: 60, height: 28))
+        doneButton = NSButton(frame: CGRect(x: 0, y: 0, width: 68, height: 30))
         doneButton.bezelStyle = .regularSquare
         doneButton.isBordered = false
         doneButton.wantsLayer = true
-        doneButton.layer?.cornerRadius = 14
+        doneButton.layer?.cornerRadius = 15
         doneButton.layer?.backgroundColor = NSColor.systemBlue.cgColor
         doneButton.title = "Done"
         doneButton.contentTintColor = .white
@@ -1024,14 +1026,14 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         doneButton.target = self
         doneButton.action = #selector(doneAction)
         
-        doneButton.widthAnchor.constraint(equalToConstant: 60).isActive = true
-        doneButton.heightAnchor.constraint(equalToConstant: 28).isActive = true
+        doneButton.widthAnchor.constraint(equalToConstant: 68).isActive = true
+        doneButton.heightAnchor.constraint(equalToConstant: 30).isActive = true
         
         let cancelBtn = makeIconButton(symbol: "xmark", tip: "取消", action: #selector(cancelAction))
         
         let stack = NSStackView(views: [pinBtn, saveBtn, cancelBtn, doneButton])
         stack.orientation = .horizontal
-        stack.spacing = 4
+        stack.spacing = AnnotationToolbarChrome.itemSpacing
         stack.alignment = .centerY
         return stack
     }
@@ -1053,11 +1055,11 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     }
 
     private func makeIconButton(symbol: String, tip: String, action: Selector) -> HoverButton {
-        let btn = HoverButton(frame: CGRect(x: 0, y: 0, width: 32, height: 32))
+        let btn = HoverButton(frame: CGRect(x: 0, y: 0, width: AnnotationToolbarChrome.buttonSide, height: AnnotationToolbarChrome.buttonSide))
         btn.bezelStyle = .regularSquare
         btn.isBordered = false
         btn.wantsLayer = true
-        btn.layer?.cornerRadius = 16
+        btn.layer?.cornerRadius = AnnotationToolbarChrome.buttonSide / 2
         
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         if let img = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)?
@@ -1072,8 +1074,8 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             self?.handleButtonHover(isHovered: isHovered, button: button)
         }
         
-        btn.widthAnchor.constraint(equalToConstant: 32).isActive = true
-        btn.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        btn.widthAnchor.constraint(equalToConstant: AnnotationToolbarChrome.buttonSide).isActive = true
+        btn.heightAnchor.constraint(equalToConstant: AnnotationToolbarChrome.buttonSide).isActive = true
         return btn
     }
 
@@ -1967,11 +1969,12 @@ class ColorPresetButton: NSButton {
     init(color: NSColor, parentView: CaptureOverlayView) {
         self.color = color
         self.parentView = parentView
-        super.init(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
+        let side = AnnotationToolbarChrome.colorSide
+        super.init(frame: NSRect(x: 0, y: 0, width: side, height: side))
         self.wantsLayer = true
         self.isBordered = false
         self.title = ""
-        self.layer?.cornerRadius = 12 // 圆形背景
+        self.layer?.cornerRadius = side / 2 // 圆形背景
         self.layer?.masksToBounds = true
         
         // 核心彩色填充层 (保持直径 16)
@@ -2001,7 +2004,7 @@ class ColorPresetButton: NSButton {
     }
     
     override var intrinsicContentSize: NSSize {
-        return NSSize(width: 24, height: 24)
+        return NSSize(width: AnnotationToolbarChrome.colorSide, height: AnnotationToolbarChrome.colorSide)
     }
 }
 

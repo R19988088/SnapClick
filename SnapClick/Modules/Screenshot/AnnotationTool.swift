@@ -311,6 +311,17 @@ class HoverButton: NSButton {
 }
 
 enum AnnotationToolbarChrome {
+    static let height: CGFloat = 78
+    static let horizontalPadding: CGFloat = 16
+    static let verticalPadding: CGFloat = 7
+    static let rowSpacing: CGFloat = 5
+    static let groupSpacing: CGFloat = 10
+    static let itemSpacing: CGFloat = 6
+    static let buttonSide: CGFloat = 32
+    static let compactToolWidth: CGFloat = 32
+    static let expandedToolWidth: CGFloat = 74
+    static let colorSide: CGFloat = 24
+
     static func isDark(in view: NSView) -> Bool {
         switch AppSettings.shared.appAppearance {
         case "light": return false
@@ -347,7 +358,7 @@ enum AnnotationToolbarChrome {
     static func apply(to toolbar: NSView) {
         let dark = isDark(in: toolbar)
         toolbar.wantsLayer = true
-        toolbar.layer?.cornerRadius = 22
+        toolbar.layer?.cornerRadius = height / 2
         toolbar.layer?.masksToBounds = false
         toolbar.layer?.backgroundColor = toolbarFill(in: toolbar).cgColor
         toolbar.layer?.borderColor = (dark ? NSColor.white.withAlphaComponent(0.12) : NSColor.black.withAlphaComponent(0.10)).cgColor
@@ -371,13 +382,13 @@ final class ToolAdjustButton: HoverButton {
     init(tool: AnnotationToolType, value: CGFloat) {
         self.tool = tool
         self.value = Self.clamped(value)
-        super.init(frame: CGRect(x: 0, y: 0, width: 34, height: 34))
+        super.init(frame: CGRect(x: 0, y: 0, width: AnnotationToolbarChrome.compactToolWidth, height: AnnotationToolbarChrome.buttonSide))
 
         bezelStyle = .regularSquare
         isBordered = false
         imagePosition = .imageOnly
         wantsLayer = true
-        layer?.cornerRadius = 17
+        layer?.cornerRadius = AnnotationToolbarChrome.buttonSide / 2
         font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
 
         let pointSize: CGFloat = tool == .text ? 20 : 16
@@ -389,9 +400,9 @@ final class ToolAdjustButton: HoverButton {
             title = tool.shortcutKey
         }
 
-        widthConstraint = widthAnchor.constraint(equalToConstant: 34)
+        widthConstraint = widthAnchor.constraint(equalToConstant: AnnotationToolbarChrome.compactToolWidth)
         widthConstraint.isActive = true
-        heightAnchor.constraint(equalToConstant: 34).isActive = true
+        heightAnchor.constraint(equalToConstant: AnnotationToolbarChrome.buttonSide).isActive = true
         update(value: value, expanded: false)
     }
 
@@ -401,7 +412,7 @@ final class ToolAdjustButton: HoverButton {
 
     func update(value newValue: CGFloat, expanded: Bool) {
         value = Self.clamped(newValue)
-        widthConstraint.constant = expanded ? 76 : 34
+        widthConstraint.constant = expanded ? AnnotationToolbarChrome.expandedToolWidth : AnnotationToolbarChrome.compactToolWidth
         imagePosition = expanded ? .imageLeading : .imageOnly
         title = expanded ? "\(Int(value.rounded()))px" : ""
     }

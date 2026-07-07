@@ -167,6 +167,21 @@ final class HotkeyManager: ObservableObject {
 
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             let flags = event.flags
+            let cleanFlags = flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
+
+            if keyCode == 105 && cleanFlags.isEmpty {
+                DispatchQueue.main.async {
+                    Task {
+                        do {
+                            let url = try await PrintScreenCapture.captureMouseScreenToDesktop()
+                            print("PrtSc 截屏已保存: \(url.path)")
+                        } catch {
+                            print("PrtSc 截屏失败: \(error.localizedDescription)")
+                        }
+                    }
+                }
+                return nil
+            }
 
             // 匹配快捷键，在主线程执行 action
             DispatchQueue.main.async {

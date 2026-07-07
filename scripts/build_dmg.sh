@@ -31,6 +31,9 @@ LINK_ICON_X=495
 LINK_ICON_Y=285
 
 APP_PATH="${1:-}"
+DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-HQ6YY6QF8H}"
+CODE_SIGN_IDENTITY="${CODE_SIGN_IDENTITY:-Apple Development: esc_g@hotmail.com (72LZ3ELC38)}"
+CODE_SIGN_STYLE="${CODE_SIGN_STYLE:-Manual}"
 
 mkdir -p "$BUILD_DIR" "$DIST_DIR"
 
@@ -46,6 +49,9 @@ if [ -z "$APP_PATH" ]; then
     -scheme "$APP_NAME" \
     -configuration Release \
     -derivedDataPath "$DERIVED" \
+    DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+    CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
+    CODE_SIGN_STYLE="$CODE_SIGN_STYLE" \
     build
   APP_PATH="$DERIVED/Build/Products/Release/$APP_NAME.app"
 fi

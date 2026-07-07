@@ -33,7 +33,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
     private var colorWell:    NSColorWell!
 
     // MARK: - 常量
-    private let toolbarH:     CGFloat = 76
+    private let toolbarH:     CGFloat = AnnotationToolbarChrome.height
     private let canvasInset:  CGFloat = 20  // 画布内边距
 
     // MARK: - 初始化
@@ -117,7 +117,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
             editorToolbar.centerXAnchor.constraint(equalTo: contentView!.centerXAnchor),
             editorToolbar.bottomAnchor.constraint(equalTo: contentView!.bottomAnchor, constant: -20),
             editorToolbar.heightAnchor.constraint(equalToConstant: toolbarH),
-            editorToolbar.widthAnchor.constraint(equalToConstant: 820)
+            editorToolbar.widthAnchor.constraint(equalToConstant: 800)
         ])
 
         let toolGroup = makeToolButtonGroup()
@@ -128,20 +128,20 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
 
         let topRow = NSStackView(views: [toolGroup, spacer, actionGroup])
         topRow.orientation = .horizontal
-        topRow.spacing = 10
+        topRow.spacing = AnnotationToolbarChrome.groupSpacing
         topRow.alignment = .centerY
 
         let bottomRow = makeStyleControls()
         let stack = NSStackView(views: [topRow, bottomRow])
         stack.orientation = .vertical
-        stack.spacing = 6
+        stack.spacing = AnnotationToolbarChrome.rowSpacing
         stack.alignment = .centerX
 
         editorToolbar.addSubview(stack)
         stack.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: editorToolbar.leadingAnchor, constant: 12),
-            stack.trailingAnchor.constraint(equalTo: editorToolbar.trailingAnchor, constant: -12),
+            stack.leadingAnchor.constraint(equalTo: editorToolbar.leadingAnchor, constant: AnnotationToolbarChrome.horizontalPadding),
+            stack.trailingAnchor.constraint(equalTo: editorToolbar.trailingAnchor, constant: -AnnotationToolbarChrome.horizontalPadding),
             stack.centerYAnchor.constraint(equalTo: editorToolbar.centerYAnchor)
         ])
         editorToolbar.layoutSubtreeIfNeeded()
@@ -164,13 +164,13 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
 
         let stack = NSStackView(views: buttons)
         stack.orientation = .horizontal
-        stack.spacing     = 4
+        stack.spacing     = AnnotationToolbarChrome.itemSpacing
         return stack
     }
 
     private func makeToolButton(for tool: AnnotationToolType) -> HoverButton {
         let btn = ToolAdjustButton(tool: tool, value: canvas.currentLineWidth)
-        btn.layer?.cornerRadius = 16
+        btn.layer?.cornerRadius = AnnotationToolbarChrome.buttonSide / 2
         btn.onSizeChange = { [weak self] value in
             self?.setToolSize(value)
         }
@@ -188,11 +188,13 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
     // MARK: 样式控件
     private func makeStyleControls() -> NSStackView {
         // 颜色选择器
-        colorWell = NSColorWell(frame: CGRect(x: 0, y: 0, width: 24, height: 24))
+        colorWell = NSColorWell(frame: CGRect(x: 0, y: 0, width: AnnotationToolbarChrome.colorSide, height: AnnotationToolbarChrome.colorSide))
         colorWell.color = .systemRed
         colorWell.target = self
         colorWell.action = #selector(colorWellChanged(_:))
         colorWell.toolTip = "更多颜色"
+        colorWell.widthAnchor.constraint(equalToConstant: AnnotationToolbarChrome.colorSide).isActive = true
+        colorWell.heightAnchor.constraint(equalToConstant: AnnotationToolbarChrome.colorSide).isActive = true
 
         // 快捷正圆色标组件
         var colorButtons: [NSView] = []
@@ -205,7 +207,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
 
         let stack = NSStackView(views: views)
         stack.orientation = .horizontal
-        stack.spacing     = 6
+        stack.spacing     = AnnotationToolbarChrome.itemSpacing
         stack.alignment = .centerY
         return stack
     }
@@ -219,11 +221,11 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         shareButton = makeIconButton(symbol: "square.and.arrow.up",   tip: "分享",       action: #selector(shareAction))
         
         // 极富质感的高饱和度 Done 蓝色完成大按钮
-        doneButton = NSButton(frame: CGRect(x: 0, y: 0, width: 62, height: 28))
+        doneButton = NSButton(frame: CGRect(x: 0, y: 0, width: 68, height: 30))
         doneButton.bezelStyle = .regularSquare
         doneButton.isBordered = false
         doneButton.wantsLayer = true
-        doneButton.layer?.cornerRadius = 14
+        doneButton.layer?.cornerRadius = 15
         doneButton.layer?.backgroundColor = NSColor.systemBlue.cgColor
         doneButton.title = "Done"
         doneButton.contentTintColor = .white
@@ -231,6 +233,8 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         doneButton.target = self
         doneButton.action = #selector(doneAction)
         doneButton.toolTip = "保存并复制 (Enter)"
+        doneButton.widthAnchor.constraint(equalToConstant: 68).isActive = true
+        doneButton.heightAnchor.constraint(equalToConstant: 30).isActive = true
 
         let cancelBtn = makeIconButton(symbol: "xmark", tip: "取消", action: #selector(cancelAction))
 
@@ -241,17 +245,17 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
             doneButton
         ])
         stack.orientation = .horizontal
-        stack.spacing     = 4
+        stack.spacing     = AnnotationToolbarChrome.itemSpacing
         stack.alignment = .centerY
         return stack
     }
 
     private func makeIconButton(symbol: String, tip: String, action: Selector) -> HoverButton {
-        let btn = HoverButton(frame: CGRect(x: 0, y: 0, width: 30, height: 30))
+        let btn = HoverButton(frame: CGRect(x: 0, y: 0, width: AnnotationToolbarChrome.buttonSide, height: AnnotationToolbarChrome.buttonSide))
         btn.bezelStyle = .regularSquare
         btn.isBordered = false
         btn.wantsLayer = true
-        btn.layer?.cornerRadius = 15
+        btn.layer?.cornerRadius = AnnotationToolbarChrome.buttonSide / 2
 
         let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
         if let img = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)?
@@ -265,6 +269,8 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         }
         btn.target   = self
         btn.action   = action
+        btn.widthAnchor.constraint(equalToConstant: AnnotationToolbarChrome.buttonSide).isActive = true
+        btn.heightAnchor.constraint(equalToConstant: AnnotationToolbarChrome.buttonSide).isActive = true
         return btn
     }
 
@@ -588,13 +594,14 @@ private class ColorSwatch: NSView {
     init(color: NSColor, parent: AnnotationEditorWindow) {
         self.color = color
         self.parent = parent
-        super.init(frame: CGRect(x: 0, y: 0, width: 24, height: 24))
+        let side = AnnotationToolbarChrome.colorSide
+        super.init(frame: CGRect(x: 0, y: 0, width: side, height: side))
         wantsLayer = true
-        layer?.cornerRadius    = 12 // 圆形背景
+        layer?.cornerRadius    = side / 2 // 圆形背景
         layer?.masksToBounds   = true
         
-        widthAnchor.constraint(equalToConstant: 24).isActive  = true
-        heightAnchor.constraint(equalToConstant: 24).isActive = true
+        widthAnchor.constraint(equalToConstant: side).isActive  = true
+        heightAnchor.constraint(equalToConstant: side).isActive = true
         
         // 内部彩色填充层
         fillLayer.path = CGPath(ellipseIn: bounds.insetBy(dx: 3, dy: 3), transform: nil)
@@ -636,7 +643,8 @@ private class ColorSwatch: NSView {
         isHovered = false
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
-            self.animator().frame = CGRect(x: self.frame.midX - 12, y: self.frame.midY - 12, width: 24, height: 24)
+            let side = AnnotationToolbarChrome.colorSide
+            self.animator().frame = CGRect(x: self.frame.midX - side / 2, y: self.frame.midY - side / 2, width: side, height: side)
         }
     }
 
