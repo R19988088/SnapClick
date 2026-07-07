@@ -13,6 +13,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Import signing certificate
+        if: github.event_name != 'pull_request'
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          test -n "$MACOS_CERTIFICATE_P12"
+          test -n "$MACOS_CERTIFICATE_PASSWORD"
+          test -n "$KEYCHAIN_PASSWORD"
+          echo "$MACOS_CERTIFICATE_P12" | base64 --decode > signing.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import signing.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          security find-identity -v -p codesigning
+
       - name: Build SnapClick
         run: |
           xcodebuild \
@@ -21,17 +39,38 @@ jobs:
             -configuration Release \
             -destination 'platform=macOS' \
             -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM=HQ6YY6QF8H \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Development" \
+            CODE_SIGNING_ALLOWED=${{ github.event_name == 'pull_request' && 'NO' || 'YES' }} \
             build
 
+      - name: Verify app signing
+        if: github.event_name != 'pull_request'
+        run: |
+          codesign --verify --deep --strict build/DerivedData/Build/Products/Release/SnapClick.app
+          codesign --verify --deep --strict build/DerivedData/Build/Products/Release/SnapClick.app/Contents/PlugIns/FinderExtension.appex
+          codesign -dv --verbose=4 build/DerivedData/Build/Products/Release/SnapClick.app 2>&1 | tee app-signing.txt
+          grep 'Identifier=com.snapclick.app' app-signing.txt
+          grep 'TeamIdentifier=HQ6YY6QF8H' app-signing.txt
+
       - name: Install DMG tooling
+        if: github.event_name != 'pull_request'
         run: python3 -m pip install --user --break-system-packages pillow
 
       - name: Build DMG
+        if: github.event_name != 'pull_request'
         run: |
           scripts/build_dmg.sh build/DerivedData/Build/Products/Release/SnapClick.app
 
+      - name: Verify DMG
+        if: github.event_name != 'pull_request'
+        run: |
+          hdiutil verify dist/SnapClick.dmg
+          shasum -a 256 dist/SnapClick.dmg
+
       - name: Upload DMG
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           archive: false
