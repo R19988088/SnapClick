@@ -26,6 +26,14 @@ final class AppSettings: ObservableObject {
                 break
             }
         }
+
+        if UserDefaults.standard.string(forKey: "hotkeyAreaScreenshot") == "ctrl+shift+a",
+           UserDefaults.standard.string(forKey: "hotkeyWindowScreenshot") == "ctrl+shift+w" {
+            UserDefaults.standard.set("ctrl+shift+w", forKey: "hotkeyAreaScreenshot")
+            UserDefaults.standard.set("alt+a", forKey: "hotkeyWindowScreenshot")
+        } else if UserDefaults.standard.string(forKey: "hotkeyWindowScreenshot") == "ctrl+shift+a" {
+            UserDefaults.standard.set("alt+a", forKey: "hotkeyWindowScreenshot")
+        }
     }
 
     // MARK: 截图设置
@@ -59,7 +67,7 @@ final class AppSettings: ObservableObject {
 
     /// 窗口截图快捷键
     @AppStorage("hotkeyWindowScreenshot")
-    var hotkeyWindowScreenshot: String = "ctrl+shift+a"
+    var hotkeyWindowScreenshot: String = "alt+a"
 
     /// 长截图快捷键
     @AppStorage("hotkeyLongScreenshot")
@@ -75,7 +83,7 @@ final class AppSettings: ObservableObject {
 
     func resetHotkeys() {
         hotkeyAreaScreenshot = "ctrl+shift+w"
-        hotkeyWindowScreenshot = "ctrl+shift+a"
+        hotkeyWindowScreenshot = "alt+a"
         hotkeyLongScreenshot = "ctrl+shift+l"
         hotkeyColorPicker = "ctrl+shift+c"
         hotkeyPin = "ctrl+shift+p"
