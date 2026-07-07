@@ -29,10 +29,14 @@ final class AppSettings: ObservableObject {
 
         if UserDefaults.standard.string(forKey: "hotkeyAreaScreenshot") == "ctrl+shift+a",
            UserDefaults.standard.string(forKey: "hotkeyWindowScreenshot") == "ctrl+shift+w" {
-            UserDefaults.standard.set("ctrl+shift+w", forKey: "hotkeyAreaScreenshot")
-            UserDefaults.standard.set("alt+a", forKey: "hotkeyWindowScreenshot")
+            UserDefaults.standard.set("alt+a", forKey: "hotkeyAreaScreenshot")
+            UserDefaults.standard.set("ctrl+shift+w", forKey: "hotkeyWindowScreenshot")
+        } else if UserDefaults.standard.string(forKey: "hotkeyAreaScreenshot") == "ctrl+shift+w",
+                  UserDefaults.standard.string(forKey: "hotkeyWindowScreenshot") == "alt+a" {
+            UserDefaults.standard.set("alt+a", forKey: "hotkeyAreaScreenshot")
+            UserDefaults.standard.set("ctrl+shift+w", forKey: "hotkeyWindowScreenshot")
         } else if UserDefaults.standard.string(forKey: "hotkeyWindowScreenshot") == "ctrl+shift+a" {
-            UserDefaults.standard.set("alt+a", forKey: "hotkeyWindowScreenshot")
+            UserDefaults.standard.set("ctrl+shift+w", forKey: "hotkeyWindowScreenshot")
         }
     }
 
@@ -63,11 +67,11 @@ final class AppSettings: ObservableObject {
 
     /// 区域截图快捷键
     @AppStorage("hotkeyAreaScreenshot")
-    var hotkeyAreaScreenshot: String = "ctrl+shift+w"
+    var hotkeyAreaScreenshot: String = "alt+a"
 
     /// 窗口截图快捷键
     @AppStorage("hotkeyWindowScreenshot")
-    var hotkeyWindowScreenshot: String = "alt+a"
+    var hotkeyWindowScreenshot: String = "ctrl+shift+w"
 
     /// 长截图快捷键
     @AppStorage("hotkeyLongScreenshot")
@@ -82,8 +86,8 @@ final class AppSettings: ObservableObject {
     var hotkeyPin: String = "ctrl+shift+p"
 
     func resetHotkeys() {
-        hotkeyAreaScreenshot = "ctrl+shift+w"
-        hotkeyWindowScreenshot = "alt+a"
+        hotkeyAreaScreenshot = "alt+a"
+        hotkeyWindowScreenshot = "ctrl+shift+w"
         hotkeyLongScreenshot = "ctrl+shift+l"
         hotkeyColorPicker = "ctrl+shift+c"
         hotkeyPin = "ctrl+shift+p"
