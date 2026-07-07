@@ -55,11 +55,11 @@ final class AppSettings: ObservableObject {
 
     /// 区域截图快捷键
     @AppStorage("hotkeyAreaScreenshot")
-    var hotkeyAreaScreenshot: String = "ctrl+shift+a"
+    var hotkeyAreaScreenshot: String = "ctrl+shift+w"
 
     /// 窗口截图快捷键
     @AppStorage("hotkeyWindowScreenshot")
-    var hotkeyWindowScreenshot: String = "ctrl+shift+w"
+    var hotkeyWindowScreenshot: String = "ctrl+shift+a"
 
     /// 长截图快捷键
     @AppStorage("hotkeyLongScreenshot")
@@ -74,8 +74,8 @@ final class AppSettings: ObservableObject {
     var hotkeyPin: String = "ctrl+shift+p"
 
     func resetHotkeys() {
-        hotkeyAreaScreenshot = "ctrl+shift+a"
-        hotkeyWindowScreenshot = "ctrl+shift+w"
+        hotkeyAreaScreenshot = "ctrl+shift+w"
+        hotkeyWindowScreenshot = "ctrl+shift+a"
         hotkeyLongScreenshot = "ctrl+shift+l"
         hotkeyColorPicker = "ctrl+shift+c"
         hotkeyPin = "ctrl+shift+p"
