@@ -13,8 +13,10 @@ rg -q 'heightAnchor.constraint\(equalToConstant: PreviewMetrics.tileHeight\).isA
 rg -q 'NSGlassEffectView' SnapClick/App/AppDelegate.swift
 rg -q 'NSGlassEffectContainerView' SnapClick/App/AppDelegate.swift
 ! rg -q 'glassView.contentView = contentView' SnapClick/App/AppDelegate.swift
-rg -q 'glassView.contentView = scrollView' SnapClick/App/AppDelegate.swift
-rg -q 'container.contentView = glassView' SnapClick/App/AppDelegate.swift
+rg -q 'NSClassFromString\("NSGlassEffectView"\)' SnapClick/App/AppDelegate.swift
+rg -q 'NSClassFromString\("NSGlassEffectContainerView"\)' SnapClick/App/AppDelegate.swift
+rg -q 'glassView.setValue\(scrollView, forKey: "contentView"\)' SnapClick/App/AppDelegate.swift
+rg -q 'container.setValue\(glassView, forKey: "contentView"\)' SnapClick/App/AppDelegate.swift
 rg -q 'NSVisualEffectView' SnapClick/App/AppDelegate.swift
 rg -q 'tileCornerRadius: CGFloat = 16' SnapClick/App/AppDelegate.swift
 rg -q 'panelCornerRadius: CGFloat = 22' SnapClick/App/AppDelegate.swift

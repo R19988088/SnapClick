@@ -746,17 +746,7 @@ private final class FinderDockPreviewController {
     }
 
     private func panelGlassView(contentView scrollView: NSScrollView) -> NSView {
-        if #available(macOS 26.0, *) {
-            let container = NSGlassEffectContainerView(frame: scrollView.frame)
-            container.autoresizingMask = [.width, .height]
-            container.spacing = 0
-
-            let glassView = NSGlassEffectView(frame: scrollView.bounds)
-            glassView.autoresizingMask = [.width, .height]
-            glassView.cornerRadius = PreviewMetrics.panelCornerRadius
-            glassView.style = .regular
-            glassView.contentView = scrollView
-            container.contentView = glassView
+        if let container = makeLiquidGlassContainer(contentView: scrollView) {
             return container
         }
 
@@ -774,6 +764,27 @@ private final class FinderDockPreviewController {
         effectView.autoresizingMask = [.width, .height]
         container.addSubview(effectView)
         container.addSubview(scrollView)
+        return container
+    }
+
+    private func makeLiquidGlassContainer(contentView scrollView: NSScrollView) -> NSView? {
+        let macOS26 = OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)
+        guard ProcessInfo.processInfo.isOperatingSystemAtLeast(macOS26),
+              let containerClass = NSClassFromString("NSGlassEffectContainerView") as? NSView.Type,
+              let glassClass = NSClassFromString("NSGlassEffectView") as? NSView.Type else {
+            return nil
+        }
+
+        let container = containerClass.init(frame: scrollView.frame)
+        container.autoresizingMask = [.width, .height]
+        container.setValue(0, forKey: "spacing")
+
+        let glassView = glassClass.init(frame: scrollView.bounds)
+        glassView.autoresizingMask = [.width, .height]
+        glassView.setValue(PreviewMetrics.panelCornerRadius, forKey: "cornerRadius")
+        glassView.setValue(0, forKey: "style")
+        glassView.setValue(scrollView, forKey: "contentView")
+        container.setValue(glassView, forKey: "contentView")
         return container
     }
 
