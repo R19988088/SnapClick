@@ -567,15 +567,59 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
                       blur: 20 * scaleX,
                       color: shadowColor)
 
-        let drawRect = CGRect(x: pxPadding,
-                              y: pxPadding,
-                              width: CGFloat(cg.width),
-                              height: CGFloat(cg.height))
-        ctx.draw(cg, in: drawRect)
+        let imageRect = CGRect(x: pxPadding,
+                               y: pxPadding,
+                               width: CGFloat(cg.width),
+                               height: CGFloat(cg.height))
+        let drawRect = (visiblePixelBounds(in: cg) ?? CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+            .offsetBy(dx: pxPadding, dy: pxPadding)
+        let radius = ScreenshotSettings.shared.enableRoundedCorners
+            ? ScreenshotSettings.shared.cornerRadius * scaleX
+            : 0
+        ctx.setFillColor(NSColor.white.cgColor)
+        ctx.addPath(CGPath(roundedRect: drawRect, cornerWidth: radius, cornerHeight: radius, transform: nil))
+        ctx.fillPath()
+        ctx.setShadow(offset: .zero, blur: 0, color: nil)
+        ctx.draw(cg, in: imageRect)
         guard let outCG = ctx.makeImage() else { return image }
         let newSize = NSSize(width:  image.size.width  + padding * 2,
                              height: image.size.height + padding * 2)
         return NSImage(cgImage: outCG, size: newSize)
+    }
+
+    private func visiblePixelBounds(in cg: CGImage) -> CGRect? {
+        let width = cg.width
+        let height = cg.height
+        let bytesPerRow = width * 4
+        var bytes = [UInt8](repeating: 0, count: bytesPerRow * height)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &bytes,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var minX = width
+        var minY = height
+        var maxX = -1
+        var maxY = -1
+        for y in 0..<height {
+            let row = y * bytesPerRow
+            for x in 0..<width where bytes[row + x * 4 + 3] > 64 {
+                minX = min(minX, x)
+                minY = min(minY, y)
+                maxX = max(maxX, x)
+                maxY = max(maxY, y)
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
     }
 
     // MARK: - 保存截图

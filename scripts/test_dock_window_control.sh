@@ -8,7 +8,7 @@ rg -q 'private enum PreviewMetrics' SnapClick/App/AppDelegate.swift
 rg -q 'tileWidth: CGFloat = 179' SnapClick/App/AppDelegate.swift
 rg -q 'imageHeight: CGFloat = 147' SnapClick/App/AppDelegate.swift
 rg -q 'override var intrinsicContentSize: NSSize' SnapClick/App/AppDelegate.swift
-rg -q 'widthAnchor.constraint\(equalToConstant: PreviewMetrics.tileWidth\).isActive = true' SnapClick/App/AppDelegate.swift
+rg -q 'widthConstraint = widthAnchor.constraint\(equalToConstant: PreviewMetrics.tileWidth\)' SnapClick/App/AppDelegate.swift
 rg -q 'heightAnchor.constraint\(equalToConstant: PreviewMetrics.tileHeight\).isActive = true' SnapClick/App/AppDelegate.swift
 rg -q 'NSGlassEffectView' SnapClick/App/AppDelegate.swift
 rg -q 'NSGlassEffectContainerView' SnapClick/App/AppDelegate.swift
@@ -19,11 +19,37 @@ rg -q 'glassView.setValue\(scrollView, forKey: "contentView"\)' SnapClick/App/Ap
 rg -q 'container.setValue\(glassView, forKey: "contentView"\)' SnapClick/App/AppDelegate.swift
 rg -q 'NSVisualEffectView' SnapClick/App/AppDelegate.swift
 rg -q 'tileCornerRadius: CGFloat = 16' SnapClick/App/AppDelegate.swift
+rg -q 'imageCornerRadius: CGFloat = 14' SnapClick/App/AppDelegate.swift
 rg -q 'panelCornerRadius: CGFloat = 22' SnapClick/App/AppDelegate.swift
 rg -q 'cornerCurve = \.continuous' SnapClick/App/AppDelegate.swift
 ! rg -q 'layer\?\.borderWidth = 1' SnapClick/App/AppDelegate.swift
-rg -q 'shadowRadius = 5' SnapClick/App/AppDelegate.swift
+rg -q 'private final class ThumbnailView' SnapClick/App/AppDelegate.swift
+rg -q 'aspectFitRect\(imageSize:' SnapClick/App/AppDelegate.swift
+rg -q 'shadowBlurRadius = 8' SnapClick/App/AppDelegate.swift
+rg -q 'shadowOffset = NSSize\(width: 0, height: -3\)' SnapClick/App/AppDelegate.swift
+rg -q 'black.withAlphaComponent\(0.18\)' SnapClick/App/AppDelegate.swift
+rg -q 'border.lineWidth = 1' SnapClick/App/AppDelegate.swift
+rg -q 'black.withAlphaComponent\(0.3\)' SnapClick/App/AppDelegate.swift
 rg -q 'NSColor.controlAccentColor.cgColor' SnapClick/App/AppDelegate.swift
+rg -q 'accentView.alphaValue = 0.9' SnapClick/App/AppDelegate.swift
+rg -q 'closeButton' SnapClick/App/AppDelegate.swift
+rg -q 'private final class CloseButton' SnapClick/App/AppDelegate.swift
+! rg -q 'closeButtonSize' SnapClick/App/AppDelegate.swift
+rg -q 'NSColor.white.setFill\(\)' SnapClick/App/AppDelegate.swift
+rg -q 'NSColor.darkGray.setStroke\(\)' SnapClick/App/AppDelegate.swift
+rg -q 'NSColor.black.withAlphaComponent\(0.24\).setStroke\(\)' SnapClick/App/AppDelegate.swift
+rg -q 'shadowBlurRadius = 4' SnapClick/App/AppDelegate.swift
+rg -q 'closeButton.alphaValue = 0' SnapClick/App/AppDelegate.swift
+rg -q 'closeButton.alphaValue = 1' SnapClick/App/AppDelegate.swift
+rg -q 'func collapse\(completion:' SnapClick/App/AppDelegate.swift
+rg -q 'shrinkPreviewPanelAfterTileClose' SnapClick/App/AppDelegate.swift
+! rg -q 'panelHeight\(near dockApp: DockApp\)' SnapClick/App/AppDelegate.swift
+! rg -q 'dockApp.bounds.height \+ 10' SnapClick/App/AppDelegate.swift
+! rg -q 'effectView.alphaValue = 0.7' SnapClick/App/AppDelegate.swift
+! rg -q 'setFrame\(centeredFrame\(width:' SnapClick/App/AppDelegate.swift
+rg -q 'layer\?\.masksToBounds = false' SnapClick/App/AppDelegate.swift
+! rg -q 'private func close\(_ preview: DockWindowPreview\).*hidePreview' SnapClick/App/AppDelegate.swift
+! rg -q 'imageView.layer\?\.borderWidth = 2' SnapClick/App/AppDelegate.swift
 rg -q 'NSTrackingArea' SnapClick/App/AppDelegate.swift
 rg -q 'imageView.image = preview.image$' SnapClick/App/AppDelegate.swift
 ! rg -q 'imageView.image = preview.image \\?\\? preview.app.icon' SnapClick/App/AppDelegate.swift

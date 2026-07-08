@@ -479,6 +479,11 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         selectTool(canvas.currentTool)
     }
 
+    private func exportImage(applyingOutputEffects: Bool = true) -> NSImage {
+        let image = canvas.exportAsImage()
+        return applyingOutputEffects ? ScreenCaptureEngine.shared.applyScreenshotEffects(to: image) : image
+    }
+
     private func updateColorSwatches(in view: NSView, selectedColor: NSColor) {
         if let swatch = view as? ColorSwatch {
             swatch.updateHighlightState(selectedColor: selectedColor)
@@ -493,7 +498,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
 
     @objc private func doneAction() {
         // 点击 Done：一键保存到桌面并复制到剪贴板，随后优雅地关闭窗口
-        let exported = canvas.exportAsImage()
+        let exported = exportImage()
         ScreenCaptureEngine.shared.copyToClipboard(exported)
         
         let path = (AppSettings.shared.screenshotSavePath as NSString).expandingTildeInPath
@@ -514,7 +519,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
     }
 
     @objc private func copyAction() {
-        let exported = canvas.exportAsImage()
+        let exported = exportImage()
         ScreenCaptureEngine.shared.copyToClipboard(exported)
 
         // 短暂高亮 Done 按钮为绿色以示成功
@@ -528,7 +533,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
     }
 
     @objc private func shareAction() {
-        let exported = canvas.exportAsImage()
+        let exported = exportImage()
         let picker   = NSSharingServicePicker(items: [exported])
         picker.show(relativeTo: shareButton.bounds, of: shareButton, preferredEdge: .minY)
     }

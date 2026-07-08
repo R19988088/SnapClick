@@ -171,6 +171,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     private var isAnnotating = false
     fileprivate var canvas: AnnotationCanvas?
     private var editorToolbar: NSView?
+    private var nextAnnotationBaseImage: NSImage?
     
     // 智能模式：窗口已选中等待确认（点击窗口后进入此状态，可调整选区，按 Enter 或双击确认）
     private var isWindowSelectedPending = false
@@ -676,7 +677,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
 
         case .windowSelection:
             if let win = windowAtPoint(loc) {
-                selectedRect = winToViewRect(win).intersection(bounds)
+                selectedRect = windowCaptureRect(for: win)
                 enterInPlaceAnnotationMode(forWindow: win)
             } else {
                 // 鼠标点在空白处（未命中任何窗口），不直接取消，
@@ -770,7 +771,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         // 智能模式：拖拽距离太小→视为单击，直接捕获悬停窗口（对齐 Snipaste/macOS 单击即截行为）
         if mode == .combined && rect.width < 10 && rect.height < 10 {
             if let win = hoveredWindow {
-                selectedRect = winToViewRect(win).intersection(bounds)
+                selectedRect = windowCaptureRect(for: win)
                 if isLongScreenshotMode {
                     enterScrollingCaptureMode()
                 } else {
@@ -852,24 +853,20 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     }
 
     // MARK: - 🌟 核心：进入就地标注模式（窗口模式）
-    /// 选中某个具体窗口后，先用 ScreenCaptureKit 单独捕获该窗口图像，
-    /// 用窗口图像替换裁剪出的全屏背景作为画布底图，从而避免把上层其它程序的内容也截进来
+    /// 窗口截图从全屏背景外扩裁剪，保留系统窗口边框和投影。
     private func enterInPlaceAnnotationMode(forWindow win: SCWindow) {
-        // 先以"窗口在屏的矩形"为占位，进入标注模式，画布初始底图依然来自 backgroundImage 裁剪
-        // 这样 UI 不会被截图等待阻塞
-        enterInPlaceAnnotationMode()
-
-        // 异步：用 ScreenCaptureKit 仅捕获该窗口的真实像素，覆盖到画布底图上
-        let canvasRef = self.canvas
-        Task { @MainActor in
-            do {
-                let img = try await ScreenCaptureEngine.shared.captureSingleWindow(win)
-                // 防御：在标注期间用户可能已取消
-                guard let canvas = canvasRef, canvas === self.canvas else { return }
-                canvas.baseImage = img
-                canvas.needsDisplay = true
-            } catch {
-                // 失败时保留裁剪后的占位底图，不打断用户操作
+        Task { [weak self] in
+            let image = try? await ScreenCaptureEngine.shared.captureSingleWindow(win)
+            await MainActor.run {
+                guard let self else { return }
+                if let image {
+                    self.selectedRect = self.windowCaptureRect(for: win, imageSize: image.size)
+                    self.nextAnnotationBaseImage = image
+                } else {
+                    self.selectedRect = self.windowCaptureRect(for: win)
+                    self.nextAnnotationBaseImage = self.cropFromBackgroundImage(viewRect: self.selectedRect)
+                }
+                self.enterInPlaceAnnotationMode()
             }
         }
     }
@@ -888,7 +885,15 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             height: selectedRect.height * scale
         )
         
-        if let cgImg = backgroundImage.cgImage(forProposedRect: nil, context: nil, hints: nil)?
+        if let overrideImage = nextAnnotationBaseImage {
+            nextAnnotationBaseImage = nil
+            let annotationCanvas = AnnotationCanvas(frame: selectedRect)
+            annotationCanvas.baseImage = overrideImage
+            annotationCanvas.delegate = self
+            addSubview(annotationCanvas)
+            self.canvas = annotationCanvas
+            window?.makeFirstResponder(annotationCanvas)
+        } else if let cgImg = backgroundImage.cgImage(forProposedRect: nil, context: nil, hints: nil)?
             .cropping(to: cropRect) {
             
             let canvasImage = NSImage(cgImage: cgImg, size: selectedRect.size)
@@ -1665,9 +1670,19 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         }()
 
         if let win = targetWindow {
-            // 从背景图裁剪窗口区域：backgroundImage 已包含截图时刻所有窗口内容
-            let winRect = winToViewRect(win).intersection(bounds)
-            imageToCopy = cropFromBackgroundImage(viewRect: winRect)
+            Task { [weak self] in
+                guard let self else { return }
+                let image = (try? await ScreenCaptureEngine.shared.captureSingleWindow(win))
+                    ?? self.cropFromBackgroundImage(viewRect: self.windowCaptureRect(for: win))
+                await MainActor.run {
+                    if let image {
+                        ScreenCaptureEngine.shared.copyToClipboard(ScreenCaptureEngine.shared.applyScreenshotEffects(to: image))
+                    }
+                    self.parentWindow?.onFinished?()
+                    self.window?.close()
+                }
+            }
+            return
         } else if selectedRect.width > 10 && selectedRect.height > 10 {
             // 4) 区域选择已经有选区：复制选区
             imageToCopy = cropFromBackgroundImage(viewRect: selectedRect)
@@ -1908,6 +1923,21 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         let rectInWindow = parent.convertFromScreen(appKitScreenRect)
         // Step 3: overlayWindow 内坐标 -> overlayView 坐标
         return self.convert(rectInWindow, from: nil)
+    }
+
+    private func windowCaptureRect(for win: SCWindow) -> CGRect {
+        winToViewRect(win).insetBy(dx: -28, dy: -28).intersection(bounds)
+    }
+
+    private func windowCaptureRect(for win: SCWindow, imageSize: NSSize) -> CGRect {
+        let winRect = winToViewRect(win)
+        let rect = CGRect(
+            x: winRect.midX - imageSize.width / 2,
+            y: winRect.midY - imageSize.height / 2,
+            width: imageSize.width,
+            height: imageSize.height
+        )
+        return rect.intersection(bounds)
     }
 
     private func drawWindowTooltip(window: SCWindow, rect: CGRect, context: CGContext) {

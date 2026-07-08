@@ -362,15 +362,101 @@ private final class FinderDockPreviewController {
         static let spacing: CGFloat = 6
         static let panelHeight: CGFloat = 195
         static let tileCornerRadius: CGFloat = 16
-        static let imageCornerRadius: CGFloat = 8
+        static let imageCornerRadius: CGFloat = 14
         static let panelCornerRadius: CGFloat = 22
     }
 
     private final class PreviewTile: NSControl {
-        private let imageView = NSImageView()
+        private final class CloseButton: NSButton {
+            override func draw(_ dirtyRect: NSRect) {
+                let oval = NSBezierPath(ovalIn: bounds.insetBy(dx: 2, dy: 2))
+                let shadow = NSShadow()
+                shadow.shadowColor = NSColor.black.withAlphaComponent(0.24)
+                shadow.shadowBlurRadius = 4
+                shadow.shadowOffset = NSSize(width: 0, height: -1)
+                NSGraphicsContext.saveGraphicsState()
+                shadow.set()
+                NSColor.white.setFill()
+                oval.fill()
+                NSGraphicsContext.restoreGraphicsState()
+
+                NSColor.white.setFill()
+                oval.fill()
+
+                NSColor.black.withAlphaComponent(0.24).setStroke()
+                oval.lineWidth = 1
+                oval.stroke()
+
+                NSColor.darkGray.setStroke()
+                let path = NSBezierPath()
+                path.lineWidth = 2
+                let inset: CGFloat = 6
+                path.move(to: NSPoint(x: inset, y: inset))
+                path.line(to: NSPoint(x: bounds.maxX - inset, y: bounds.maxY - inset))
+                path.move(to: NSPoint(x: bounds.maxX - inset, y: inset))
+                path.line(to: NSPoint(x: inset, y: bounds.maxY - inset))
+                path.stroke()
+            }
+        }
+
+        private final class ThumbnailView: NSView {
+            var image: NSImage? {
+                didSet { needsDisplay = true }
+            }
+
+            override func draw(_ dirtyRect: NSRect) {
+                guard let image else { return }
+
+                let imageRect = aspectFitRect(imageSize: image.size, in: bounds)
+                guard imageRect.width > 1, imageRect.height > 1 else { return }
+
+                let radius = PreviewMetrics.imageCornerRadius
+                let shape = NSBezierPath(roundedRect: imageRect, xRadius: radius, yRadius: radius)
+                let shadow = NSShadow()
+                shadow.shadowColor = NSColor.black.withAlphaComponent(0.18)
+                shadow.shadowBlurRadius = 8
+                shadow.shadowOffset = NSSize(width: 0, height: -3)
+
+                NSGraphicsContext.saveGraphicsState()
+                shadow.set()
+                NSColor.white.setFill()
+                shape.fill()
+                NSGraphicsContext.restoreGraphicsState()
+
+                NSGraphicsContext.saveGraphicsState()
+                shape.addClip()
+                image.draw(in: imageRect, from: .zero, operation: .sourceOver, fraction: 1)
+                NSGraphicsContext.restoreGraphicsState()
+
+                let border = NSBezierPath(roundedRect: imageRect.insetBy(dx: 0.5, dy: 0.5), xRadius: radius, yRadius: radius)
+                border.lineWidth = 1
+                NSColor.black.withAlphaComponent(0.3).setStroke()
+                border.stroke()
+            }
+
+            private func aspectFitRect(imageSize: NSSize, in rect: NSRect) -> NSRect {
+                guard imageSize.width > 0, imageSize.height > 0, rect.width > 0, rect.height > 0 else {
+                    return .zero
+                }
+                let scale = min(rect.width / imageSize.width, rect.height / imageSize.height)
+                let size = NSSize(width: imageSize.width * scale, height: imageSize.height * scale)
+                return NSRect(
+                    x: rect.midX - size.width / 2,
+                    y: rect.midY - size.height / 2,
+                    width: size.width,
+                    height: size.height
+                )
+            }
+        }
+
+        private let accentView = NSView()
+        private let imageView = ThumbnailView()
+        private let closeButton = CloseButton()
         private let titleField = NSTextField(labelWithString: "")
         private var trackingArea: NSTrackingArea?
+        private var widthConstraint: NSLayoutConstraint?
         var actionHandler: (() -> Void)?
+        var closeHandler: (() -> Void)?
 
         init(preview: DockWindowPreview) {
             super.init(frame: NSRect(x: 0, y: 0, width: PreviewMetrics.tileWidth, height: PreviewMetrics.tileHeight))
@@ -378,16 +464,25 @@ private final class FinderDockPreviewController {
             wantsLayer = true
             layer?.cornerRadius = PreviewMetrics.tileCornerRadius
             layer?.cornerCurve = .continuous
-            layer?.masksToBounds = true
+            layer?.masksToBounds = false
             layer?.backgroundColor = NSColor.clear.cgColor
-            widthAnchor.constraint(equalToConstant: PreviewMetrics.tileWidth).isActive = true
+            widthConstraint = widthAnchor.constraint(equalToConstant: PreviewMetrics.tileWidth)
+            widthConstraint?.isActive = true
             heightAnchor.constraint(equalToConstant: PreviewMetrics.tileHeight).isActive = true
 
             let contentView = NSView(frame: bounds)
             contentView.autoresizingMask = [.width, .height]
 
+            accentView.frame = bounds
+            accentView.autoresizingMask = [.width, .height]
+            accentView.wantsLayer = true
+            accentView.layer?.cornerRadius = PreviewMetrics.tileCornerRadius
+            accentView.layer?.cornerCurve = .continuous
+            accentView.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+            accentView.alphaValue = 0
+            contentView.addSubview(accentView)
+
             imageView.image = preview.image
-            imageView.imageScaling = .scaleProportionallyUpOrDown
             imageView.frame = NSRect(
                 x: PreviewMetrics.imageInset,
                 y: 28,
@@ -395,13 +490,17 @@ private final class FinderDockPreviewController {
                 height: PreviewMetrics.imageHeight
             )
             imageView.wantsLayer = true
-            imageView.layer?.cornerRadius = PreviewMetrics.imageCornerRadius
-            imageView.layer?.cornerCurve = .continuous
-            imageView.layer?.shadowColor = NSColor.black.cgColor
-            imageView.layer?.shadowOpacity = 0.18
-            imageView.layer?.shadowRadius = 5
-            imageView.layer?.shadowOffset = NSSize(width: 0, height: -1)
+            imageView.layer?.masksToBounds = false
             contentView.addSubview(imageView)
+
+            closeButton.frame = NSRect(x: 11, y: PreviewMetrics.tileHeight - 29, width: 18, height: 18)
+            closeButton.bezelStyle = .regularSquare
+            closeButton.isBordered = false
+            closeButton.wantsLayer = true
+            closeButton.target = self
+            closeButton.action = #selector(closeClicked)
+            closeButton.alphaValue = 0
+            contentView.addSubview(closeButton)
 
             titleField.stringValue = preview.isMinimized ? "\(preview.title) · 已最小化" : preview.title
             titleField.font = .systemFont(ofSize: 11, weight: .medium)
@@ -437,22 +536,37 @@ private final class FinderDockPreviewController {
 
         override func mouseEntered(with event: NSEvent) {
             super.mouseEntered(with: event)
-            imageView.layer?.borderWidth = 2
-            imageView.layer?.borderColor = NSColor.controlAccentColor.cgColor
+            accentView.alphaValue = 0.9
+            closeButton.alphaValue = 1
         }
 
         override func mouseExited(with event: NSEvent) {
             super.mouseExited(with: event)
-            imageView.layer?.borderWidth = 0
-            imageView.layer?.borderColor = nil
+            accentView.alphaValue = 0
+            closeButton.alphaValue = 0
         }
 
         override func mouseDown(with event: NSEvent) {
             actionHandler?()
         }
 
+        @objc private func closeClicked() {
+            closeHandler?()
+        }
+
         func updateImage(_ image: NSImage) {
             imageView.image = image
+        }
+
+        func collapse(completion: @escaping () -> Void) {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18
+                widthConstraint?.animator().constant = 0
+                animator().alphaValue = 0
+            } completionHandler: {
+                self.removeFromSuperview()
+                completion()
+            }
         }
     }
 
@@ -661,6 +775,7 @@ private final class FinderDockPreviewController {
         for preview in previews {
             let tile = PreviewTile(preview: preview)
             tile.actionHandler = { [weak self] in self?.activate(preview) }
+            tile.closeHandler = { [weak self, weak tile] in self?.close(preview, tile: tile) }
             stack.addArrangedSubview(tile)
             if let windowID = preview.windowID {
                 tilesByWindowID[windowID] = tile
@@ -959,6 +1074,39 @@ private final class FinderDockPreviewController {
         if AXUIElementCopyAttributeValue(window, kAXMinimizeButtonAttribute as CFString, &buttonValue) == .success,
            let button = buttonValue {
             AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString)
+        }
+    }
+
+    private func close(_ preview: DockWindowPreview, tile: PreviewTile?) {
+        guard let axWindow = preview.axWindow else { return }
+        var buttonValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(axWindow, kAXCloseButtonAttribute as CFString, &buttonValue) == .success,
+           let button = buttonValue {
+            AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString)
+        }
+        if let windowID = preview.windowID {
+            thumbnailTilesByWindowID.removeValue(forKey: windowID)
+            loadedThumbnailWindowIDs.remove(windowID)
+            loadingThumbnailWindowIDs.remove(windowID)
+        }
+        tile?.collapse { [weak self] in
+            self?.shrinkPreviewPanelAfterTileClose()
+        }
+    }
+
+    private func shrinkPreviewPanelAfterTileClose() {
+        guard let panel = previewPanel else { return }
+        let remaining = thumbnailTilesByWindowID.count
+        guard remaining > 0 else {
+            hidePreview()
+            return
+        }
+        let width = CGFloat(remaining) * PreviewMetrics.tileWidth
+            + CGFloat(max(remaining - 1, 0)) * PreviewMetrics.spacing
+            + 16
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            panel.animator().setContentSize(NSSize(width: width, height: PreviewMetrics.panelHeight))
         }
     }
 

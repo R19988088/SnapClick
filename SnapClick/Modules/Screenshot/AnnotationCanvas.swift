@@ -45,7 +45,7 @@ class AnnotationCanvas: NSView {
     var currentLineWidth: CGFloat            = 2.0
     var currentFontSize:  CGFloat            = 16.0
     var mosaicBlockSize:  Int                = 12
-    private var toolSizes: [AnnotationToolType: CGFloat] = [.text: 4, .mosaic: 12]
+    private var toolSizes: [AnnotationToolType: CGFloat] = AnnotationCanvas.loadToolSizes()
 
     // MARK: - 底图（截图）
     var baseImage: NSImage? {
@@ -100,6 +100,7 @@ class AnnotationCanvas: NSView {
 
     func setSize(_ size: CGFloat, for tool: AnnotationToolType) {
         toolSizes[tool] = size
+        saveToolSizes()
         if currentTool == tool {
             applySize(size)
         }
@@ -109,6 +110,23 @@ class AnnotationCanvas: NSView {
         currentLineWidth = size
         currentFontSize = size * 4
         mosaicBlockSize = Int(max(2, size.rounded()))
+    }
+
+    private static func loadToolSizes() -> [AnnotationToolType: CGFloat] {
+        var sizes: [AnnotationToolType: CGFloat] = [.text: 4, .mosaic: 12]
+        let saved = UserDefaults.standard.dictionary(forKey: "annotationToolSizes") as? [String: Double] ?? [:]
+        for (key, value) in saved {
+            guard let tool = AnnotationToolType(rawValue: key) else { continue }
+            sizes[tool] = CGFloat(value)
+        }
+        return sizes
+    }
+
+    private func saveToolSizes() {
+        UserDefaults.standard.set(
+            Dictionary(uniqueKeysWithValues: toolSizes.map { ($0.key.rawValue, Double($0.value)) }),
+            forKey: "annotationToolSizes"
+        )
     }
 
     // MARK: - 首响应者

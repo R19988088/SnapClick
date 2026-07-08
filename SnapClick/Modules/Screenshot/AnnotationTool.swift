@@ -57,7 +57,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
         switch self {
         case .rectangle: return "square"
         case .ellipse:   return "circle"
-        case .arrow:     return "minus"
+        case .arrow:     return "arrow.up.right"
         case .pen:       return "pencil"
         case .mosaic:    return "square.grid.3x3"
         case .text:      return "t.character"
