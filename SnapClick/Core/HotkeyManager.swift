@@ -164,6 +164,9 @@ final class HotkeyManager: ObservableObject {
             }
 
             guard type == .keyDown else { return Unmanaged.passUnretained(event) }
+            guard event.getIntegerValueField(.keyboardEventAutorepeat) == 0 else {
+                return Unmanaged.passUnretained(event)
+            }
 
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             let flags = event.flags

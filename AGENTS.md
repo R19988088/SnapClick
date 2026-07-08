@@ -32,6 +32,7 @@
 - Unsigned or ad-hoc builds are not valid for testing Accessibility/Input Monitoring authorization because TCC permissions are tied to the app identity. Use `CODE_SIGNING_ALLOWED=NO` only for compile-only verification.
 - Release/installable DMGs must preserve the permission identity: `PRODUCT_BUNDLE_IDENTIFIER=com.snapclick.app`, `TeamIdentifier=HQ6YY6QF8H`, and the bundled Finder extension signed by the same team. Do not ship a DMG signed with the old `4DAY66XCT4` team or an unsigned/ad-hoc identity, because TCC permissions will not inherit.
 - GitHub Actions downloadable DMGs are installable artifacts, so they must import a real signing certificate from `MACOS_CERTIFICATE_P12`, `MACOS_CERTIFICATE_PASSWORD`, and `KEYCHAIN_PASSWORD` secrets, verify `TeamIdentifier=HQ6YY6QF8H`, and only then upload the DMG.
+- Do not use an Actions artifact DMG for permission testing if the workflow built the app with `CODE_SIGNING_ALLOWED=NO`; that produces a different unsigned/ad-hoc identity. After changing Actions packaging, download the uploaded artifact, run `hdiutil verify`, mount it, and verify the bundled app with `codesign -dv --verbose=4` before calling the downloadable version fixed.
 
 ## Screenshot Contracts
 - Area selection keeps the previous dimmed overlay outside the selected region.

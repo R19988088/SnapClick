@@ -778,9 +778,15 @@ private struct OtherSettingsView: View {
                     .padding(.bottom, DT.rowPadV)
                 CardDivider()
                 ToggleRow(
-                    title: "Dock 滚轮调节音量".localized,
-                    description: "鼠标悬停在 Dock 图标上滚动时调整系统音量".localized,
-                    isOn: $settings.dockScrollVolumeEnabled
+                    title: "Dock 窗口控制".localized,
+                    description: "悬停 Dock 图标时预览并控制该应用窗口".localized,
+                    isOn: $settings.dockWindowControlEnabled
+                )
+                CardDivider()
+                ToggleRow(
+                    title: "截图包含边框投影".localized,
+                    description: "复制、保存和标注截图时保留圆角外的投影边框".localized,
+                    isOn: $settings.screenshotAddShadow
                 )
                 CardDivider()
                 ToggleRow(
@@ -1371,6 +1377,7 @@ struct HotkeyRecorderView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(Text("录制快捷键"))
         .accessibilityValue(Text(hotkey.isEmpty ? "未设置" : hotkey))
+        .onDisappear { stopRecording() }
     }
 
     private func startRecording() {

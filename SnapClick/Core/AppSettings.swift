@@ -38,6 +38,11 @@ final class AppSettings: ObservableObject {
         } else if UserDefaults.standard.string(forKey: "hotkeyWindowScreenshot") == "ctrl+shift+a" {
             UserDefaults.standard.set("ctrl+shift+w", forKey: "hotkeyWindowScreenshot")
         }
+
+        if UserDefaults.standard.bool(forKey: "dockWindowControlEnabled"),
+           UserDefaults.standard.bool(forKey: "showInDock") {
+            UserDefaults.standard.set(false, forKey: "showInDock")
+        }
     }
 
     // MARK: 截图设置
@@ -131,13 +136,10 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @AppStorage("dockScrollVolumeEnabled")
-    var dockScrollVolumeEnabled: Bool = false {
+    @AppStorage("dockWindowControlEnabled")
+    var dockWindowControlEnabled: Bool = false {
         didSet {
-            if dockScrollVolumeEnabled && !showInDock {
-                showInDock = true
-            }
-            NotificationCenter.default.post(name: .dockScrollVolumeDidChange, object: nil)
+            NotificationCenter.default.post(name: .dockWindowControlDidChange, object: nil)
         }
     }
 
@@ -361,8 +363,10 @@ public final class LanguageManager: ObservableObject {
             "在屏幕四角叠加圆角遮罩，壁纸和桌面实时生效": "Overlay rounded masks on the screen corners, visible on wallpaper and desktop in real time",
             "屏幕圆角尺寸": "Screen Corner Size",
             "调整圆角遮罩半径": "Adjust the corner mask radius",
-            "Dock 滚轮调节音量": "Adjust Volume from Dock",
-            "鼠标悬停在 Dock 图标上滚动时调整系统音量": "Adjust system volume by scrolling over the Dock icon",
+            "Dock 窗口控制": "Dock Window Control",
+            "悬停 Dock 图标时预览并控制该应用窗口": "Preview and control windows from the hovered Dock icon",
+            "截图包含边框投影": "Include Screenshot Border Shadow",
+            "复制、保存和标注截图时保留圆角外的投影边框": "Keep the shadow border outside rounded screenshots when copying, saving, or annotating",
             "Del 删除到废纸篓": "Delete to Trash with Del",
             "Finder 中按 Del 将选中文件移到废纸篓": "Press Del in Finder to move selected files to Trash",
             "双击 Shift 复制文件名": "Double Shift to Copy Names",
@@ -615,8 +619,10 @@ public final class LanguageManager: ObservableObject {
             "在屏幕四角叠加圆角遮罩，壁纸和桌面实时生效": "画面の四隅に角丸マスクを重ね、壁紙とデスクトップにリアルタイムで反映",
             "屏幕圆角尺寸": "画面角丸サイズ",
             "调整圆角遮罩半径": "角丸マスクの半径を調整",
-            "Dock 滚轮调节音量": "Dock スクロールで音量調整",
-            "鼠标悬停在 Dock 图标上滚动时调整系统音量": "Dock アイコン上でスクロールしてシステム音量を調整",
+            "Dock 窗口控制": "Dock ウィンドウ制御",
+            "悬停 Dock 图标时预览并控制该应用窗口": "Dock アイコンにホバーしてそのアプリのウィンドウをプレビュー、操作",
+            "截图包含边框投影": "スクリーンショットに境界シャドウを含める",
+            "复制、保存和标注截图时保留圆角外的投影边框": "コピー、保存、注釈時に角丸外側のシャドウ境界を保持",
             "Del 删除到废纸篓": "Del でゴミ箱へ移動",
             "Finder 中按 Del 将选中文件移到废纸篓": "Finder で Del を押すと選択項目をゴミ箱へ移動",
             "双击 Shift 复制文件名": "Shift 2 回で名前をコピー",
@@ -819,7 +825,7 @@ public extension Notification.Name {
     static let appLanguageDidChange = Notification.Name("AppLanguageDidChange")
     static let showInMenuBarDidChange = Notification.Name("ShowInMenuBarDidChange")
     static let showInDockDidChange = Notification.Name("ShowInDockDidChange")
-    static let dockScrollVolumeDidChange = Notification.Name("DockScrollVolumeDidChange")
+    static let dockWindowControlDidChange = Notification.Name("DockWindowControlDidChange")
     static let finderKeyActionsDidChange = Notification.Name("FinderKeyActionsDidChange")
     static let enableGlassEffectDidChange = Notification.Name("EnableGlassEffectDidChange")
     static let screenCornerDidChange = Notification.Name("ScreenCornerDidChange")
