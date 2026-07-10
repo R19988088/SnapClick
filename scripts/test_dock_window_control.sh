@@ -133,6 +133,19 @@ rg -q 'previewAppPID == dockApp.app.processIdentifier' SnapClick/App/AppDelegate
 rg -q 'dockTargetCoreContains\(axPoint, bounds: dockApp.bounds, axis: dockLayoutAxis\(\)\)' SnapClick/App/AppDelegate.swift
 rg -q 'dockRetentionContains\(axPoint, bounds: currentDockApp.bounds, axis: dockLayoutAxis\(\)\)' SnapClick/App/AppDelegate.swift
 rg -q 'private func dockLayoutAxis\(\) -> DockLayoutAxis' SnapClick/App/AppDelegate.swift
+test -f SnapClick/Core/WindowShakeController.swift
+rg -q 'final class WindowShakeController' SnapClick/Core/WindowShakeController.swift
+rg -q 'CGEventType.leftMouseDragged.rawValue' SnapClick/Core/WindowShakeController.swift
+rg -q 'options: \.listenOnly' SnapClick/Core/WindowShakeController.swift
+rg -q 'titleBarBounds\(for window: AXUIElement\)' SnapClick/Core/WindowShakeController.swift
+rg -q 'WindowShakeRecognizer' SnapClick/Core/WindowShakeController.swift
+rg -q 'let windowID: CGWindowID' SnapClick/Core/WindowShakeController.swift
+rg -q 'kAXMinimizedAttribute' SnapClick/Core/WindowShakeController.swift
+rg -q 'private var restoreSession: RestoreSession\?' SnapClick/Core/WindowShakeController.swift
+rg -q 'var minimizedEntries: \[RestoreEntry\]' SnapClick/Core/WindowShakeController.swift
+rg -q 'CGSOrderWindow' SnapClick/Core/WindowShakeController.swift
+rg -q 'windowShakeController.start\(\)' SnapClick/App/AppDelegate.swift
+rg -q 'windowShakeController.stop\(\)' SnapClick/App/AppDelegate.swift
 
 same_app_fast_path_line="$(rg -n -F 'if previewPanel?.isVisible == true,' SnapClick/App/AppDelegate.swift | head -n 1 | cut -d: -f1)"
 stack_build_line="$(rg -n -F 'let stack = NSStackView()' SnapClick/App/AppDelegate.swift | head -n 1 | cut -d: -f1)"

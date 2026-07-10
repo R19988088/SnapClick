@@ -15,12 +15,14 @@ private enum WindowInteractionGeometryTests {
         expect(!dockTargetCoreContains(CGPoint(x: 185.1, y: 60), bounds: horizontalIcon, axis: .horizontal), "right 15% must not switch")
         expect(dockRetentionContains(CGPoint(x: 80, y: 60), bounds: horizontalIcon, axis: .horizontal), "20% side extension must retain")
         expect(!dockRetentionContains(CGPoint(x: 79.9, y: 60), bounds: horizontalIcon, axis: .horizontal), "outside 20% extension must hide")
+        expect(!dockRetentionContains(CGPoint(x: 100, y: 101), bounds: horizontalIcon, axis: .horizontal), "leaving the Dock perpendicular axis must hide")
 
         let verticalIcon = CGRect(x: 20, y: 100, width: 80, height: 100)
         expect(!dockTargetCoreContains(CGPoint(x: 60, y: 114.9), bounds: verticalIcon, axis: .vertical), "top 15% must not switch")
         expect(dockTargetCoreContains(CGPoint(x: 60, y: 115), bounds: verticalIcon, axis: .vertical), "vertical middle 70% must switch")
         expect(dockRetentionContains(CGPoint(x: 60, y: 220), bounds: verticalIcon, axis: .vertical), "vertical 20% extension must retain")
         expect(!dockRetentionContains(CGPoint(x: 60, y: 220.1), bounds: verticalIcon, axis: .vertical), "outside vertical extension must hide")
+        expect(!dockRetentionContains(CGPoint(x: 101, y: 150), bounds: verticalIcon, axis: .vertical), "leaving a side Dock horizontally must hide")
 
         var shake = WindowShakeRecognizer()
         shake.begin(at: CGPoint(x: 0, y: 0), timestamp: 0)

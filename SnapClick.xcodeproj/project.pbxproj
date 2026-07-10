@@ -50,6 +50,7 @@
 		EBEC4CB0B57FD5A9A7172FC9 /* NewFileTemplateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56A649C4A715F98C5C33BBF1 /* NewFileTemplateManager.swift */; };
 		EFC3811C577879CEE51CC772 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB2198C875A4A24E3B059D9A /* AppDelegate.swift */; };
 		F1A2B3C4D5E60718293A4B5D /* WindowInteractionGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E60718293A4B5C /* WindowInteractionGeometry.swift */; };
+		F2A3B4C5D6E708192A3B4C5D /* WindowShakeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2A3B4C5D6E708192A3B4C5C /* WindowShakeController.swift */; };
 		F8A7D5271F31CE3535894316 /* AnnotationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 877DB63F0C874C583636ADFA /* AnnotationTool.swift */; };
 		FC781E49D0D33CE3AD78F24F /* MenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55F876CA3F012723C042EAC1 /* MenuBuilder.swift */; };
 /* End PBXBuildFile section */
@@ -120,6 +121,7 @@
 		E5E726F4FECD04F3A4B58A14 /* ColorPickerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPickerEngine.swift; sourceTree = "<group>"; };
 		EB2198C875A4A24E3B059D9A /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		F1A2B3C4D5E60718293A4B5C /* WindowInteractionGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowInteractionGeometry.swift; sourceTree = "<group>"; };
+		F2A3B4C5D6E708192A3B4C5C /* WindowShakeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowShakeController.swift; sourceTree = "<group>"; };
 		F6872E5C78F239D82BE8D993 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		FD7E01862C633C5337FB2F62 /* ShortcutsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -171,6 +173,7 @@
 				356B4D9A7F2536E337434D86 /* PermissionManager.swift */,
 				A1B2C3D4E5F60718293A4B5D /* UpdateChecker.swift */,
 				F1A2B3C4D5E60718293A4B5C /* WindowInteractionGeometry.swift */,
+				F2A3B4C5D6E708192A3B4C5C /* WindowShakeController.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -382,6 +385,7 @@
 				86FB6BB220CF88CA6F0DCCBC /* FileOperations.swift in Sources */,
 				21C6264DF180501773134310 /* HotkeyManager.swift in Sources */,
 				F1A2B3C4D5E60718293A4B5D /* WindowInteractionGeometry.swift in Sources */,
+				F2A3B4C5D6E708192A3B4C5D /* WindowShakeController.swift in Sources */,
 				2A1C62886ACA6FD00DB9BD98 /* MainWindow.swift in Sources */,
 				DB7CCD047079DA2B4F3A5112 /* ShortcutsSettingsView.swift in Sources */,
 				EBEC4CB0B57FD5A9A7172FC9 /* NewFileTemplateManager.swift in Sources */,

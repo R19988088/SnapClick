@@ -24,9 +24,13 @@ func dockRetentionContains(_ point: CGPoint, bounds: CGRect, axis: DockLayoutAxi
     case .horizontal:
         return point.x >= bounds.minX - bounds.width * extensionFraction
             && point.x <= bounds.maxX + bounds.width * extensionFraction
+            && point.y >= bounds.minY
+            && point.y <= bounds.maxY
     case .vertical:
         return point.y >= bounds.minY - bounds.height * extensionFraction
             && point.y <= bounds.maxY + bounds.height * extensionFraction
+            && point.x >= bounds.minX
+            && point.x <= bounds.maxX
     }
 }
 

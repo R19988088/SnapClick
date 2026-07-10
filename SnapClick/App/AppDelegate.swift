@@ -5,14 +5,14 @@ import ScreenCaptureKit
 import SwiftUI
 
 @_silgen_name("_AXUIElementGetWindow") @discardableResult
-private func _AXUIElementGetWindow(_ axUiElement: AXUIElement, _ wid: inout CGWindowID) -> AXError
+func _AXUIElementGetWindow(_ axUiElement: AXUIElement, _ wid: inout CGWindowID) -> AXError
 
 @_silgen_name("CGSMainConnectionID")
-private func CGSMainConnectionID() -> UInt32
+func CGSMainConnectionID() -> UInt32
 
 @_silgen_name("CGSOrderWindow")
 @discardableResult
-private func CGSOrderWindow(_ cid: UInt32, _ windowID: UInt32, _ place: Int32, _ relativeTo: UInt32) -> Int32
+func CGSOrderWindow(_ cid: UInt32, _ windowID: UInt32, _ place: Int32, _ relativeTo: UInt32) -> Int32
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let finderDockPreviewController = FinderDockPreviewController()
     private let finderKeyActionController = FinderKeyActionController()
     private let screenCornerOverlayController = ScreenCornerOverlayController()
+    private let windowShakeController = WindowShakeController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.applicationIconImage = NSImage(named: "AppIcon")
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarController = StatusBarController(appDelegate: self)
         _ = PermissionManager.shared
         HotkeyManager.shared.registerAll()
+        windowShakeController.start()
         setupFinderCommandObserver()
         handleFinderCommand()
 
@@ -95,6 +97,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settings.isFirstLaunch {
             showWelcomeWindow()
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        windowShakeController.stop()
     }
 
     /// 将系统中已安装的终端 / 编辑器信息、常用目录 / 文件类型图标
@@ -1752,7 +1758,7 @@ private final class FinderKeyActionController {
     }
 }
 
-private enum InputMonitoringPermission {
+enum InputMonitoringPermission {
     static var isGranted: Bool {
         IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
     }
