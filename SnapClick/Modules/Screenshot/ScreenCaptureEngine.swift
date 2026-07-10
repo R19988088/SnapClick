@@ -377,12 +377,20 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     }
 
     /// 截取指定屏幕的全屏图像（逻辑分辨率）
-    /// macOS 14+ 使用 SCScreenshotManager（异步、非阻塞）
-    /// macOS 13   降级使用 CGDisplayCreateImage
+    /// 优先抓取 WindowServer 的最终显示帧，保留窗口的真实系统投影。
     private func captureScreen(_ screen: NSScreen) async throws -> NSImage {
         let displayID = (screen.deviceDescription[
             NSDeviceDescriptionKey(rawValue: "NSScreenNumber")] as? CGDirectDisplayID) ?? CGMainDisplayID()
         let scale = screen.backingScaleFactor
+
+        let displayImage: CGImage? = await Task.detached(priority: .userInitiated) {
+            CGDisplayCreateImage(displayID)
+        }.value
+        if let displayImage {
+            let size = NSSize(width: CGFloat(displayImage.width) / scale,
+                              height: CGFloat(displayImage.height) / scale)
+            return NSImage(cgImage: displayImage, size: size)
+        }
 
         if #available(macOS 14.0, *) {
             do {
@@ -411,6 +419,7 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
                 cfg.height = Int(CGFloat(scDisplay.height) * scale)
                 cfg.showsCursor = false
                 cfg.capturesAudio = false
+                cfg.ignoreShadowsDisplay = false
 
                 let cgImage = try await SCScreenshotManager.captureImage(
                     contentFilter: filter,
@@ -419,20 +428,23 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
                                   height: CGFloat(cgImage.height) / scale)
                 return NSImage(cgImage: cgImage, size: size)
             } catch {
-                // 失败回退到 CGDisplayCreateImage
+                // ScreenCaptureKit 回退也失败时交给统一错误处理。
             }
         }
+        throw ScreenCaptureError.imageConversionFailed
+    }
 
-        // 降级：在后台线程同步调用，避免阻塞主线程
-        let cgImage: CGImage? = await Task.detached(priority: .userInitiated) {
-            CGDisplayCreateImage(displayID)
-        }.value
-        guard let cgImage = cgImage else {
-            throw ScreenCaptureError.imageConversionFailed
+    private func backingScaleFactor(for window: SCWindow) -> CGFloat {
+        let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
+        for screen in NSScreen.screens {
+            guard let displayID = screen.deviceDescription[
+                NSDeviceDescriptionKey(rawValue: "NSScreenNumber")
+            ] as? CGDirectDisplayID else { continue }
+            if CGDisplayBounds(displayID).contains(center) {
+                return screen.backingScaleFactor
+            }
         }
-        let size = NSSize(width:  CGFloat(cgImage.width)  / scale,
-                          height: CGFloat(cgImage.height) / scale)
-        return NSImage(cgImage: cgImage, size: size)
+        return NSScreen.main?.backingScaleFactor ?? 2.0
     }
 
     /// 单窗口精确截图（macOS 14+ 优先 SCScreenshotManager）
@@ -442,13 +454,34 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         includeSystemFrame requestedSystemFrame: Bool? = nil
     ) async throws -> WindowCaptureResult {
         let cgID = window.windowID
-        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        let scale = backingScaleFactor(for: window)
         let includeSystemFrame = requestedSystemFrame ?? ScreenshotSettings.shared.enableShadow
         let bestResolutionOptions: CGWindowImageOption = includeSystemFrame ? [.bestResolution] : [.boundsIgnoreFraming, .bestResolution]
         let nominalResolutionOptions: CGWindowImageOption = includeSystemFrame ? [.nominalResolution] : [.boundsIgnoreFraming, .nominalResolution]
         let defaultOptions: CGWindowImageOption = includeSystemFrame ? [] : [.boundsIgnoreFraming]
+        let filter = SCContentFilter(desktopIndependentWindow: window)
 
-        // 开启投影时不使用 boundsIgnoreFraming，保留真实窗口边缘和系统投影。
+        if #available(macOS 26.0, *) {
+            let screenshotConfig = SCScreenshotConfiguration()
+            screenshotConfig.showsCursor = false
+            screenshotConfig.ignoreShadows = !includeSystemFrame
+            screenshotConfig.includeChildWindows = true
+            screenshotConfig.dynamicRange = .sdr
+            if let output = try? await SCScreenshotManager.captureScreenshot(
+                contentFilter: filter,
+                configuration: screenshotConfig
+            ), let cg = output.sdrImage {
+                return WindowCaptureResult(
+                    image: NSImage(
+                        cgImage: cg,
+                        size: NSSize(width: CGFloat(cg.width) / scale, height: CGFloat(cg.height) / scale)
+                    ),
+                    includesSystemFrame: includeSystemFrame
+                )
+            }
+        }
+
+        // 旧系统优先使用 CoreGraphics；开启投影时不使用 boundsIgnoreFraming。
         let windowImage: CGImage? = await Task.detached(priority: .userInitiated) {
             CGWindowListCreateImage(
                 .null,
@@ -473,17 +506,23 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         }
 
         if #available(macOS 14.0, *) {
-            let filter = SCContentFilter(desktopIndependentWindow: window)
             let cfg = SCStreamConfiguration()
             cfg.width  = max(1, Int(window.frame.width  * scale))
             cfg.height = max(1, Int(window.frame.height * scale))
             cfg.showsCursor = false
             cfg.capturesAudio = false
+            cfg.ignoreShadowsSingleWindow = !includeSystemFrame
+            if #available(macOS 14.2, *) {
+                cfg.includeChildWindows = true
+            }
             if let cg = try? await SCScreenshotManager.captureImage(
                 contentFilter: filter, configuration: cfg) {
                 return WindowCaptureResult(
-                    image: NSImage(cgImage: cg, size: window.frame.size),
-                    includesSystemFrame: false
+                    image: NSImage(
+                        cgImage: cg,
+                        size: NSSize(width: CGFloat(cg.width) / scale, height: CGFloat(cg.height) / scale)
+                    ),
+                    includesSystemFrame: includeSystemFrame
                 )
             }
         }

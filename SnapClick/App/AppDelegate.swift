@@ -993,12 +993,18 @@ private final class FinderDockPreviewController {
             pointerCenter: pointerCenter,
             panelSize: panelSize
         )
-        let pointerGlass = NSGlassEffectView(frame: pointerFrame)
-        pointerGlass.identifier = Self.previewPointerIdentifier
-        pointerGlass.style = .regular
-        pointerGlass.contentView = NSView()
-        applyPointerMask(to: pointerGlass, orientation: orientation)
-        contentHost.addSubview(pointerGlass)
+        let pointerView: NSView
+        if orientation == "bottom" {
+            pointerView = PreviewPointerView(frame: pointerFrame, orientation: orientation)
+        } else {
+            let pointerGlass = NSGlassEffectView(frame: pointerFrame)
+            pointerGlass.identifier = Self.previewPointerIdentifier
+            pointerGlass.style = .regular
+            pointerGlass.contentView = NSView()
+            applyPointerMask(to: pointerGlass, orientation: orientation)
+            pointerView = pointerGlass
+        }
+        contentHost.addSubview(pointerView)
 
         let bodyGlass = NSGlassEffectView(frame: bodyFrame)
         bodyGlass.cornerRadius = PreviewMetrics.panelCornerRadius
@@ -1656,7 +1662,7 @@ private final class FinderKeyActionController {
 
         if type == .keyDown,
            settings.finderDeleteToTrashEnabled,
-           (keyCode == 51 || keyCode == 117),
+           keyCode == 117,
            event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty {
             DispatchQueue.main.async {
                 self.trashFinderSelection()

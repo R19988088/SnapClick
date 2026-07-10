@@ -15,10 +15,24 @@ rg -Fq 'cachedReducedContrastImage()' SnapClick/Modules/Screenshot/AnnotationCan
 rg -Fq 'ctx.strokePath()' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
 rg -Fq 'struct WindowCaptureResult' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
 rg -Fq 'includesSystemFrame: includeSystemFrame' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
-rg -Fq 'includesSystemFrame: false' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
 rg -Fq '[.bestResolution]' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
 rg -Fq 'requestedSystemFrame ?? ScreenshotSettings.shared.enableShadow' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'private func backingScaleFactor(for window: SCWindow)' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'CGDisplayBounds(displayID).contains(center)' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+! rg -Fq 'let scale = NSScreen.main?.backingScaleFactor ?? 2.0' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
 rg -Fq 'includeSystemFrame ? [.bestResolution] : [.boundsIgnoreFraming, .bestResolution]' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'cfg.ignoreShadowsDisplay = false' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+cg_display_line=$(rg -n 'CGDisplayCreateImage\(displayID\)' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift | head -1 | cut -d: -f1)
+sc_display_line=$(rg -n 'SCShareableContent\.excludingDesktopWindows' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift | head -1 | cut -d: -f1)
+if (( cg_display_line >= sc_display_line )); then
+    exit 1
+fi
+rg -Fq 'let screenshotConfig = SCScreenshotConfiguration()' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'screenshotConfig.ignoreShadows = !includeSystemFrame' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'screenshotConfig.includeChildWindows = true' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'SCScreenshotManager.captureScreenshot(' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'cfg.ignoreShadowsSingleWindow = !includeSystemFrame' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'cfg.includeChildWindows = true' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
 rg -Fq 'annotationBaseIncludesSystemFrame' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
 rg -Fq 'applyingOutputEffects && !annotationBaseIncludesSystemFrame' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
 rg -Fq 'capture.includesSystemFrame' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift

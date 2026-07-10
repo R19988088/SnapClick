@@ -18,6 +18,8 @@ rg -Fq 'private final class PreviewPointerView: NSVisualEffectView' SnapClick/Ap
 rg -Fq 'let container = NSGlassEffectContainerView(frame:' SnapClick/App/AppDelegate.swift
 rg -Fq 'let bodyGlass = NSGlassEffectView(frame: bodyFrame)' SnapClick/App/AppDelegate.swift
 rg -Fq 'let pointerGlass = NSGlassEffectView(frame: pointerFrame)' SnapClick/App/AppDelegate.swift
+rg -Fq 'if orientation == "bottom" {' SnapClick/App/AppDelegate.swift
+rg -Fq 'pointerView = PreviewPointerView(' SnapClick/App/AppDelegate.swift
 rg -Fq 'container.contentView = contentHost' SnapClick/App/AppDelegate.swift
 rg -Fq 'applyPointerMask(to: pointerGlass' SnapClick/App/AppDelegate.swift
 rg -q 'NSVisualEffectView' SnapClick/App/AppDelegate.swift
