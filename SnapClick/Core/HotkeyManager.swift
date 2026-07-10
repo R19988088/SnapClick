@@ -186,9 +186,13 @@ final class HotkeyManager: ObservableObject {
                 return nil
             }
 
-            // 匹配快捷键，在主线程执行 action
-            DispatchQueue.main.async {
-                HotkeyManager.shared.handleKeyEvent(keyCode: CGKeyCode(keyCode), flags: flags)
+            // 同步判断是否命中，避免 Option 组合字符继续传给前台应用。
+            let handled = HotkeyManager.shared.handleKeyEvent(
+                keyCode: CGKeyCode(keyCode),
+                flags: flags
+            )
+            if handled {
+                return nil
             }
 
             return Unmanaged.passUnretained(event)
@@ -230,17 +234,20 @@ final class HotkeyManager: ObservableObject {
     }
     
     /// 处理按键事件并匹配已注册快捷键
-    private func handleKeyEvent(keyCode: CGKeyCode, flags: CGEventFlags) {
+    private func handleKeyEvent(keyCode: CGKeyCode, flags: CGEventFlags) -> Bool {
         // 提取修饰键的有效部分进行匹配
         let cleanFlags = flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
         
         for hotkey in registeredHotkeys {
             if hotkey.keyCode == keyCode && compareFlags(hotkey.modifiers, cleanFlags) {
                 print("匹配到快捷键: \(hotkey.name)")
-                hotkey.action()
-                break
+                DispatchQueue.main.async {
+                    hotkey.action()
+                }
+                return true
             }
         }
+        return false
     }
     
     // MARK: - 辅助解析逻辑
