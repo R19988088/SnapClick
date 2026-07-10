@@ -14,6 +14,12 @@ func CGSMainConnectionID() -> UInt32
 @discardableResult
 func CGSOrderWindow(_ cid: UInt32, _ windowID: UInt32, _ place: Int32, _ relativeTo: UInt32) -> Int32
 
+@_silgen_name("CGSGetWindowLevel") @discardableResult
+func CGSGetWindowLevel(_ cid: UInt32, _ windowID: UInt32, _ level: UnsafeMutablePointer<Int32>) -> Int32
+
+@_silgen_name("CGSSetWindowLevel") @discardableResult
+func CGSSetWindowLevel(_ cid: UInt32, _ windowID: UInt32, _ level: Int32) -> Int32
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusBarController: StatusBarController?
@@ -23,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let finderKeyActionController = FinderKeyActionController()
     private let screenCornerOverlayController = ScreenCornerOverlayController()
     private let windowShakeController = WindowShakeController()
+    private let inputSourceController = InputSourceController.shared
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.applicationIconImage = NSImage(named: "AppIcon")
@@ -31,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = PermissionManager.shared
         HotkeyManager.shared.registerAll()
         windowShakeController.start()
+        inputSourceController.start()
         setupFinderCommandObserver()
         handleFinderCommand()
 
@@ -100,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        inputSourceController.stop()
         windowShakeController.stop()
     }
 
@@ -648,6 +657,7 @@ private final class FinderDockPreviewController {
     private var lastPreviewFingerprint: String?
     private var currentDockApp: DockApp?
     private var isHidingPreview = false
+    private var isDockContextMenuTracking = false
     private var pendingDockClick: (app: DockApp, hadVisibleWindow: Bool)?
     private var lastRefresh = Date.distantPast
     private var thumbnailTilesByWindowID: [CGWindowID: PreviewTile] = [:]
@@ -678,6 +688,7 @@ private final class FinderDockPreviewController {
             | (1 << CGEventType.leftMouseDown.rawValue)
             | (1 << CGEventType.leftMouseUp.rawValue)
             | (1 << CGEventType.rightMouseDown.rawValue)
+            | (1 << CGEventType.keyDown.rawValue)
             | (1 << CGEventType.tapDisabledByTimeout.rawValue)
             | (1 << CGEventType.tapDisabledByUserInput.rawValue)
 
@@ -688,6 +699,15 @@ private final class FinderDockPreviewController {
             if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
                 if let tap = controller.eventTap {
                     CGEvent.tapEnable(tap: tap, enable: true)
+                }
+                return Unmanaged.passUnretained(event)
+            }
+
+            if type == .keyDown {
+                guard controller.isDockContextMenuTracking else { return Unmanaged.passUnretained(event) }
+                let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+                DispatchQueue.main.async {
+                    controller.handleDockContextMenuKeyDown(keyCode: keyCode)
                 }
                 return Unmanaged.passUnretained(event)
             }
@@ -732,6 +752,7 @@ private final class FinderDockPreviewController {
         eventTap = nil
         runLoopSource = nil
         pendingDockClick = nil
+        isDockContextMenuTracking = false
         thumbnailTask?.cancel()
         thumbnailTask = nil
         hidePreview()
@@ -766,6 +787,10 @@ private final class FinderDockPreviewController {
         case .mouseMoved:
             handleMouseMoved(axPoint: axPoint)
         case .leftMouseDown:
+            if isDockContextMenuTracking {
+                isDockContextMenuTracking = false
+                return
+            }
             handleDockMouseDown(axPoint: axPoint)
         case .leftMouseUp:
             handleDockMouseUp(axPoint: axPoint)
@@ -777,6 +802,7 @@ private final class FinderDockPreviewController {
     }
 
     private func handleMouseMoved(axPoint: CGPoint) {
+        guard !isDockContextMenuTracking else { return }
         guard !isHidingPreview else { return }
         let appKitPoint = appKitPoint(fromAXPoint: axPoint)
         if let dockApp = dockApp(atAXPoint: axPoint) {
@@ -833,13 +859,21 @@ private final class FinderDockPreviewController {
 
     private func handleDockRightMouseDown(axPoint: CGPoint) {
         let appKitPoint = appKitPoint(fromAXPoint: axPoint)
-        if let currentDockApp,
-           currentDockApp.bounds.contains(appKitPoint) {
-            hidePreview(toward: currentDockApp.bounds)
+        let cachedDockApp = currentDockApp.flatMap { currentDockApp in
+            currentDockApp.bounds.contains(appKitPoint) ? currentDockApp : nil
+        }
+        guard let targetDockApp = cachedDockApp ?? dockApp(atAXPoint: axPoint) else {
+            isDockContextMenuTracking = false
             return
         }
-        guard let dockApp = dockApp(atAXPoint: axPoint) else { return }
-        hidePreview(toward: dockApp.bounds)
+        isDockContextMenuTracking = true
+        hidePreview(toward: targetDockApp.bounds)
+    }
+
+    private func handleDockContextMenuKeyDown(keyCode: Int64) {
+        if [36, 53, 76].contains(keyCode) {
+            isDockContextMenuTracking = false
+        }
     }
 
     private func showPreview(for dockApp: DockApp) {

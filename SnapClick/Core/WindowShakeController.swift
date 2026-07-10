@@ -29,6 +29,7 @@ final class WindowShakeController {
     private var draggedWindowID: CGWindowID?
     private var recognizer = WindowShakeRecognizer()
     private var restoreSession: RestoreSession?
+    private var elevatedWindow: (windowID: CGWindowID, element: AXUIElement, originalLevel: Int32)?
 
     func start() {
         guard eventTap == nil else { return }
@@ -95,6 +96,7 @@ final class WindowShakeController {
         }
         eventTap = nil
         runLoopSource = nil
+        releaseElevatedWindow()
         clearGesture()
     }
 
@@ -122,6 +124,7 @@ final class WindowShakeController {
         let timestamp = TimeInterval(event.timestamp) / 1_000_000_000
         switch type {
         case .leftMouseDown:
+            releaseElevatedWindow()
             mouseDownState = MouseDownState(point: event.location, timestamp: timestamp)
             draggedWindow = nil
             draggedWindowID = nil
@@ -129,6 +132,7 @@ final class WindowShakeController {
         case .leftMouseDragged:
             handleMouseDragged(point: event.location, timestamp: timestamp)
         case .leftMouseUp:
+            releaseElevatedWindow()
             clearGesture()
         default:
             break
@@ -173,12 +177,8 @@ final class WindowShakeController {
         }
 
         let entries = visibleRestorableWindows(excluding: keptWindowID)
-        var minimizedEntries: [RestoreEntry] = []
-        for entry in entries {
-            if AXUIElementSetAttributeValue(entry.element, kAXMinimizedAttribute as CFString, kCFBooleanTrue) == .success {
-                minimizedEntries.append(entry)
-            }
-        }
+        holdDraggedWindowAboveAnimations(keptWindow, windowID: keptWindowID)
+        let minimizedEntries = setMinimizedConcurrently(entries, minimized: true)
         guard !minimizedEntries.isEmpty else { return }
         restoreSession = RestoreSession(
             keptWindowID: keptWindowID,
@@ -193,28 +193,70 @@ final class WindowShakeController {
     private func restore(_ session: RestoreSession) {
         let liveEntries = session.entries.filter { windowID(for: $0.element) == $0.windowID }
         let orderedEntries = liveEntries.sorted(by: { $0.frontToBackRank > $1.frontToBackRank })
-        let connection = CGSMainConnectionID()
-        let keepWindowFront = {
-            guard self.windowID(for: session.keptWindow) == session.keptWindowID else { return }
+        holdDraggedWindowAboveAnimations(session.keptWindow, windowID: session.keptWindowID)
+        _ = setMinimizedConcurrently(liveEntries, minimized: false)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self,
+                  self.windowID(for: session.keptWindow) == session.keptWindowID else { return }
+            let connection = CGSMainConnectionID()
+            for entry in orderedEntries {
+                guard self.windowID(for: entry.element) == entry.windowID else { continue }
+                self.restoreFrame(entry.frame, to: entry.element)
+                if CGSOrderWindow(connection, entry.windowID, -1, session.keptWindowID) != 0 {
+                    AXUIElementPerformAction(entry.element, kAXRaiseAction as CFString)
+                }
+            }
             if CGSOrderWindow(connection, session.keptWindowID, 1, 0) != 0 {
                 AXUIElementPerformAction(session.keptWindow, kAXRaiseAction as CFString)
             }
         }
+    }
 
-        keepWindowFront()
-        for entry in liveEntries {
-            restoreFrame(entry.frame, to: entry.element)
-            AXUIElementSetAttributeValue(entry.element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
-            keepWindowFront()
-        }
+    private func setMinimizedConcurrently(_ entries: [RestoreEntry], minimized: Bool) -> [RestoreEntry] {
+        guard !entries.isEmpty else { return [] }
+        let value = minimized ? kCFBooleanTrue! : kCFBooleanFalse!
+        let lock = NSLock()
+        var succeeded: [(index: Int, entry: RestoreEntry)] = []
+        succeeded.reserveCapacity(entries.count)
 
-        for entry in orderedEntries {
-            if CGSOrderWindow(connection, entry.windowID, -1, session.keptWindowID) != 0 {
-                AXUIElementPerformAction(entry.element, kAXRaiseAction as CFString)
-                keepWindowFront()
-            }
+        DispatchQueue.concurrentPerform(iterations: entries.count) { index in
+            let entry = entries[index]
+            guard AXUIElementSetAttributeValue(
+                entry.element,
+                kAXMinimizedAttribute as CFString,
+                value
+            ) == .success else { return }
+            lock.lock()
+            succeeded.append((index, entry))
+            lock.unlock()
         }
-        keepWindowFront()
+        return succeeded.sorted(by: { $0.index < $1.index }).map(\.entry)
+    }
+
+    private func holdDraggedWindowAboveAnimations(_ window: AXUIElement, windowID: CGWindowID) {
+        releaseElevatedWindow()
+        guard self.windowID(for: window) == windowID else { return }
+
+        let connection = CGSMainConnectionID()
+        var originalLevel: Int32 = 0
+        guard CGSGetWindowLevel(connection, windowID, &originalLevel) == 0 else { return }
+        let elevatedLevel = max(originalLevel + 1, CGWindowLevelForKey(.assistiveTechHighWindow))
+        guard CGSSetWindowLevel(connection, windowID, elevatedLevel) == 0 else { return }
+
+        elevatedWindow = (windowID, window, originalLevel)
+    }
+
+    private func releaseElevatedWindow() {
+        guard let state = elevatedWindow else { return }
+        elevatedWindow = nil
+
+        let connection = CGSMainConnectionID()
+        CGSSetWindowLevel(connection, state.windowID, state.originalLevel)
+        guard windowID(for: state.element) == state.windowID else { return }
+        if CGSOrderWindow(connection, state.windowID, 1, 0) != 0 {
+            AXUIElementPerformAction(state.element, kAXRaiseAction as CFString)
+        }
     }
 
     private func visibleRestorableWindows(excluding keptWindowID: CGWindowID) -> [RestoreEntry] {

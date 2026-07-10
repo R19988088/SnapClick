@@ -65,6 +65,8 @@ class AnnotationCanvas: NSView {
     private var currentDrawing: AnnotationItem?         // 正在绘制的标注
     private var textEditing:    Bool = false            // 是否正在编辑文字
     private var inputStabilizer = AnnotationInputStabilizer()
+    private var isTabletPenStroke = false
+    private var previousMouseCoalescingEnabled: Bool?
 
     // MARK: - 文字输入框
     private var textField: NSTextField?
@@ -80,6 +82,11 @@ class AnnotationCanvas: NSView {
         setup()
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        restoreMouseCoalescing()
+    }
+
     private func setup() {
         wantsLayer   = true
         layer?.backgroundColor = NSColor.white.cgColor
@@ -92,11 +99,45 @@ class AnnotationCanvas: NSView {
             userInfo: nil
         )
         addTrackingArea(tracking)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(cancelActivePenInput(_:)),
+            name: NSApplication.didResignActiveNotification,
+            object: NSApplication.shared
+        )
     }
 
     func selectTool(_ tool: AnnotationToolType) {
+        if currentTool == .pen, tool != .pen, currentDrawing != nil {
+            currentDrawing = nil
+            endTabletPenInput()
+            needsDisplay = true
+        }
         currentTool = tool
         applySize(size(for: tool))
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if let window {
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSWindow.didResignKeyNotification,
+                object: window
+            )
+        }
+        if newWindow == nil {
+            currentDrawing = nil
+            endTabletPenInput()
+        }
+        super.viewWillMove(toWindow: newWindow)
+        if let newWindow {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(cancelActivePenInput(_:)),
+                name: NSWindow.didResignKeyNotification,
+                object: newWindow
+            )
+        }
     }
 
     func size(for tool: AnnotationToolType) -> CGFloat {
@@ -251,12 +292,25 @@ class AnnotationCanvas: NSView {
 
     // MARK: - 画笔绘制
     private func drawPen(_ item: AnnotationItem, in context: CGContext) {
-        guard item.points.count >= 2 else { return }
+        guard let firstPoint = item.points.first else { return }
 
         context.saveGState()
         context.setStrokeColor(item.color.cgColor)
+        context.setFillColor(item.color.cgColor)
         context.setLineCap(.round)
         context.setLineJoin(.round)
+
+        if item.points.count == 1 {
+            let width = item.pointLineWidths.first ?? item.lineWidth
+            context.fillEllipse(in: CGRect(
+                x: firstPoint.x - width / 2,
+                y: firstPoint.y - width / 2,
+                width: width,
+                height: width
+            ))
+            context.restoreGState()
+            return
+        }
 
         if item.pointLineWidths.count == item.points.count {
             for index in 1..<item.points.count {
@@ -405,22 +459,35 @@ class AnnotationCanvas: NSView {
             )
             if currentTool.isPathBased {
                 if currentTool == .pen {
-                    inputStabilizer.reset()
-                    let sample = inputStabilizer.filter(
-                        point: loc,
-                        pressure: inputPressure(for: event),
-                        timestamp: event.timestamp
-                    )
                     item.points.reserveCapacity(256)
                     item.pointLineWidths.reserveCapacity(256)
-                    item.points.append(sample.point)
-                    item.pointLineWidths.append(lineWidth(forPressure: sample.pressure))
+                    if isTabletPenEvent(event) {
+                        beginTabletPenInput()
+                        let configuration = AnnotationStabilizerConfiguration(
+                            maximumPressure: CGFloat(AppSettings.shared.annotationMaximumPressure),
+                            deadZone: CGFloat(AppSettings.shared.annotationPressureDeadZone)
+                        )
+                        let samples = inputStabilizer.begin(
+                            tabletSample(point: loc, event: event),
+                            configuration: configuration
+                        )
+                        _ = appendTabletSamples(samples, to: &item)
+                    } else {
+                        isTabletPenStroke = false
+                        item.points.append(loc)
+                        item.pointLineWidths.append(currentLineWidth)
+                    }
                 } else {
                     item.points.reserveCapacity(128)
                     item.points.append(loc)
                 }
             }
             currentDrawing = item
+            if currentTool == .pen, let point = item.points.last {
+                let width = item.pointLineWidths.last ?? item.lineWidth
+                setNeedsDisplay(CGRect(x: point.x, y: point.y, width: 0, height: 0)
+                    .insetBy(dx: -(width / 2 + 3), dy: -(width / 2 + 3)))
+            }
         }
     }
 
@@ -457,12 +524,17 @@ class AnnotationCanvas: NSView {
         let loc = convert(event.locationInWindow, from: nil)
         defer {
             if drawing.type == .pen {
-                inputStabilizer.reset()
+                endTabletPenInput()
             }
         }
 
         if drawing.type.isPathBased {
-            _ = appendPathPoint(loc, event: event, to: &drawing)
+            if drawing.type == .pen, isTabletPenStroke {
+                let samples = inputStabilizer.finish(at: tabletSample(point: loc, event: event))
+                _ = appendTabletSamples(samples, to: &drawing)
+            } else {
+                _ = appendDirectPathPoint(loc, to: &drawing)
+            }
         } else {
             drawing.endPoint = loc
         }
@@ -478,6 +550,8 @@ class AnnotationCanvas: NSView {
             if !drawing.type.isPathBased {
                 let rect = drawing.normalizedRect
                 if rect.width < minSize && rect.height < minSize { return }
+            } else if drawing.type == .pen {
+                if drawing.points.isEmpty || (drawing.pointLineWidths.max() ?? 0) <= 0 { return }
             } else {
                 if drawing.points.count < 2 { return }
             }
@@ -602,7 +676,7 @@ class AnnotationCanvas: NSView {
     }
 
     func clear() {
-        inputStabilizer.reset()
+        endTabletPenInput()
         items.removeAll()
         redoStack.removeAll()
         currentDrawing = nil
@@ -667,14 +741,6 @@ class AnnotationCanvas: NSView {
         window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
     }
 
-    private func inputPressure(for event: NSEvent) -> CGFloat {
-        let pressure = max(0, min(1, CGFloat(event.pressure)))
-        if event.subtype == .tabletPoint || pressure > 0 {
-            return pressure
-        }
-        return 1 / 1.8
-    }
-
     private func lineWidth(forPressure pressure: CGFloat) -> CGFloat {
         return currentLineWidth * min(1.8, pressure * 1.8)
     }
@@ -685,37 +751,39 @@ class AnnotationCanvas: NSView {
         event: NSEvent,
         to drawing: inout AnnotationItem
     ) -> CGRect? {
-        let sample: AnnotationInputSample?
-        if drawing.type == .pen {
-            sample = inputStabilizer.filter(
-                point: point,
-                pressure: inputPressure(for: event),
-                timestamp: event.timestamp
+        if drawing.type == .pen, isTabletPenStroke {
+            return appendTabletSamples(
+                inputStabilizer.append(tabletSample(point: point, event: event)),
+                to: &drawing
             )
-        } else {
-            sample = nil
         }
-        let filteredPoint = sample?.point ?? point
+        return appendDirectPathPoint(point, to: &drawing)
+    }
+
+    private func appendDirectPathPoint(
+        _ point: CGPoint,
+        to drawing: inout AnnotationItem
+    ) -> CGRect? {
         guard let lastPoint = drawing.points.last else {
-            drawing.points.append(filteredPoint)
+            drawing.points.append(point)
             if drawing.type == .pen {
-                drawing.pointLineWidths.append(lineWidth(forPressure: sample?.pressure ?? 1))
+                drawing.pointLineWidths.append(currentLineWidth)
             }
             return nil
         }
 
         let nextWidth = drawing.type == .pen
-            ? lineWidth(forPressure: sample?.pressure ?? 1)
+            ? currentLineWidth
             : drawing.lineWidth
         let lastWidth = drawing.pointLineWidths.last ?? nextWidth
-        let distance = hypot(filteredPoint.x - lastPoint.x, filteredPoint.y - lastPoint.y)
+        let distance = hypot(point.x - lastPoint.x, point.y - lastPoint.y)
         let steps = max(1, min(8, Int(ceil(distance / 4))))
 
         for step in 1...steps {
             let t = CGFloat(step) / CGFloat(steps)
             drawing.points.append(CGPoint(
-                x: lastPoint.x + (filteredPoint.x - lastPoint.x) * t,
-                y: lastPoint.y + (filteredPoint.y - lastPoint.y) * t
+                x: lastPoint.x + (point.x - lastPoint.x) * t,
+                y: lastPoint.y + (point.y - lastPoint.y) * t
             ))
             if drawing.type == .pen {
                 drawing.pointLineWidths.append(lastWidth + (nextWidth - lastWidth) * t)
@@ -724,10 +792,75 @@ class AnnotationCanvas: NSView {
 
         let padding = max(lastWidth, nextWidth) / 2 + 3
         return CGRect(
-            x: min(lastPoint.x, filteredPoint.x),
-            y: min(lastPoint.y, filteredPoint.y),
-            width: abs(filteredPoint.x - lastPoint.x),
-            height: abs(filteredPoint.y - lastPoint.y)
+            x: min(lastPoint.x, point.x),
+            y: min(lastPoint.y, point.y),
+            width: abs(point.x - lastPoint.x),
+            height: abs(point.y - lastPoint.y)
         ).insetBy(dx: -padding, dy: -padding)
+    }
+
+    private func appendTabletSamples(
+        _ samples: AnnotationInputSamples,
+        to drawing: inout AnnotationItem
+    ) -> CGRect? {
+        var dirtyRect: CGRect?
+        for index in 0..<samples.count {
+            let sample = samples[index]
+            let width = lineWidth(forPressure: sample.pressure)
+            if let previousPoint = drawing.points.last {
+                let previousWidth = drawing.pointLineWidths.last ?? width
+                let padding = max(previousWidth, width) / 2 + 3
+                let segment = CGRect(
+                    x: min(previousPoint.x, sample.point.x),
+                    y: min(previousPoint.y, sample.point.y),
+                    width: abs(sample.point.x - previousPoint.x),
+                    height: abs(sample.point.y - previousPoint.y)
+                ).insetBy(dx: -padding, dy: -padding)
+                dirtyRect = dirtyRect.map { $0.union(segment) } ?? segment
+            }
+            drawing.points.append(sample.point)
+            drawing.pointLineWidths.append(width)
+        }
+        return dirtyRect
+    }
+
+    private func isTabletPenEvent(_ event: NSEvent) -> Bool {
+        event.subtype == .tabletPoint
+    }
+
+    private func tabletSample(point: CGPoint, event: NSEvent) -> AnnotationInputSample {
+        AnnotationInputSample(
+            point: point,
+            pressure: max(0, min(1, CGFloat(event.pressure))),
+            timestamp: event.timestamp
+        )
+    }
+
+    private func beginTabletPenInput() {
+        guard previousMouseCoalescingEnabled == nil else { return }
+        isTabletPenStroke = true
+        previousMouseCoalescingEnabled = NSEvent.isMouseCoalescingEnabled
+        NSEvent.isMouseCoalescingEnabled = false
+    }
+
+    @objc private func cancelActivePenInput(_ notification: Notification) {
+        if currentDrawing?.type == .pen {
+            currentDrawing = nil
+            needsDisplay = true
+        }
+        endTabletPenInput()
+    }
+
+    private func endTabletPenInput() {
+        inputStabilizer.cancel()
+        isTabletPenStroke = false
+        restoreMouseCoalescing()
+    }
+
+    private func restoreMouseCoalescing() {
+        if let previousMouseCoalescingEnabled {
+            NSEvent.isMouseCoalescingEnabled = previousMouseCoalescingEnabled
+            self.previousMouseCoalescingEnabled = nil
+        }
     }
 }

@@ -38,9 +38,34 @@ rg -Fq 'applyingOutputEffects && !annotationBaseIncludesSystemFrame' SnapClick/M
 rg -Fq 'capture.includesSystemFrame' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
 rg -Fq 'captureSingleWindow(win, includeSystemFrame: false)' SnapClick/Modules/Recording/RecordSelectionOverlayWindow.swift
 rg -Fq 'selectedWindowImage = img.image' SnapClick/Modules/Recording/RecordSelectionOverlayWindow.swift
-if rg -Fq 'NSEvent.isMouseCoalescingEnabled' SnapClick/Modules/Screenshot/AnnotationCanvas.swift; then
-    exit 1
-fi
+rg -Fq '@AppStorage("annotationMaximumPressure")' SnapClick/Core/AppSettings.swift
+rg -Fq '@AppStorage("annotationPressureDeadZone")' SnapClick/Core/AppSettings.swift
+rg -Fq 'max(0.01, min(storedMaximumPressure, 1))' SnapClick/Core/AppSettings.swift
+rg -Fq 'max(0, min(storedDeadZone, 0.3))' SnapClick/Core/AppSettings.swift
+! rg -Fq 'var annotationPressureAmplification:' SnapClick/Core/AppSettings.swift
+rg -Fq 'SectionLabel(title: "笔模式优化".localized' SnapClick/UI/MainWindow.swift
+rg -Fq 'Text("设备最大压力".localized)' SnapClick/UI/MainWindow.swift
+rg -Fq 'Slider(value: $settings.annotationMaximumPressure, in: 0.01...1, step: 0.01)' SnapClick/UI/MainWindow.swift
+rg -Fq '$settings.annotationPressureDeadZone' SnapClick/UI/MainWindow.swift
+rg -Fq 'CardDivider()' SnapClick/UI/MainWindow.swift
+pressure_section_line=$(rg -n 'SectionLabel\(title: "笔模式优化"\.localized' SnapClick/UI/MainWindow.swift | cut -d: -f1)
+storage_section_line=$(rg -n 'SectionLabel\(title: "储存设置"\.localized' SnapClick/UI/MainWindow.swift | cut -d: -f1)
+if (( pressure_section_line >= storage_section_line )); then exit 1; fi
+rg -Fq 'previousMouseCoalescingEnabled = NSEvent.isMouseCoalescingEnabled' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+rg -Fq 'NSEvent.isMouseCoalescingEnabled = false' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+rg -Fq 'NSEvent.isMouseCoalescingEnabled = previousMouseCoalescingEnabled' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+rg -Fq 'NSApplication.didResignActiveNotification' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+rg -Fq 'NSWindow.didResignKeyNotification' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+rg -Fq 'cancelActivePenInput' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+rg -Fq 'inputStabilizer.begin(' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+rg -Fq 'inputStabilizer.append(' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+rg -Fq 'inputStabilizer.finish(' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+if rg -Fq 'AnnotationPressureCurveLUT' SnapClick/Modules/Screenshot/AnnotationInputStabilizer.swift; then exit 1; fi
+if rg -Fq 'PreparedPressureCurve' SnapClick/Modules/Screenshot/AnnotationInputStabilizer.swift; then exit 1; fi
+if rg -Fq '109.58946814903847' SnapClick/Modules/Screenshot/AnnotationInputStabilizer.swift; then exit 1; fi
+if rg -q '//' SnapClick/Modules/Screenshot/AnnotationInputStabilizer.swift; then exit 1; fi
+if rg -Fq '/// 标注画笔达到完整压力时对应的设备输入上限' SnapClick/Core/AppSettings.swift; then exit 1; fi
+if rg -Fq '/// 标注画笔数位板压力死区' SnapClick/Core/AppSettings.swift; then exit 1; fi
 rg -Fq 'title: "添加圆角".localized' SnapClick/UI/MainWindow.swift
 rg -Fq 'static let cornerRadius: CGFloat = 12' SnapClick/Modules/Screenshot/AnnotationTool.swift
 rg -Fq 'static let buttonCornerRadius: CGFloat = 7' SnapClick/Modules/Screenshot/AnnotationTool.swift

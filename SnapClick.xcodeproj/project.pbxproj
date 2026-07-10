@@ -32,6 +32,8 @@
 		9365899555B15A4038717ADA /* PinWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24DA6EBCC16BC194C262297E /* PinWindowManager.swift */; };
 		9C1DE28673EAE16AFA48EA09 /* ScreenRecordingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A2065576FD6FDA4A762340 /* ScreenRecordingEngine.swift */; };
 		A1B2C3D4E5F60718293A4B5C /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* UpdateChecker.swift */; };
+		A11B22C33D44E55F66778890 /* InputSourceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B22C33D44E55F66778892 /* InputSourceController.swift */; };
+		A11B22C33D44E55F66778891 /* InputSourceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B22C33D44E55F66778893 /* InputSourceSettingsView.swift */; };
 		A47A6942859E9F4C173A99CC /* ScreenshotSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1A3385902B220B27E2707E /* ScreenshotSettings.swift */; };
 		AAAEA98CEF5556B146454878 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C203EBA64C4CDA4AB2A77471 /* Assets.xcassets */; };
 		ACDCFB8976B96A7F4B5DC1B2 /* IconCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 088B81B98211DDF22B0AD135 /* IconCache.swift */; };
@@ -114,6 +116,8 @@
 		9D4ABF050DAAD40FB6D791BF /* AnnotationCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvas.swift; sourceTree = "<group>"; };
 		9F7EA557285551D8124420FA /* RecordingHUDWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecordingHUDWindow.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5D /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
+		A11B22C33D44E55F66778892 /* InputSourceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSourceController.swift; sourceTree = "<group>"; };
+		A11B22C33D44E55F66778893 /* InputSourceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSourceSettingsView.swift; sourceTree = "<group>"; };
 		BD418F2D1FF7DD0732DE2DD3 /* ColorPickerOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPickerOverlay.swift; sourceTree = "<group>"; };
 		C203EBA64C4CDA4AB2A77471 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CEC9274894385E7870B9B740 /* FavoriteDirectoriesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteDirectoriesManager.swift; sourceTree = "<group>"; };
@@ -169,6 +173,7 @@
 			isa = PBXGroup;
 			children = (
 				6B99FD79048A7735A9956942 /* AppSettings.swift */,
+				A11B22C33D44E55F66778892 /* InputSourceController.swift */,
 				0433B561482FC0EC58A4A1B6 /* HotkeyManager.swift */,
 				356B4D9A7F2536E337434D86 /* PermissionManager.swift */,
 				A1B2C3D4E5F60718293A4B5D /* UpdateChecker.swift */,
@@ -192,6 +197,7 @@
 			isa = PBXGroup;
 			children = (
 				F6872E5C78F239D82BE8D993 /* MainWindow.swift */,
+				A11B22C33D44E55F66778893 /* InputSourceSettingsView.swift */,
 				FD7E01862C633C5337FB2F62 /* ShortcutsSettingsView.swift */,
 				24C46AC68C3BABB8B159D58F /* StatusBarController.swift */,
 				49AECAC44BA8CFCA81B4F3F1 /* WelcomeView.swift */,
@@ -391,6 +397,8 @@
 				EBEC4CB0B57FD5A9A7172FC9 /* NewFileTemplateManager.swift in Sources */,
 				CB9D56AFEB620999E3FDA6E8 /* PermissionManager.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5C /* UpdateChecker.swift in Sources */,
+				A11B22C33D44E55F66778890 /* InputSourceController.swift in Sources */,
+				A11B22C33D44E55F66778891 /* InputSourceSettingsView.swift in Sources */,
 				80E8D8DD13F0D17352FA9DC5 /* PinColorSettingsView.swift in Sources */,
 				C14E9B6617CB509E5887A7AF /* PinWindowController.swift in Sources */,
 				9365899555B15A4038717ADA /* PinWindowManager.swift in Sources */,
@@ -485,7 +493,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.3.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -551,7 +559,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.3.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

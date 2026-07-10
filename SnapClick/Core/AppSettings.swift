@@ -27,6 +27,25 @@ final class AppSettings: ObservableObject {
             }
         }
 
+        let oldPressureKey = "annotationPressureAmplification"
+        let maximumPressureKey = "annotationMaximumPressure"
+        let storedMaximumPressure: Double
+        if let maximumPressure = UserDefaults.standard.object(forKey: maximumPressureKey) as? NSNumber {
+            storedMaximumPressure = maximumPressure.doubleValue
+        } else if let oldAmplification = UserDefaults.standard.object(forKey: oldPressureKey) as? NSNumber {
+            storedMaximumPressure = 1 / max(1, oldAmplification.doubleValue)
+        } else {
+            storedMaximumPressure = 1
+        }
+        let normalizedMaximumPressure = (max(0.01, min(storedMaximumPressure, 1)) * 100).rounded() / 100
+        let storedDeadZone = (UserDefaults.standard.object(forKey: "annotationPressureDeadZone") as? NSNumber)?.doubleValue ?? 0.06
+        let normalizedDeadZone = (max(0, min(storedDeadZone, 0.3)) * 100).rounded() / 100
+        UserDefaults.standard.set(normalizedMaximumPressure, forKey: maximumPressureKey)
+        UserDefaults.standard.set(normalizedDeadZone, forKey: "annotationPressureDeadZone")
+        annotationMaximumPressure = normalizedMaximumPressure
+        annotationPressureDeadZone = normalizedDeadZone
+        UserDefaults.standard.removeObject(forKey: oldPressureKey)
+
         if UserDefaults.standard.string(forKey: "hotkeyAreaScreenshot") == "ctrl+shift+a",
            UserDefaults.standard.string(forKey: "hotkeyWindowScreenshot") == "ctrl+shift+w" {
             UserDefaults.standard.set("alt+a", forKey: "hotkeyAreaScreenshot")
@@ -66,6 +85,12 @@ final class AppSettings: ObservableObject {
     /// 是否为截图添加阴影
     @AppStorage("screenshotAddShadow")
     var screenshotAddShadow: Bool = true
+
+    @AppStorage("annotationMaximumPressure")
+    var annotationMaximumPressure: Double = 1.0
+
+    @AppStorage("annotationPressureDeadZone")
+    var annotationPressureDeadZone: Double = 0.06
 
 
     // MARK: 快捷键设置（存储为可读字符串描述，由 HotkeyManager 解析）
@@ -322,6 +347,7 @@ public final class LanguageManager: ObservableObject {
             "截图与标注": "Screenshot & Annotation",
             "贴图 & 取色": "Pin & Color",
             "右键菜单": "Right-Click Menu",
+            "输入法": "Input Method",
             "其他": "Other",
             "关于": "About",
             "请选择一个设置项": "Please select a setting",
@@ -371,6 +397,18 @@ public final class LanguageManager: ObservableObject {
             "Finder 中按 Del 将选中文件移到废纸篓": "Press Del in Finder to move selected files to Trash",
             "双击 Shift 复制文件名": "Double Shift to Copy Names",
             "Finder 多选时连按两次 Shift 复制文件名，每行一个并按名称排序": "Double press Shift with multiple Finder selections to copy sorted names, one per line",
+            "输入法偏好": "Input Method Preference",
+            "首选输入法": "Preferred Input Method",
+            "普通应用统一使用此输入法": "Use this input method in regular apps",
+            "没有可用的输入法": "No available input methods",
+            "保留用户选择": "Keep User Selection",
+            "手动切换后，将新输入法设为首选": "Make a manually selected input method the new preference",
+            "例外应用": "Exception Apps",
+            "以下应用忽略首选输入法并使用系统规则": "These apps ignore the preference and use macOS rules",
+            "暂无例外应用": "No exception apps",
+            "添加例外应用": "Add Exception App",
+            "移除例外应用": "Remove Exception App",
+            "选择应用": "Choose App",
             "语言与外观偏好": "Language & Appearance",
             "系统语言": "System Language",
             "应用界面及菜单的呈现语言": "Display language for the app interface and menus",
@@ -401,6 +439,11 @@ public final class LanguageManager: ObservableObject {
             "添加圆角": "Add Rounded Corners",
             "圆角半径": "Corner Radius",
             "添加阴影": "Add Shadow",
+            "笔模式优化": "Pen Mode Optimization",
+            "设备最大压力": "Device Maximum Pressure",
+            "达到完整压力所需的设备输入上限": "Device input required to reach full pressure",
+            "压力死区": "Pressure Dead Zone",
+            "忽略数位板起始压力噪声": "Ignore low-end tablet pressure noise",
 
             // 取色 & 贴图
             "取色器": "Color Picker",
@@ -580,6 +623,7 @@ public final class LanguageManager: ObservableObject {
             "截图与标注": "スクリーンショットと注釈",
             "贴图 & 取色": "ピン留めとカラーピッカー",
             "右键菜单": "右クリックメニュー",
+            "输入法": "入力ソース",
             "其他": "その他",
             "关于": "情報",
             "请选择一个设置项": "設定項目を選択してください",
@@ -656,6 +700,11 @@ public final class LanguageManager: ObservableObject {
             "添加圆角": "角丸を追加",
             "圆角半径": "角丸の半径",
             "添加阴影": "シャドウを追加",
+            "笔模式优化": "ペンモード最適化",
+            "设备最大压力": "デバイス最大筆圧",
+            "达到完整压力所需的设备输入上限": "最大筆圧に達するためのデバイス入力上限",
+            "压力死区": "筆圧デッドゾーン",
+            "忽略数位板起始压力噪声": "タブレットの低筆圧ノイズを無視",
 
             "取色器": "カラーピッカー",
             "贴图板": "ピンボード",
@@ -742,6 +791,18 @@ public final class LanguageManager: ObservableObject {
             // サイドバー - 新增
             "Finder 右键": "Finder 右クリック",
             "请从左侧选择设置项": "左のサイドバーから設定を選択",
+            "输入法偏好": "入力ソース設定",
+            "首选输入法": "優先入力ソース",
+            "普通应用统一使用此输入法": "通常のアプリでこの入力ソースを使用",
+            "没有可用的输入法": "利用可能な入力ソースがありません",
+            "保留用户选择": "ユーザーの選択を保持",
+            "手动切换后，将新输入法设为首选": "手動で切り替えた入力ソースを優先設定にする",
+            "例外应用": "例外アプリ",
+            "以下应用忽略首选输入法并使用系统规则": "以下のアプリでは優先設定を無視してシステム規則を使用",
+            "暂无例外应用": "例外アプリはありません",
+            "添加例外应用": "例外アプリを追加",
+            "移除例外应用": "例外アプリを削除",
+            "选择应用": "アプリを選択",
 
             // スクリーンショット設定 - 新增
             "截图外观": "スクリーンショットの外観",

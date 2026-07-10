@@ -161,6 +161,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
     case recording   = "recording"
     case pinAndColor = "pinAndColor"
     case contextMenu = "contextMenu"
+    case inputSource = "inputSource"
     case shortcuts   = "shortcuts"
     case other       = "other"
     case about       = "about"
@@ -174,6 +175,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
         case .recording:   return "屏幕录制".localized
         case .pinAndColor: return "贴图 & 取色".localized
         case .contextMenu: return "Finder 右键".localized
+        case .inputSource: return "输入法".localized
         case .shortcuts:   return "快捷键".localized
         case .other:       return "其他".localized
         case .about:       return "关于".localized
@@ -187,6 +189,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
         case .recording:   return "record.circle"
         case .pinAndColor: return "pin.circle"
         case .contextMenu: return "folder.badge.gearshape"
+        case .inputSource: return "textformat.abc"
         case .shortcuts:   return "keyboard"
         case .other:       return "ellipsis.circle"
         case .about:       return "info.circle"
@@ -477,6 +480,8 @@ private struct DetailView: View {
                             PinColorSettingsView()
                         case .contextMenu:
                             RightClickSettingsView()
+                        case .inputSource:
+                            InputSourceSettingsView()
                         case .shortcuts:
                             ShortcutsSettingsView()
                         case .other:
@@ -1076,6 +1081,58 @@ private struct ScreenshotSettingsView: View {
                                 description: "为截图应用所选圆角半径".localized,
                                 isOn: $settings.screenshotAddRoundCorner
                             )
+                        }
+                    }
+
+                    SectionLabel(title: "笔模式优化".localized, icon: "pencil.tip", color: .orange)
+
+                    DesignCard {
+                        VStack(spacing: 0) {
+                            VStack(spacing: 8) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("设备最大压力".localized)
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(.customPrimaryText)
+                                        Text("达到完整压力所需的设备输入上限".localized)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Text("\(Int((settings.annotationMaximumPressure * 100).rounded()))%")
+                                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                        .foregroundStyle(DT.accent)
+                                        .frame(width: 46, alignment: .trailing)
+                                }
+                                Slider(value: $settings.annotationMaximumPressure, in: 0.01...1, step: 0.01)
+                                    .tint(DT.accent)
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.vertical, DT.rowPadV)
+
+                            CardDivider()
+
+                            VStack(spacing: 8) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("压力死区".localized)
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(.customPrimaryText)
+                                        Text("忽略数位板起始压力噪声".localized)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Text("\(Int((settings.annotationPressureDeadZone * 100).rounded()))%")
+                                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                        .foregroundStyle(DT.accent)
+                                        .frame(width: 46, alignment: .trailing)
+                                }
+                                Slider(value: $settings.annotationPressureDeadZone, in: 0...0.3, step: 0.01)
+                                    .tint(DT.accent)
+                            }
+                            .padding(.horizontal, DT.rowPadH)
+                            .padding(.vertical, DT.rowPadV)
                         }
                     }
                 }

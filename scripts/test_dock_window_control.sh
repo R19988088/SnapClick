@@ -129,10 +129,15 @@ rg -q 'setWindows\(_ previews: \[DockWindowPreview\], minimized: Bool\)' SnapCli
 rg -q 'CGEvent\.tapCreate' SnapClick/App/AppDelegate.swift
 rg -q 'options: \.listenOnly' SnapClick/App/AppDelegate.swift
 rg -q 'CGEventType\.rightMouseDown\.rawValue' SnapClick/App/AppDelegate.swift
+rg -q 'CGEventType\.keyDown\.rawValue' SnapClick/App/AppDelegate.swift
 rg -q 'handleDockRightMouseDown\(axPoint: axPoint\)' SnapClick/App/AppDelegate.swift
 rg -q 'private func handleDockRightMouseDown\(axPoint: CGPoint\)' SnapClick/App/AppDelegate.swift
 rg -Fq 'currentDockApp.bounds.contains(appKitPoint)' SnapClick/App/AppDelegate.swift
 rg -q 'private var isHidingPreview = false' SnapClick/App/AppDelegate.swift
+rg -q 'private var isDockContextMenuTracking = false' SnapClick/App/AppDelegate.swift
+rg -Fq 'guard !isDockContextMenuTracking else { return }' SnapClick/App/AppDelegate.swift
+rg -Fq 'isDockContextMenuTracking = true' SnapClick/App/AppDelegate.swift
+rg -Fq '[36, 53, 76].contains(keyCode)' SnapClick/App/AppDelegate.swift
 rg -q 'NSAnimationContext\.runAnimationGroup' SnapClick/App/AppDelegate.swift
 rg -Fq 'panel.animator().setFrame(collapseFrame, display: true)' SnapClick/App/AppDelegate.swift
 rg -Fq 'panel.animator().alphaValue = 0' SnapClick/App/AppDelegate.swift
@@ -150,17 +155,35 @@ rg -q 'WindowShakeRecognizer' SnapClick/Core/WindowShakeController.swift
 rg -q 'let windowID: CGWindowID' SnapClick/Core/WindowShakeController.swift
 rg -q 'kAXMinimizedAttribute' SnapClick/Core/WindowShakeController.swift
 rg -q 'private var restoreSession: RestoreSession\?' SnapClick/Core/WindowShakeController.swift
-rg -q 'var minimizedEntries: \[RestoreEntry\]' SnapClick/Core/WindowShakeController.swift
+rg -q 'let minimizedEntries = setMinimizedConcurrently' SnapClick/Core/WindowShakeController.swift
 rg -q 'CGSOrderWindow' SnapClick/Core/WindowShakeController.swift
+rg -q 'func CGSGetWindowLevel' SnapClick/App/AppDelegate.swift
+rg -q 'func CGSSetWindowLevel' SnapClick/App/AppDelegate.swift
 rg -Fq 'let orderedEntries = liveEntries.sorted(by: { $0.frontToBackRank > $1.frontToBackRank })' SnapClick/Core/WindowShakeController.swift
-rg -Fq 'for entry in liveEntries {' SnapClick/Core/WindowShakeController.swift
 rg -Fq 'for entry in orderedEntries {' SnapClick/Core/WindowShakeController.swift
-rg -Fq 'let keepWindowFront = {' SnapClick/Core/WindowShakeController.swift
+! rg -Fq 'let keepWindowFront = {' SnapClick/Core/WindowShakeController.swift
 rg -Fq 'CGSOrderWindow(connection, entry.windowID, -1, session.keptWindowID)' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'private var elevatedWindow:' SnapClick/Core/WindowShakeController.swift
+! rg -Fq 'private var elevationReleaseTimer: Timer?' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'holdDraggedWindowAboveAnimations(session.keptWindow, windowID: session.keptWindowID)' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'CGWindowLevelForKey(.assistiveTechHighWindow)' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'CGSSetWindowLevel(connection, state.windowID, state.originalLevel)' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'DispatchQueue.main.asyncAfter(deadline: .now() + 0.15)' SnapClick/Core/WindowShakeController.swift
 restore_block="$(sed -n '/private func restore(_ session: RestoreSession)/,/private func visibleRestorableWindows/p' SnapClick/Core/WindowShakeController.swift)"
-test "$(grep -Fc 'keepWindowFront()' <<< "$restore_block")" -ge 3
+rg -Fq '_ = setMinimizedConcurrently(liveEntries, minimized: false)' <<< "$restore_block"
 ! grep -Fq 'CGSOrderWindow(connection, entry.windowID, 1, 0)' <<< "$restore_block"
-! rg -q 'DispatchQueue.main.asyncAfter' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'private func setMinimizedConcurrently(' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'DispatchQueue.concurrentPerform(iterations: entries.count)' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'let minimizedEntries = setMinimizedConcurrently(entries, minimized: true)' SnapClick/Core/WindowShakeController.swift
+minimize_helper_block="$(sed -n '/private func setMinimizedConcurrently/,/private func holdDraggedWindowAboveAnimations/p' SnapClick/Core/WindowShakeController.swift)"
+test "$(grep -Fc 'kAXMinimizedAttribute as CFString' <<< "$minimize_helper_block")" -eq 1
+release_block="$(sed -n '/private func releaseElevatedWindow()/,/private func visibleRestorableWindows/p' SnapClick/Core/WindowShakeController.swift)"
+level_restore_line="$(grep -nF 'CGSSetWindowLevel(connection, state.windowID, state.originalLevel)' <<< "$release_block" | cut -d: -f1)"
+liveness_check_line="$(grep -nF 'guard windowID(for: state.element) == state.windowID else { return }' <<< "$release_block" | cut -d: -f1)"
+test "$level_restore_line" -lt "$liveness_check_line"
+! rg -q 'Timer\.scheduledTimer' SnapClick/Core/WindowShakeController.swift
+mouse_up_block="$(sed -n '/case \.leftMouseUp:/,/default:/p' SnapClick/Core/WindowShakeController.swift)"
+rg -Fq 'releaseElevatedWindow()' <<< "$mouse_up_block"
 rg -q 'windowShakeController.start\(\)' SnapClick/App/AppDelegate.swift
 rg -q 'windowShakeController.stop\(\)' SnapClick/App/AppDelegate.swift
 
