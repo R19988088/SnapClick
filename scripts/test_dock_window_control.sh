@@ -128,6 +128,14 @@ rg -q 'NSWorkspace.shared.frontmostApplication\?\.processIdentifier == app.proce
 rg -q 'setWindows\(_ previews: \[DockWindowPreview\], minimized: Bool\)' SnapClick/App/AppDelegate.swift
 rg -q 'CGEvent\.tapCreate' SnapClick/App/AppDelegate.swift
 rg -q 'options: \.listenOnly' SnapClick/App/AppDelegate.swift
+rg -q 'CGEventType\.rightMouseDown\.rawValue' SnapClick/App/AppDelegate.swift
+rg -q 'handleDockRightMouseDown\(axPoint: axPoint\)' SnapClick/App/AppDelegate.swift
+rg -q 'private func handleDockRightMouseDown\(axPoint: CGPoint\)' SnapClick/App/AppDelegate.swift
+rg -Fq 'currentDockApp.bounds.contains(appKitPoint)' SnapClick/App/AppDelegate.swift
+rg -q 'private var isHidingPreview = false' SnapClick/App/AppDelegate.swift
+rg -q 'NSAnimationContext\.runAnimationGroup' SnapClick/App/AppDelegate.swift
+rg -Fq 'panel.animator().setFrame(collapseFrame, display: true)' SnapClick/App/AppDelegate.swift
+rg -Fq 'panel.animator().alphaValue = 0' SnapClick/App/AppDelegate.swift
 rg -q 'previewPanel\?\.isVisible == true' SnapClick/App/AppDelegate.swift
 rg -q 'previewAppPID == dockApp.app.processIdentifier' SnapClick/App/AppDelegate.swift
 rg -q 'dockTargetCoreContains\(appKitPoint, bounds: dockApp.bounds, axis: dockLayoutAxis\(\)\)' SnapClick/App/AppDelegate.swift
@@ -145,6 +153,7 @@ rg -q 'private var restoreSession: RestoreSession\?' SnapClick/Core/WindowShakeC
 rg -q 'var minimizedEntries: \[RestoreEntry\]' SnapClick/Core/WindowShakeController.swift
 rg -q 'CGSOrderWindow' SnapClick/Core/WindowShakeController.swift
 rg -Fq 'let orderedEntries = liveEntries.sorted(by: { $0.frontToBackRank > $1.frontToBackRank })' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'for entry in liveEntries {' SnapClick/Core/WindowShakeController.swift
 rg -Fq 'for entry in orderedEntries {' SnapClick/Core/WindowShakeController.swift
 ! rg -q 'DispatchQueue.main.asyncAfter' SnapClick/Core/WindowShakeController.swift
 rg -q 'windowShakeController.start\(\)' SnapClick/App/AppDelegate.swift

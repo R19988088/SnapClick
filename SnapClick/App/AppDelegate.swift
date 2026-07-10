@@ -647,6 +647,7 @@ private final class FinderDockPreviewController {
     private var previewOrientation: String?
     private var lastPreviewFingerprint: String?
     private var currentDockApp: DockApp?
+    private var isHidingPreview = false
     private var pendingDockClick: (app: DockApp, hadVisibleWindow: Bool)?
     private var lastRefresh = Date.distantPast
     private var thumbnailTilesByWindowID: [CGWindowID: PreviewTile] = [:]
@@ -676,6 +677,7 @@ private final class FinderDockPreviewController {
         let eventMask = (1 << CGEventType.mouseMoved.rawValue)
             | (1 << CGEventType.leftMouseDown.rawValue)
             | (1 << CGEventType.leftMouseUp.rawValue)
+            | (1 << CGEventType.rightMouseDown.rawValue)
             | (1 << CGEventType.tapDisabledByTimeout.rawValue)
             | (1 << CGEventType.tapDisabledByUserInput.rawValue)
 
@@ -767,12 +769,15 @@ private final class FinderDockPreviewController {
             handleDockMouseDown(axPoint: axPoint)
         case .leftMouseUp:
             handleDockMouseUp(axPoint: axPoint)
+        case .rightMouseDown:
+            handleDockRightMouseDown(axPoint: axPoint)
         default:
             break
         }
     }
 
     private func handleMouseMoved(axPoint: CGPoint) {
+        guard !isHidingPreview else { return }
         let appKitPoint = appKitPoint(fromAXPoint: axPoint)
         if let dockApp = dockApp(atAXPoint: axPoint) {
             if let currentDockApp,
@@ -824,6 +829,17 @@ private final class FinderDockPreviewController {
         let previews = copyWindows(for: pendingDockClick.app.app)
         guard !previews.isEmpty else { return }
         setWindows(previews, minimized: pendingDockClick.hadVisibleWindow)
+    }
+
+    private func handleDockRightMouseDown(axPoint: CGPoint) {
+        let appKitPoint = appKitPoint(fromAXPoint: axPoint)
+        if let currentDockApp,
+           currentDockApp.bounds.contains(appKitPoint) {
+            hidePreview(toward: currentDockApp.bounds)
+            return
+        }
+        guard let dockApp = dockApp(atAXPoint: axPoint) else { return }
+        hidePreview(toward: dockApp.bounds)
     }
 
     private func showPreview(for dockApp: DockApp) {
@@ -916,7 +932,43 @@ private final class FinderDockPreviewController {
     }
 
     private func hidePreview() {
+        guard !isHidingPreview else { return }
         previewPanel?.orderOut(nil)
+        clearPreviewState()
+    }
+
+    private func hidePreview(toward dockIconBounds: CGRect) {
+        guard !isHidingPreview,
+              let panel = previewPanel,
+              panel.isVisible else { return }
+        isHidingPreview = true
+        pendingDockClick = nil
+        thumbnailTask?.cancel()
+        thumbnailTask = nil
+
+        let originalFrame = panel.frame
+        let collapseFrame = CGRect(
+            x: dockIconBounds.midX - 4,
+            y: dockIconBounds.midY - 4,
+            width: 8,
+            height: 8
+        )
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().setFrame(collapseFrame, display: true)
+            panel.animator().alphaValue = 0
+        } completionHandler: { [weak self, weak panel] in
+            guard let self, let panel else { return }
+            panel.orderOut(nil)
+            panel.alphaValue = 1
+            panel.setFrame(originalFrame, display: false)
+            self.clearPreviewState()
+            self.isHidingPreview = false
+        }
+    }
+
+    private func clearPreviewState() {
         previewAppPID = nil
         previewOrientation = nil
         lastPreviewFingerprint = nil
