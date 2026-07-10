@@ -130,8 +130,8 @@ rg -q 'CGEvent\.tapCreate' SnapClick/App/AppDelegate.swift
 rg -q 'options: \.listenOnly' SnapClick/App/AppDelegate.swift
 rg -q 'previewPanel\?\.isVisible == true' SnapClick/App/AppDelegate.swift
 rg -q 'previewAppPID == dockApp.app.processIdentifier' SnapClick/App/AppDelegate.swift
-rg -q 'dockTargetCoreContains\(axPoint, bounds: dockApp.bounds, axis: dockLayoutAxis\(\)\)' SnapClick/App/AppDelegate.swift
-rg -q 'dockRetentionContains\(axPoint, bounds: currentDockApp.bounds, axis: dockLayoutAxis\(\)\)' SnapClick/App/AppDelegate.swift
+rg -q 'dockTargetCoreContains\(appKitPoint, bounds: dockApp.bounds, axis: dockLayoutAxis\(\)\)' SnapClick/App/AppDelegate.swift
+rg -q 'dockRetentionContains\(appKitPoint, bounds: currentDockApp.bounds, axis: dockLayoutAxis\(\)\)' SnapClick/App/AppDelegate.swift
 rg -q 'private func dockLayoutAxis\(\) -> DockLayoutAxis' SnapClick/App/AppDelegate.swift
 test -f SnapClick/Core/WindowShakeController.swift
 rg -q 'final class WindowShakeController' SnapClick/Core/WindowShakeController.swift

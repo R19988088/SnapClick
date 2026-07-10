@@ -777,7 +777,7 @@ private final class FinderDockPreviewController {
         if let dockApp = dockApp(atAXPoint: axPoint) {
             if let currentDockApp,
                currentDockApp.app.processIdentifier != dockApp.app.processIdentifier {
-                guard dockTargetCoreContains(axPoint, bounds: dockApp.bounds, axis: dockLayoutAxis()) else {
+                guard dockTargetCoreContains(appKitPoint, bounds: dockApp.bounds, axis: dockLayoutAxis()) else {
                     return
                 }
                 self.currentDockApp = dockApp
@@ -798,7 +798,7 @@ private final class FinderDockPreviewController {
                 showPreview(for: currentDockApp ?? dockApp)
             }
         } else if let currentDockApp,
-                  dockRetentionContains(axPoint, bounds: currentDockApp.bounds, axis: dockLayoutAxis()) {
+                  dockRetentionContains(appKitPoint, bounds: currentDockApp.bounds, axis: dockLayoutAxis()) {
             return
         } else if let currentDockApp, previewPanel?.frame.insetBy(dx: -10, dy: -10).contains(appKitPoint) == true {
             if Date().timeIntervalSince(lastRefresh) > 0.25 {
