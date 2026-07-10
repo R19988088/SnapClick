@@ -932,15 +932,17 @@ private final class FinderDockPreviewController {
         panelSize: NSSize,
         bodyFrame: NSRect
     ) -> NSView {
-        if #available(macOS 26.0, *) {
-            return makeLiquidGlassContainer(
-                contentView: scrollView,
-                orientation: orientation,
-                pointerCenter: pointerCenter,
-                panelSize: panelSize,
-                bodyFrame: bodyFrame
-            )
-        }
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                return makeLiquidGlassContainer(
+                    contentView: scrollView,
+                    orientation: orientation,
+                    pointerCenter: pointerCenter,
+                    panelSize: panelSize,
+                    bodyFrame: bodyFrame
+                )
+            }
+        #endif
 
         let root = NSView(frame: NSRect(origin: .zero, size: panelSize))
         root.autoresizingMask = [.width, .height]
@@ -973,49 +975,51 @@ private final class FinderDockPreviewController {
         return root
     }
 
-    @available(macOS 26.0, *)
-    private func makeLiquidGlassContainer(
-        contentView scrollView: NSScrollView,
-        orientation: String,
-        pointerCenter: CGFloat,
-        panelSize: NSSize,
-        bodyFrame: NSRect
-    ) -> NSView {
-        let container = NSGlassEffectContainerView(frame: NSRect(origin: .zero, size: panelSize))
-        container.autoresizingMask = [.width, .height]
-        container.spacing = 0
+    #if compiler(>=6.2)
+        @available(macOS 26.0, *)
+        private func makeLiquidGlassContainer(
+            contentView scrollView: NSScrollView,
+            orientation: String,
+            pointerCenter: CGFloat,
+            panelSize: NSSize,
+            bodyFrame: NSRect
+        ) -> NSView {
+            let container = NSGlassEffectContainerView(frame: NSRect(origin: .zero, size: panelSize))
+            container.autoresizingMask = [.width, .height]
+            container.spacing = 0
 
-        let contentHost = NSView(frame: container.bounds)
-        contentHost.autoresizingMask = [.width, .height]
+            let contentHost = NSView(frame: container.bounds)
+            contentHost.autoresizingMask = [.width, .height]
 
-        let pointerFrame = self.pointerFrame(
-            orientation: orientation,
-            pointerCenter: pointerCenter,
-            panelSize: panelSize
-        )
-        let pointerView: NSView
-        if orientation == "bottom" {
-            pointerView = PreviewPointerView(frame: pointerFrame, orientation: orientation)
-        } else {
-            let pointerGlass = NSGlassEffectView(frame: pointerFrame)
-            pointerGlass.identifier = Self.previewPointerIdentifier
-            pointerGlass.style = .regular
-            pointerGlass.contentView = NSView()
-            applyPointerMask(to: pointerGlass, orientation: orientation)
-            pointerView = pointerGlass
+            let pointerFrame = self.pointerFrame(
+                orientation: orientation,
+                pointerCenter: pointerCenter,
+                panelSize: panelSize
+            )
+            let pointerView: NSView
+            if orientation == "bottom" {
+                pointerView = PreviewPointerView(frame: pointerFrame, orientation: orientation)
+            } else {
+                let pointerGlass = NSGlassEffectView(frame: pointerFrame)
+                pointerGlass.identifier = Self.previewPointerIdentifier
+                pointerGlass.style = .regular
+                pointerGlass.contentView = NSView()
+                applyPointerMask(to: pointerGlass, orientation: orientation)
+                pointerView = pointerGlass
+            }
+            contentHost.addSubview(pointerView)
+
+            let bodyGlass = NSGlassEffectView(frame: bodyFrame)
+            bodyGlass.cornerRadius = PreviewMetrics.panelCornerRadius
+            bodyGlass.style = .regular
+            scrollView.frame = bodyGlass.bounds
+            bodyGlass.contentView = scrollView
+            contentHost.addSubview(bodyGlass)
+
+            container.contentView = contentHost
+            return container
         }
-        contentHost.addSubview(pointerView)
-
-        let bodyGlass = NSGlassEffectView(frame: bodyFrame)
-        bodyGlass.cornerRadius = PreviewMetrics.panelCornerRadius
-        bodyGlass.style = .regular
-        scrollView.frame = bodyGlass.bounds
-        bodyGlass.contentView = scrollView
-        contentHost.addSubview(bodyGlass)
-
-        container.contentView = contentHost
-        return container
-    }
+    #endif
 
     private func applyPointerMask(to view: NSView, orientation: String) {
         view.wantsLayer = true

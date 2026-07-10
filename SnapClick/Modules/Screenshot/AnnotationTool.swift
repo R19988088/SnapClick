@@ -358,13 +358,15 @@ enum AnnotationToolbarChrome {
     }
 
     static func makeView() -> NSView {
-        if #available(macOS 26.0, *) {
-            let glass = NSGlassEffectView()
-            glass.cornerRadius = cornerRadius
-            glass.style = .regular
-            glass.contentView = NSView()
-            return glass
-        }
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                let glass = NSGlassEffectView()
+                glass.cornerRadius = cornerRadius
+                glass.style = .regular
+                glass.contentView = NSView()
+                return glass
+            }
+        #endif
 
         let effect = NSVisualEffectView()
         effect.material = .hudWindow
@@ -374,11 +376,13 @@ enum AnnotationToolbarChrome {
     }
 
     static func contentHost(for toolbar: NSView) -> NSView {
-        if #available(macOS 26.0, *),
-           let glass = toolbar as? NSGlassEffectView,
-           let contentView = glass.contentView {
-            return contentView
-        }
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *),
+               let glass = toolbar as? NSGlassEffectView,
+               let contentView = glass.contentView {
+                return contentView
+            }
+        #endif
         return toolbar
     }
 
@@ -389,9 +393,11 @@ enum AnnotationToolbarChrome {
         toolbar.layer?.cornerCurve = .continuous
         toolbar.layer?.masksToBounds = true
         var usesNativeMaterial = toolbar is NSVisualEffectView
-        if #available(macOS 26.0, *) {
-            usesNativeMaterial = usesNativeMaterial || toolbar is NSGlassEffectView
-        }
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                usesNativeMaterial = usesNativeMaterial || toolbar is NSGlassEffectView
+            }
+        #endif
         if !usesNativeMaterial {
             toolbar.layer?.backgroundColor = toolbarFill(in: toolbar).cgColor
         }

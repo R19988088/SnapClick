@@ -461,25 +461,27 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         let defaultOptions: CGWindowImageOption = includeSystemFrame ? [] : [.boundsIgnoreFraming]
         let filter = SCContentFilter(desktopIndependentWindow: window)
 
-        if #available(macOS 26.0, *) {
-            let screenshotConfig = SCScreenshotConfiguration()
-            screenshotConfig.showsCursor = false
-            screenshotConfig.ignoreShadows = !includeSystemFrame
-            screenshotConfig.includeChildWindows = true
-            screenshotConfig.dynamicRange = .sdr
-            if let output = try? await SCScreenshotManager.captureScreenshot(
-                contentFilter: filter,
-                configuration: screenshotConfig
-            ), let cg = output.sdrImage {
-                return WindowCaptureResult(
-                    image: NSImage(
-                        cgImage: cg,
-                        size: NSSize(width: CGFloat(cg.width) / scale, height: CGFloat(cg.height) / scale)
-                    ),
-                    includesSystemFrame: includeSystemFrame
-                )
+        #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                let screenshotConfig = SCScreenshotConfiguration()
+                screenshotConfig.showsCursor = false
+                screenshotConfig.ignoreShadows = !includeSystemFrame
+                screenshotConfig.includeChildWindows = true
+                screenshotConfig.dynamicRange = .sdr
+                if let output = try? await SCScreenshotManager.captureScreenshot(
+                    contentFilter: filter,
+                    configuration: screenshotConfig
+                ), let cg = output.sdrImage {
+                    return WindowCaptureResult(
+                        image: NSImage(
+                            cgImage: cg,
+                            size: NSSize(width: CGFloat(cg.width) / scale, height: CGFloat(cg.height) / scale)
+                        ),
+                        includesSystemFrame: includeSystemFrame
+                    )
+                }
             }
-        }
+        #endif
 
         // 旧系统优先使用 CoreGraphics；开启投影时不使用 boundsIgnoreFraming。
         let windowImage: CGImage? = await Task.detached(priority: .userInitiated) {
