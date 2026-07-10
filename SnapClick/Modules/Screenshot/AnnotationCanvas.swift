@@ -65,7 +65,6 @@ class AnnotationCanvas: NSView {
     private var currentDrawing: AnnotationItem?         // 正在绘制的标注
     private var textEditing:    Bool = false            // 是否正在编辑文字
     private var inputStabilizer = AnnotationInputStabilizer()
-    private var previousMouseCoalescingEnabled: Bool?
 
     // MARK: - 文字输入框
     private var textField: NSTextField?
@@ -407,8 +406,6 @@ class AnnotationCanvas: NSView {
             if currentTool.isPathBased {
                 if currentTool == .pen {
                     inputStabilizer.reset()
-                    previousMouseCoalescingEnabled = NSEvent.isMouseCoalescingEnabled
-                    NSEvent.isMouseCoalescingEnabled = false
                     let sample = inputStabilizer.filter(
                         point: loc,
                         pressure: inputPressure(for: event),
@@ -460,7 +457,6 @@ class AnnotationCanvas: NSView {
         let loc = convert(event.locationInWindow, from: nil)
         defer {
             if drawing.type == .pen {
-                restoreMouseCoalescing()
                 inputStabilizer.reset()
             }
         }
@@ -606,7 +602,6 @@ class AnnotationCanvas: NSView {
     }
 
     func clear() {
-        restoreMouseCoalescing()
         inputStabilizer.reset()
         items.removeAll()
         redoStack.removeAll()
@@ -734,12 +729,5 @@ class AnnotationCanvas: NSView {
             width: abs(filteredPoint.x - lastPoint.x),
             height: abs(filteredPoint.y - lastPoint.y)
         ).insetBy(dx: -padding, dy: -padding)
-    }
-
-    private func restoreMouseCoalescing() {
-        if let previousMouseCoalescingEnabled {
-            NSEvent.isMouseCoalescingEnabled = previousMouseCoalescingEnabled
-            self.previousMouseCoalescingEnabled = nil
-        }
     }
 }

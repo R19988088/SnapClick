@@ -97,6 +97,8 @@ rg -Fq 'private final class PreviewPointerView' SnapClick/App/AppDelegate.swift
 rg -Fq 'private func dockMaximumIconSize() -> CGFloat' SnapClick/App/AppDelegate.swift
 rg -Fq 'dockPreferenceNumber("largesize")' SnapClick/App/AppDelegate.swift
 rg -Fq 'panel.setFrame(panelFrame, display: true)' SnapClick/App/AppDelegate.swift
+rg -Fq 'pointerView.frame = pointerFrame(' SnapClick/App/AppDelegate.swift
+rg -Fq 'showPreview(for: currentDockApp)' SnapClick/App/AppDelegate.swift
 rg -q 'windowID: CGWindowID\?' SnapClick/App/AppDelegate.swift
 rg -q 'axWindow: AXUIElement\?' SnapClick/App/AppDelegate.swift
 rg -q 'pidValue\(from item: \[String: Any\]\)' SnapClick/App/AppDelegate.swift

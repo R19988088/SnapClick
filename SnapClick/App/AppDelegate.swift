@@ -829,11 +829,23 @@ private final class FinderDockPreviewController {
         let fingerprint = previewFingerprint(for: previews)
         let panel = previewPanel ?? makePanel()
         let panelFrame = frame(width: panelWidth, height: PreviewMetrics.panelHeight, near: dockApp.bounds)
+        let pointerCenter = orientation == "bottom"
+            ? dockApp.bounds.midX - panelFrame.minX
+            : dockApp.bounds.midY - panelFrame.minY
         if previewPanel?.isVisible == true,
            previewAppPID == dockApp.app.processIdentifier,
            lastPreviewFingerprint == fingerprint,
            previewOrientation == orientation {
             panel.setFrame(panelFrame, display: true)
+            if let pointerView = panel.contentView?.subviews
+                .compactMap({ $0 as? PreviewPointerView })
+                .first {
+                pointerView.frame = pointerFrame(
+                    orientation: orientation,
+                    pointerCenter: pointerCenter,
+                    panelSize: panelFrame.size
+                )
+            }
             panel.orderFrontRegardless()
             loadThumbnails(
                 for: previews,
@@ -858,9 +870,6 @@ private final class FinderDockPreviewController {
         stack.frame = NSRect(x: 0, y: 0, width: contentWidth, height: PreviewMetrics.panelHeight)
         scrollView.documentView = stack
 
-        let pointerCenter = orientation == "bottom"
-            ? dockApp.bounds.midX - panelFrame.minX
-            : dockApp.bounds.midY - panelFrame.minY
         panel.contentView = panelGlassView(
             contentView: scrollView,
             orientation: orientation,
@@ -1172,19 +1181,12 @@ private final class FinderDockPreviewController {
     }
 
     private func shrinkPreviewPanelAfterTileClose() {
-        guard let panel = previewPanel else { return }
-        let remaining = thumbnailTilesByWindowID.count
-        guard remaining > 0 else {
+        guard !thumbnailTilesByWindowID.isEmpty else {
             hidePreview()
             return
         }
-        let width = CGFloat(remaining) * PreviewMetrics.tileWidth
-            + CGFloat(max(remaining - 1, 0)) * PreviewMetrics.spacing
-            + 16
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.18
-            panel.animator().setContentSize(NSSize(width: width, height: PreviewMetrics.panelHeight))
-        }
+        guard let currentDockApp else { return }
+        showPreview(for: currentDockApp)
     }
 
     private func windowTitle(_ window: AXUIElement) -> String {

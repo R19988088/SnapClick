@@ -13,6 +13,10 @@ rg -Fq 'sharedScreenshotCIContext' SnapClick/Modules/Screenshot/ScreenCaptureEng
 rg -Fq 'reducedContrastImageCache' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
 rg -Fq 'cachedReducedContrastImage()' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
 rg -Fq 'ctx.strokePath()' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq '[.boundsIgnoreFraming, .bestResolution]' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+if rg -Fq 'NSEvent.isMouseCoalescingEnabled' SnapClick/Modules/Screenshot/AnnotationCanvas.swift; then
+    exit 1
+fi
 rg -Fq 'title: "添加圆角".localized' SnapClick/UI/MainWindow.swift
 rg -Fq 'static let cornerRadius: CGFloat = 12' SnapClick/Modules/Screenshot/AnnotationTool.swift
 rg -Fq 'static let buttonCornerRadius: CGFloat = 7' SnapClick/Modules/Screenshot/AnnotationTool.swift

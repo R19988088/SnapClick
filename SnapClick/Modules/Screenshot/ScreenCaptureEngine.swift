@@ -437,12 +437,21 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         let cgID = window.windowID
         let scale = NSScreen.main?.backingScaleFactor ?? 2.0
 
-        // CGWindowListCreateImage 不带 .boundsIgnoreFraming 时会保留窗口外框/投影。
-        let framedImage: CGImage? = await Task.detached(priority: .userInitiated) {
-            CGWindowListCreateImage(.null, .optionIncludingWindow, cgID, [.bestResolution])
-                ?? CGWindowListCreateImage(.null, .optionIncludingWindow, cgID, [])
+        // 统一捕获无系统投影的窗口内容，最终描边/投影由 applyScreenshotEffects 处理。
+        let windowImage: CGImage? = await Task.detached(priority: .userInitiated) {
+            CGWindowListCreateImage(
+                .null,
+                .optionIncludingWindow,
+                cgID,
+                [.boundsIgnoreFraming, .bestResolution]
+            ) ?? CGWindowListCreateImage(
+                .null,
+                .optionIncludingWindow,
+                cgID,
+                [.boundsIgnoreFraming]
+            )
         }.value
-        if let img = framedImage {
+        if let img = windowImage {
             return NSImage(
                 cgImage: img,
                 size: NSSize(width: CGFloat(img.width) / scale, height: CGFloat(img.height) / scale)
@@ -467,13 +476,13 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
             if let cg = CGWindowListCreateImage(.null,
                                                 .optionIncludingWindow,
                                                 cgID,
-                                                [.nominalResolution]) {
+                                                [.boundsIgnoreFraming, .nominalResolution]) {
                 return cg
             }
             return CGWindowListCreateImage(.null,
                                            .optionIncludingWindow,
                                            cgID,
-                                           [])
+                                           [.boundsIgnoreFraming])
         }.value
         if let img = img {
             return NSImage(
