@@ -67,7 +67,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         canvas = AnnotationCanvas(frame: canvasFrame)
         canvas.baseImage = screenshot
 
-        editorToolbar = NSView()
+        editorToolbar = AnnotationToolbarChrome.makeView()
         AnnotationToolbarChrome.apply(to: editorToolbar)
 
         // 初始化 scrollView（包裹 canvas）
@@ -137,7 +137,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         stack.spacing = AnnotationToolbarChrome.rowSpacing
         stack.alignment = .centerX
 
-        editorToolbar.addSubview(stack)
+        AnnotationToolbarChrome.contentHost(for: editorToolbar).addSubview(stack)
         stack.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: editorToolbar.leadingAnchor, constant: AnnotationToolbarChrome.horizontalPadding),
@@ -170,7 +170,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
 
     private func makeToolButton(for tool: AnnotationToolType) -> HoverButton {
         let btn = ToolAdjustButton(tool: tool, value: canvas.currentLineWidth)
-        btn.layer?.cornerRadius = AnnotationToolbarChrome.buttonSide / 2
+        btn.layer?.cornerRadius = AnnotationToolbarChrome.buttonCornerRadius
         btn.onSizeChange = { [weak self] value in
             self?.setToolSize(value)
         }
@@ -255,7 +255,7 @@ class AnnotationEditorWindow: NSWindow, AnnotationCanvasDelegate {
         btn.bezelStyle = .regularSquare
         btn.isBordered = false
         btn.wantsLayer = true
-        btn.layer?.cornerRadius = AnnotationToolbarChrome.buttonSide / 2
+        btn.layer?.cornerRadius = AnnotationToolbarChrome.buttonCornerRadius
 
         let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
         if let img = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)?

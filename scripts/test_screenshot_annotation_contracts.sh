@@ -14,6 +14,17 @@ rg -Fq 'reducedContrastImageCache' SnapClick/Modules/Screenshot/AnnotationCanvas
 rg -Fq 'cachedReducedContrastImage()' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
 rg -Fq 'ctx.strokePath()' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
 rg -Fq 'title: "添加圆角".localized' SnapClick/UI/MainWindow.swift
+rg -Fq 'static let cornerRadius: CGFloat = 12' SnapClick/Modules/Screenshot/AnnotationTool.swift
+rg -Fq 'static let buttonCornerRadius: CGFloat = 7' SnapClick/Modules/Screenshot/AnnotationTool.swift
+rg -Fq 'static func makeView() -> NSView' SnapClick/Modules/Screenshot/AnnotationTool.swift
+rg -Fq 'static func contentHost(for toolbar: NSView) -> NSView' SnapClick/Modules/Screenshot/AnnotationTool.swift
+rg -Fq 'NSGlassEffectView()' SnapClick/Modules/Screenshot/AnnotationTool.swift
+rg -Fq 'NSVisualEffectView()' SnapClick/Modules/Screenshot/AnnotationTool.swift
+rg -Fq 'case .pen:       return "pencil.tip"' SnapClick/Modules/Screenshot/AnnotationTool.swift
+rg -Fq 'case .highlight: return "rectangle.dashed"' SnapClick/Modules/Screenshot/AnnotationTool.swift
+rg -Fq 'case .mosaic:    return "square.grid.3x3.fill"' SnapClick/Modules/Screenshot/AnnotationTool.swift
+rg -Fq 'editorToolbar = AnnotationToolbarChrome.makeView()' SnapClick/Modules/Screenshot/AnnotationEditorWindow.swift
+rg -Fq 'let toolbar = AnnotationToolbarChrome.makeView()' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
 rg -q 'windowCaptureRect\(for win: SCWindow\)' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
 rg -q 'ScreenCaptureEngine.shared.captureSingleWindow\(win\)' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
 rg -q 'nextAnnotationBaseImage' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift

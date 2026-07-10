@@ -58,13 +58,13 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
         case .rectangle: return "square"
         case .ellipse:   return "circle"
         case .arrow:     return "arrow.up.right"
-        case .pen:       return "pencil"
-        case .mosaic:    return "square.grid.3x3"
-        case .text:      return "t.character"
-        case .number:    return "list.number"
-        case .highlight: return "highlighter"
+        case .pen:       return "pencil.tip"
+        case .mosaic:    return "square.grid.3x3.fill"
+        case .text:      return "textformat"
+        case .number:    return "number.circle"
+        case .highlight: return "rectangle.dashed"
         case .eraser:    return "eraser"
-        case .drag:      return "hand.draw"
+        case .drag:      return "arrow.up.and.down.and.arrow.left.and.right"
         }
     }
 
@@ -312,6 +312,8 @@ class HoverButton: NSButton {
 
 enum AnnotationToolbarChrome {
     static let height: CGFloat = 78
+    static let cornerRadius: CGFloat = 12
+    static let buttonCornerRadius: CGFloat = 7
     static let horizontalPadding: CGFloat = 16
     static let verticalPadding: CGFloat = 7
     static let rowSpacing: CGFloat = 5
@@ -355,18 +357,46 @@ enum AnnotationToolbarChrome {
             : NSColor(calibratedWhite: 0.96, alpha: 1)
     }
 
+    static func makeView() -> NSView {
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView()
+            glass.cornerRadius = cornerRadius
+            glass.style = .regular
+            glass.contentView = NSView()
+            return glass
+        }
+
+        let effect = NSVisualEffectView()
+        effect.material = .hudWindow
+        effect.blendingMode = .behindWindow
+        effect.state = .active
+        return effect
+    }
+
+    static func contentHost(for toolbar: NSView) -> NSView {
+        if #available(macOS 26.0, *),
+           let glass = toolbar as? NSGlassEffectView,
+           let contentView = glass.contentView {
+            return contentView
+        }
+        return toolbar
+    }
+
     static func apply(to toolbar: NSView) {
         let dark = isDark(in: toolbar)
         toolbar.wantsLayer = true
-        toolbar.layer?.cornerRadius = height / 2
-        toolbar.layer?.masksToBounds = false
-        toolbar.layer?.backgroundColor = toolbarFill(in: toolbar).cgColor
+        toolbar.layer?.cornerRadius = cornerRadius
+        toolbar.layer?.cornerCurve = .continuous
+        toolbar.layer?.masksToBounds = true
+        var usesNativeMaterial = toolbar is NSVisualEffectView
+        if #available(macOS 26.0, *) {
+            usesNativeMaterial = usesNativeMaterial || toolbar is NSGlassEffectView
+        }
+        if !usesNativeMaterial {
+            toolbar.layer?.backgroundColor = toolbarFill(in: toolbar).cgColor
+        }
         toolbar.layer?.borderColor = (dark ? NSColor.white.withAlphaComponent(0.12) : NSColor.black.withAlphaComponent(0.10)).cgColor
         toolbar.layer?.borderWidth = 0.5
-        toolbar.layer?.shadowColor = NSColor.black.cgColor
-        toolbar.layer?.shadowOpacity = dark ? 0.32 : 0.18
-        toolbar.layer?.shadowRadius = 14
-        toolbar.layer?.shadowOffset = NSSize(width: 0, height: -5)
     }
 }
 
@@ -388,7 +418,7 @@ final class ToolAdjustButton: HoverButton {
         isBordered = false
         imagePosition = .imageOnly
         wantsLayer = true
-        layer?.cornerRadius = AnnotationToolbarChrome.buttonSide / 2
+        layer?.cornerRadius = AnnotationToolbarChrome.buttonCornerRadius
         font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
 
         let pointSize: CGFloat = tool == .text ? 20 : 16

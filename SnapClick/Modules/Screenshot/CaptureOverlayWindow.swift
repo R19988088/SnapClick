@@ -910,7 +910,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         }
 
         // 3. 原位初始化悬浮底栏 editorToolbar
-        let toolbar = NSView()
+        let toolbar = AnnotationToolbarChrome.makeView()
         addSubview(toolbar)
         self.editorToolbar = toolbar
 
@@ -965,7 +965,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         mainStack.addArrangedSubview(topRow)
         mainStack.addArrangedSubview(colorGroup)
         
-        toolbar.addSubview(mainStack)
+        AnnotationToolbarChrome.contentHost(for: toolbar).addSubview(mainStack)
         mainStack.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             mainStack.centerXAnchor.constraint(equalTo: toolbar.centerXAnchor),
@@ -1064,7 +1064,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         btn.bezelStyle = .regularSquare
         btn.isBordered = false
         btn.wantsLayer = true
-        btn.layer?.cornerRadius = AnnotationToolbarChrome.buttonSide / 2
+        btn.layer?.cornerRadius = AnnotationToolbarChrome.buttonCornerRadius
         
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         if let img = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)?
