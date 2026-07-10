@@ -769,11 +769,31 @@ private final class FinderDockPreviewController {
     private func handleMouseMoved(axPoint: CGPoint) {
         let appKitPoint = appKitPoint(fromAXPoint: axPoint)
         if let dockApp = dockApp(atAXPoint: axPoint) {
-            currentDockApp = dockApp
-            if Date().timeIntervalSince(lastRefresh) > 0.12 {
+            if let currentDockApp,
+               currentDockApp.app.processIdentifier != dockApp.app.processIdentifier {
+                guard dockTargetCoreContains(axPoint, bounds: dockApp.bounds, axis: dockLayoutAxis()) else {
+                    return
+                }
+                self.currentDockApp = dockApp
                 lastRefresh = Date()
                 showPreview(for: dockApp)
+                return
             }
+
+            if currentDockApp == nil {
+                currentDockApp = dockApp
+                lastRefresh = Date()
+                showPreview(for: dockApp)
+                return
+            }
+
+            if Date().timeIntervalSince(lastRefresh) > 0.12 {
+                lastRefresh = Date()
+                showPreview(for: currentDockApp ?? dockApp)
+            }
+        } else if let currentDockApp,
+                  dockRetentionContains(axPoint, bounds: currentDockApp.bounds, axis: dockLayoutAxis()) {
+            return
         } else if let currentDockApp, previewPanel?.frame.insetBy(dx: -10, dy: -10).contains(appKitPoint) == true {
             if Date().timeIntervalSince(lastRefresh) > 0.25 {
                 lastRefresh = Date()
@@ -807,6 +827,29 @@ private final class FinderDockPreviewController {
             return
         }
 
+        let contentWidth = CGFloat(previews.count) * PreviewMetrics.tileWidth
+            + CGFloat(max(previews.count - 1, 0)) * PreviewMetrics.spacing
+            + 16
+        let orientation = dockOrientation()
+        let sidePointerWidth = orientation == "bottom" ? 0 : PreviewMetrics.pointerSize
+        let panelWidth = min(contentWidth, visibleFrame(near: dockApp.bounds).width - 24 - sidePointerWidth)
+        let fingerprint = previewFingerprint(for: previews)
+        let panel = previewPanel ?? makePanel()
+        if previewPanel?.isVisible == true,
+           previewAppPID == dockApp.app.processIdentifier,
+           lastPreviewFingerprint == fingerprint,
+           previewOrientation == orientation {
+            panel.orderFrontRegardless()
+            loadThumbnails(
+                for: previews,
+                maxSize: CGSize(width: PreviewMetrics.tileWidth - PreviewMetrics.imageInset * 2, height: PreviewMetrics.imageHeight),
+                tilesByWindowID: thumbnailTilesByWindowID,
+                appPID: dockApp.app.processIdentifier,
+                fingerprint: fingerprint
+            )
+            return
+        }
+
         let stack = NSStackView()
         stack.orientation = .horizontal
         stack.alignment = .top
@@ -823,41 +866,10 @@ private final class FinderDockPreviewController {
             }
         }
 
-        let contentWidth = CGFloat(previews.count) * PreviewMetrics.tileWidth
-            + CGFloat(max(previews.count - 1, 0)) * PreviewMetrics.spacing
-            + 16
-        let orientation = dockOrientation()
-        let sidePointerWidth = orientation == "bottom" ? 0 : PreviewMetrics.pointerSize
-        let panelWidth = min(contentWidth, visibleFrame(near: dockApp.bounds).width - 24 - sidePointerWidth)
-        let fingerprint = previewFingerprint(for: previews)
-        let panel = previewPanel ?? makePanel()
         let panelFrame = frame(width: panelWidth, height: PreviewMetrics.panelHeight, near: dockApp.bounds)
         let pointerCenter = orientation == "bottom"
             ? dockApp.bounds.midX - panelFrame.minX
             : dockApp.bounds.midY - panelFrame.minY
-        if previewPanel?.isVisible == true,
-           previewAppPID == dockApp.app.processIdentifier,
-           lastPreviewFingerprint == fingerprint,
-           previewOrientation == orientation {
-            panel.setFrame(panelFrame, display: true)
-            if let pointerView = previewPointerView(in: panel.contentView) {
-                pointerView.frame = pointerFrame(
-                    orientation: orientation,
-                    pointerCenter: pointerCenter,
-                    panelSize: panelFrame.size
-                )
-                applyPointerMask(to: pointerView, orientation: orientation)
-            }
-            panel.orderFrontRegardless()
-            loadThumbnails(
-                for: previews,
-                maxSize: CGSize(width: PreviewMetrics.tileWidth - PreviewMetrics.imageInset * 2, height: PreviewMetrics.imageHeight),
-                tilesByWindowID: thumbnailTilesByWindowID,
-                appPID: dockApp.app.processIdentifier,
-                fingerprint: fingerprint
-            )
-            return
-        }
 
         let contentFrame = panelContentFrame(
             width: panelWidth,
@@ -1540,6 +1552,10 @@ private final class FinderDockPreviewController {
 
     private func dockOrientation() -> String {
         CFPreferencesCopyAppValue("orientation" as CFString, "com.apple.dock" as CFString) as? String ?? "bottom"
+    }
+
+    private func dockLayoutAxis() -> DockLayoutAxis {
+        dockOrientation() == "bottom" ? .horizontal : .vertical
     }
 
     private func normalized(_ text: String) -> String {

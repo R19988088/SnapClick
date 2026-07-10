@@ -102,7 +102,7 @@ rg -Fq 'private final class PreviewPointerView' SnapClick/App/AppDelegate.swift
 rg -Fq 'private func dockMaximumIconSize() -> CGFloat' SnapClick/App/AppDelegate.swift
 rg -Fq 'dockPreferenceNumber("largesize")' SnapClick/App/AppDelegate.swift
 rg -Fq 'panel.setFrame(panelFrame, display: true)' SnapClick/App/AppDelegate.swift
-rg -Fq 'pointerView.frame = pointerFrame(' SnapClick/App/AppDelegate.swift
+! rg -Fq 'pointerView.frame = pointerFrame(' SnapClick/App/AppDelegate.swift
 rg -Fq 'showPreview(for: currentDockApp)' SnapClick/App/AppDelegate.swift
 rg -Fq 'let stableTop = screenFrame.minY + maximumIconSize + 12' SnapClick/App/AppDelegate.swift
 if rg -Fq 'max(dockIcon.maxY, screenFrame.minY + maximumIconSize + 12)' SnapClick/App/AppDelegate.swift; then
@@ -130,6 +130,16 @@ rg -q 'CGEvent\.tapCreate' SnapClick/App/AppDelegate.swift
 rg -q 'options: \.listenOnly' SnapClick/App/AppDelegate.swift
 rg -q 'previewPanel\?\.isVisible == true' SnapClick/App/AppDelegate.swift
 rg -q 'previewAppPID == dockApp.app.processIdentifier' SnapClick/App/AppDelegate.swift
+rg -q 'dockTargetCoreContains\(axPoint, bounds: dockApp.bounds, axis: dockLayoutAxis\(\)\)' SnapClick/App/AppDelegate.swift
+rg -q 'dockRetentionContains\(axPoint, bounds: currentDockApp.bounds, axis: dockLayoutAxis\(\)\)' SnapClick/App/AppDelegate.swift
+rg -q 'private func dockLayoutAxis\(\) -> DockLayoutAxis' SnapClick/App/AppDelegate.swift
+
+same_app_fast_path_line="$(rg -n -F 'if previewPanel?.isVisible == true,' SnapClick/App/AppDelegate.swift | head -n 1 | cut -d: -f1)"
+stack_build_line="$(rg -n -F 'let stack = NSStackView()' SnapClick/App/AppDelegate.swift | head -n 1 | cut -d: -f1)"
+test "$same_app_fast_path_line" -lt "$stack_build_line"
+if sed -n "${same_app_fast_path_line},${stack_build_line}p" SnapClick/App/AppDelegate.swift | rg -q 'panel\.setFrame|pointerView\.frame'; then
+    exit 1
+fi
 rg -q 'dockWindowControlDidChange' SnapClick/Core/AppSettings.swift
 ! rg -q 'dockWindowControlEnabled && !showInDock' SnapClick/Core/AppSettings.swift
 ! rg -q 'dockScrollVolume' SnapClick/Core/AppSettings.swift
