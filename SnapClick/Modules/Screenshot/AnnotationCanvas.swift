@@ -6,8 +6,6 @@ import AppKit
 import CoreGraphics
 import CoreImage
 
-private let reducedContrastCIContext = CIContext()
-
 extension NSImage {
     func reducedContrastImage() -> NSImage? {
         guard let cgImage = cgImage(forProposedRect: nil, context: nil, hints: nil),
@@ -19,7 +17,7 @@ extension NSImage {
         filter.setValue(0.8, forKey: kCIInputSaturationKey)
 
         guard let output = filter.outputImage,
-              let outputCGImage = reducedContrastCIContext.createCGImage(output, from: input.extent) else {
+              let outputCGImage = sharedScreenshotCIContext.createCGImage(output, from: input.extent) else {
             return nil
         }
 
@@ -49,8 +47,14 @@ class AnnotationCanvas: NSView {
 
     // MARK: - 底图（截图）
     var baseImage: NSImage? {
-        didSet { needsDisplay = true }
+        didSet {
+            reducedContrastImageCache = nil
+            didBuildReducedContrastImage = false
+            needsDisplay = true
+        }
     }
+    private var reducedContrastImageCache: NSImage?
+    private var didBuildReducedContrastImage = false
 
     // MARK: - 序号计数
     private var numberCounter: Int = 1
@@ -168,7 +172,7 @@ class AnnotationCanvas: NSView {
             + (currentDrawing.map { [$0] } ?? []).filter { $0.type == .highlight }
 
         guard !highlightItems.isEmpty,
-              let reducedImage = baseImage?.reducedContrastImage() else { return }
+              let reducedImage = cachedReducedContrastImage() else { return }
 
         context.saveGState()
 
@@ -184,6 +188,15 @@ class AnnotationCanvas: NSView {
         context.clip(using: .evenOdd)
         reducedImage.draw(in: bounds)
         context.restoreGState()
+    }
+
+    private func cachedReducedContrastImage() -> NSImage? {
+        if didBuildReducedContrastImage {
+            return reducedContrastImageCache
+        }
+        didBuildReducedContrastImage = true
+        reducedContrastImageCache = baseImage?.reducedContrastImage()
+        return reducedContrastImageCache
     }
 
     // MARK: - 单个标注绘制分派

@@ -4,9 +4,12 @@
 
 import ScreenCaptureKit
 import CoreGraphics
+import CoreImage
 import CoreMedia
 import AppKit
 import Combine
+
+let sharedScreenshotCIContext = CIContext()
 
 // MARK: - 截图错误类型
 enum ScreenCaptureError: LocalizedError {
@@ -559,67 +562,37 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
             return image
         }
 
-        ctx.clear(CGRect(x: 0, y: 0, width: pxW, height: pxH))
-
-        // 阴影：偏移 8pt（向下，CG 坐标系 Y 向上 → 取负值），模糊半径 20pt
-        let shadowColor = NSColor.black.withAlphaComponent(0.5).cgColor
-        ctx.setShadow(offset: CGSize(width: 0, height: -8 * scaleX),
-                      blur: 20 * scaleX,
-                      color: shadowColor)
-
         let imageRect = CGRect(x: pxPadding,
                                y: pxPadding,
                                width: CGFloat(cg.width),
                                height: CGFloat(cg.height))
-        let drawRect = (visiblePixelBounds(in: cg) ?? CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
-            .offsetBy(dx: pxPadding, dy: pxPadding)
         let radius = ScreenshotSettings.shared.enableRoundedCorners
             ? ScreenshotSettings.shared.cornerRadius * scaleX
             : 0
-        ctx.setFillColor(NSColor.white.cgColor)
-        ctx.addPath(CGPath(roundedRect: drawRect, cornerWidth: radius, cornerHeight: radius, transform: nil))
-        ctx.fillPath()
-        ctx.setShadow(offset: .zero, blur: 0, color: nil)
+
+        ctx.clear(CGRect(x: 0, y: 0, width: pxW, height: pxH))
+        ctx.saveGState()
+        ctx.setShadow(
+            offset: CGSize(width: 0, height: -8 * scaleX),
+            blur: 20 * scaleX,
+            color: NSColor.black.withAlphaComponent(0.38).cgColor
+        )
         ctx.draw(cg, in: imageRect)
+        ctx.restoreGState()
+
+        ctx.addPath(CGPath(
+            roundedRect: imageRect.insetBy(dx: 0.5 * scaleX, dy: 0.5 * scaleX),
+            cornerWidth: radius,
+            cornerHeight: radius,
+            transform: nil
+        ))
+        ctx.setStrokeColor(NSColor.separatorColor.withAlphaComponent(0.72).cgColor)
+        ctx.setLineWidth(scaleX)
+        ctx.strokePath()
         guard let outCG = ctx.makeImage() else { return image }
         let newSize = NSSize(width:  image.size.width  + padding * 2,
                              height: image.size.height + padding * 2)
         return NSImage(cgImage: outCG, size: newSize)
-    }
-
-    private func visiblePixelBounds(in cg: CGImage) -> CGRect? {
-        let width = cg.width
-        let height = cg.height
-        let bytesPerRow = width * 4
-        var bytes = [UInt8](repeating: 0, count: bytesPerRow * height)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: &bytes,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: bytesPerRow,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
-
-        var minX = width
-        var minY = height
-        var maxX = -1
-        var maxY = -1
-        for y in 0..<height {
-            let row = y * bytesPerRow
-            for x in 0..<width where bytes[row + x * 4 + 3] > 64 {
-                minX = min(minX, x)
-                minY = min(minY, y)
-                maxX = max(maxX, x)
-                maxY = max(maxY, y)
-            }
-        }
-        guard maxX >= minX, maxY >= minY else { return nil }
-        return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
     }
 
     // MARK: - 保存截图
@@ -629,10 +602,9 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         let settings = ScreenshotSettings.shared
         let format = settings.format
 
-        guard let tiffData = image.tiffRepresentation,
-              let bitmapRep = NSBitmapImageRep(data: tiffData),
-              let data = bitmapRep.representation(using: format.bitmapFormat,
-                                                   properties: [:]) else {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let data = NSBitmapImageRep(cgImage: cgImage)
+                .representation(using: format.bitmapFormat, properties: [:]) else {
             throw ScreenCaptureError.saveFailed("无法编码图像数据")
         }
 
@@ -694,10 +666,8 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
         }
 
         let ciImage = CIImage(cvImageBuffer: imageBuffer)
-        let context = CIContext(options: nil)
-
         let extent = ciImage.extent
-        guard let cgImage = context.createCGImage(ciImage, from: extent) else {
+        guard let cgImage = sharedScreenshotCIContext.createCGImage(ciImage, from: extent) else {
             return nil
         }
 

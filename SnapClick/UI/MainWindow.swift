@@ -1072,8 +1072,8 @@ private struct ScreenshotSettingsView: View {
                             CardDivider()
 
                             ToggleRow(
-                                title: "窗口透明".localized,
-                                description: "保留截图原始透明度".localized,
+                                title: "添加圆角".localized,
+                                description: "为截图应用所选圆角半径".localized,
                                 isOn: $settings.screenshotAddRoundCorner
                             )
                         }

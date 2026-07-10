@@ -6,10 +6,14 @@ rg -q 'dictionary\(forKey: "annotationToolSizes"\)' SnapClick/Modules/Screenshot
 rg -q 'UserDefaults.standard.set\(' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
 rg -q 'private func exportImage\(applyingOutputEffects: Bool = true\)' SnapClick/Modules/Screenshot/AnnotationEditorWindow.swift
 rg -q 'ScreenCaptureEngine.shared.applyScreenshotEffects\(to: image\)' SnapClick/Modules/Screenshot/AnnotationEditorWindow.swift
-rg -q 'ctx.addPath\(CGPath\(roundedRect: drawRect' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
-rg -q 'private func visiblePixelBounds\(in cg: CGImage\)' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
-rg -q 'visiblePixelBounds\(in: cg\)' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
-rg -q 'ctx.setShadow\(offset: \.zero, blur: 0, color: nil\)' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+! rg -q 'visiblePixelBounds\(in' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+! rg -q 'tiffRepresentation' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'NSBitmapImageRep(cgImage: cgImage)' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'sharedScreenshotCIContext' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'reducedContrastImageCache' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+rg -Fq 'cachedReducedContrastImage()' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
+rg -Fq 'ctx.strokePath()' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'title: "添加圆角".localized' SnapClick/UI/MainWindow.swift
 rg -q 'windowCaptureRect\(for win: SCWindow\)' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
 rg -q 'ScreenCaptureEngine.shared.captureSingleWindow\(win\)' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
 rg -q 'nextAnnotationBaseImage' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
