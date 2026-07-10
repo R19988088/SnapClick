@@ -13,7 +13,17 @@ rg -Fq 'sharedScreenshotCIContext' SnapClick/Modules/Screenshot/ScreenCaptureEng
 rg -Fq 'reducedContrastImageCache' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
 rg -Fq 'cachedReducedContrastImage()' SnapClick/Modules/Screenshot/AnnotationCanvas.swift
 rg -Fq 'ctx.strokePath()' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
-rg -Fq '[.boundsIgnoreFraming, .bestResolution]' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'struct WindowCaptureResult' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'includesSystemFrame: includeSystemFrame' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'includesSystemFrame: false' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq '[.bestResolution]' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'requestedSystemFrame ?? ScreenshotSettings.shared.enableShadow' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'includeSystemFrame ? [.bestResolution] : [.boundsIgnoreFraming, .bestResolution]' SnapClick/Modules/Screenshot/ScreenCaptureEngine.swift
+rg -Fq 'annotationBaseIncludesSystemFrame' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
+rg -Fq 'applyingOutputEffects && !annotationBaseIncludesSystemFrame' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
+rg -Fq 'capture.includesSystemFrame' SnapClick/Modules/Screenshot/CaptureOverlayWindow.swift
+rg -Fq 'captureSingleWindow(win, includeSystemFrame: false)' SnapClick/Modules/Recording/RecordSelectionOverlayWindow.swift
+rg -Fq 'selectedWindowImage = img.image' SnapClick/Modules/Recording/RecordSelectionOverlayWindow.swift
 if rg -Fq 'NSEvent.isMouseCoalescingEnabled' SnapClick/Modules/Screenshot/AnnotationCanvas.swift; then
     exit 1
 fi

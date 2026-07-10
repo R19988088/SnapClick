@@ -353,53 +353,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+private func dockPreviewPointerPath(in bounds: CGRect, orientation: String) -> CGPath {
+    let path = CGMutablePath()
+    switch orientation {
+    case "left":
+        path.move(to: CGPoint(x: bounds.minX, y: bounds.midY))
+        path.addLine(to: CGPoint(x: bounds.maxX, y: bounds.maxY))
+        path.addLine(to: CGPoint(x: bounds.maxX, y: bounds.minY))
+    case "right":
+        path.move(to: CGPoint(x: bounds.maxX, y: bounds.midY))
+        path.addLine(to: CGPoint(x: bounds.minX, y: bounds.minY))
+        path.addLine(to: CGPoint(x: bounds.minX, y: bounds.maxY))
+    default:
+        path.move(to: CGPoint(x: bounds.midX, y: bounds.minY))
+        path.addLine(to: CGPoint(x: bounds.minX, y: bounds.maxY))
+        path.addLine(to: CGPoint(x: bounds.maxX, y: bounds.maxY))
+    }
+    path.closeSubpath()
+    return path
+}
+
 private final class FinderDockPreviewController {
     private enum PreviewMetrics {
         static let tileWidth: CGFloat = 179
-        static let tileHeight: CGFloat = 179
+        static let tileHeight: CGFloat = 161
         static let imageInset: CGFloat = 7
         static let imageHeight: CGFloat = 147
         static let spacing: CGFloat = 6
-        static let panelHeight: CGFloat = 195
+        static let panelHeight: CGFloat = 177
         static let tileCornerRadius: CGFloat = 16
         static let imageCornerRadius: CGFloat = 14
         static let panelCornerRadius: CGFloat = 22
         static let pointerSize: CGFloat = 12
     }
 
-    private final class PreviewPointerView: NSView {
+    private static let previewPointerIdentifier = NSUserInterfaceItemIdentifier("SnapClick.DockPreviewPointer")
+
+    private final class PreviewPointerView: NSVisualEffectView {
         let orientation: String
 
         init(frame: NSRect, orientation: String) {
             self.orientation = orientation
             super.init(frame: frame)
+            identifier = FinderDockPreviewController.previewPointerIdentifier
+            material = .hudWindow
+            blendingMode = .behindWindow
+            state = .active
+            wantsLayer = true
+            updateMask()
         }
 
         @available(*, unavailable)
         required init?(coder: NSCoder) { nil }
 
-        override func draw(_ dirtyRect: NSRect) {
-            let path = NSBezierPath()
-            switch orientation {
-            case "left":
-                path.move(to: NSPoint(x: bounds.minX, y: bounds.midY))
-                path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY))
-                path.line(to: NSPoint(x: bounds.maxX, y: bounds.minY))
-            case "right":
-                path.move(to: NSPoint(x: bounds.maxX, y: bounds.midY))
-                path.line(to: NSPoint(x: bounds.minX, y: bounds.minY))
-                path.line(to: NSPoint(x: bounds.minX, y: bounds.maxY))
-            default:
-                path.move(to: NSPoint(x: bounds.midX, y: bounds.minY))
-                path.line(to: NSPoint(x: bounds.minX, y: bounds.maxY))
-                path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY))
-            }
-            path.close()
-            NSColor.windowBackgroundColor.withAlphaComponent(0.94).setFill()
-            path.fill()
-            NSColor.separatorColor.withAlphaComponent(0.35).setStroke()
-            path.lineWidth = 0.5
-            path.stroke()
+        override func layout() {
+            super.layout()
+            updateMask()
+        }
+
+        private func updateMask() {
+            let mask = CAShapeLayer()
+            mask.frame = bounds
+            mask.path = dockPreviewPointerPath(in: bounds, orientation: orientation)
+            layer?.mask = mask
         }
     }
 
@@ -489,7 +505,6 @@ private final class FinderDockPreviewController {
         private let accentView = NSView()
         private let imageView = ThumbnailView()
         private let closeButton = CloseButton()
-        private let titleField = NSTextField(labelWithString: "")
         private var trackingArea: NSTrackingArea?
         private var widthConstraint: NSLayoutConstraint?
         var actionHandler: (() -> Void)?
@@ -522,7 +537,7 @@ private final class FinderDockPreviewController {
             imageView.image = preview.image
             imageView.frame = NSRect(
                 x: PreviewMetrics.imageInset,
-                y: 28,
+                y: PreviewMetrics.imageInset,
                 width: PreviewMetrics.tileWidth - PreviewMetrics.imageInset * 2,
                 height: PreviewMetrics.imageHeight
             )
@@ -538,18 +553,6 @@ private final class FinderDockPreviewController {
             closeButton.action = #selector(closeClicked)
             closeButton.alphaValue = 0
             contentView.addSubview(closeButton)
-
-            titleField.stringValue = preview.isMinimized ? "\(preview.title) · 已最小化" : preview.title
-            titleField.font = .systemFont(ofSize: 11, weight: .medium)
-            titleField.lineBreakMode = .byTruncatingMiddle
-            titleField.alignment = .center
-            titleField.frame = NSRect(
-                x: PreviewMetrics.imageInset,
-                y: 7,
-                width: PreviewMetrics.tileWidth - PreviewMetrics.imageInset * 2,
-                height: 16
-            )
-            contentView.addSubview(titleField)
 
             addSubview(contentView)
         }
@@ -837,14 +840,13 @@ private final class FinderDockPreviewController {
            lastPreviewFingerprint == fingerprint,
            previewOrientation == orientation {
             panel.setFrame(panelFrame, display: true)
-            if let pointerView = panel.contentView?.subviews
-                .compactMap({ $0 as? PreviewPointerView })
-                .first {
+            if let pointerView = previewPointerView(in: panel.contentView) {
                 pointerView.frame = pointerFrame(
                     orientation: orientation,
                     pointerCenter: pointerCenter,
                     panelSize: panelFrame.size
                 )
+                applyPointerMask(to: pointerView, orientation: orientation)
             }
             panel.orderFrontRegardless()
             loadThumbnails(
@@ -930,6 +932,16 @@ private final class FinderDockPreviewController {
         panelSize: NSSize,
         bodyFrame: NSRect
     ) -> NSView {
+        if #available(macOS 26.0, *) {
+            return makeLiquidGlassContainer(
+                contentView: scrollView,
+                orientation: orientation,
+                pointerCenter: pointerCenter,
+                panelSize: panelSize,
+                bodyFrame: bodyFrame
+            )
+        }
+
         let root = NSView(frame: NSRect(origin: .zero, size: panelSize))
         root.autoresizingMask = [.width, .height]
 
@@ -942,13 +954,6 @@ private final class FinderDockPreviewController {
             orientation: orientation
         )
         root.addSubview(pointer)
-
-        if let container = makeLiquidGlassContainer(contentView: scrollView) {
-            container.frame = bodyFrame
-            container.autoresizingMask = []
-            root.addSubview(container)
-            return root
-        }
 
         let container = NSView(frame: bodyFrame)
         container.wantsLayer = true
@@ -968,25 +973,59 @@ private final class FinderDockPreviewController {
         return root
     }
 
-    private func makeLiquidGlassContainer(contentView scrollView: NSScrollView) -> NSView? {
-        let macOS26 = OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)
-        guard ProcessInfo.processInfo.isOperatingSystemAtLeast(macOS26),
-              let containerClass = NSClassFromString("NSGlassEffectContainerView") as? NSView.Type,
-              let glassClass = NSClassFromString("NSGlassEffectView") as? NSView.Type else {
-            return nil
-        }
-
-        let container = containerClass.init(frame: scrollView.frame)
+    @available(macOS 26.0, *)
+    private func makeLiquidGlassContainer(
+        contentView scrollView: NSScrollView,
+        orientation: String,
+        pointerCenter: CGFloat,
+        panelSize: NSSize,
+        bodyFrame: NSRect
+    ) -> NSView {
+        let container = NSGlassEffectContainerView(frame: NSRect(origin: .zero, size: panelSize))
         container.autoresizingMask = [.width, .height]
-        container.setValue(0, forKey: "spacing")
+        container.spacing = 0
 
-        let glassView = glassClass.init(frame: scrollView.bounds)
-        glassView.autoresizingMask = [.width, .height]
-        glassView.setValue(PreviewMetrics.panelCornerRadius, forKey: "cornerRadius")
-        glassView.setValue(0, forKey: "style")
-        glassView.setValue(scrollView, forKey: "contentView")
-        container.setValue(glassView, forKey: "contentView")
+        let contentHost = NSView(frame: container.bounds)
+        contentHost.autoresizingMask = [.width, .height]
+
+        let pointerFrame = self.pointerFrame(
+            orientation: orientation,
+            pointerCenter: pointerCenter,
+            panelSize: panelSize
+        )
+        let pointerGlass = NSGlassEffectView(frame: pointerFrame)
+        pointerGlass.identifier = Self.previewPointerIdentifier
+        pointerGlass.style = .regular
+        pointerGlass.contentView = NSView()
+        applyPointerMask(to: pointerGlass, orientation: orientation)
+        contentHost.addSubview(pointerGlass)
+
+        let bodyGlass = NSGlassEffectView(frame: bodyFrame)
+        bodyGlass.cornerRadius = PreviewMetrics.panelCornerRadius
+        bodyGlass.style = .regular
+        scrollView.frame = bodyGlass.bounds
+        bodyGlass.contentView = scrollView
+        contentHost.addSubview(bodyGlass)
+
+        container.contentView = contentHost
         return container
+    }
+
+    private func applyPointerMask(to view: NSView, orientation: String) {
+        view.wantsLayer = true
+        let mask = CAShapeLayer()
+        mask.frame = view.bounds
+        mask.path = dockPreviewPointerPath(in: view.bounds, orientation: orientation)
+        view.layer?.mask = mask
+    }
+
+    private func previewPointerView(in root: NSView?) -> NSView? {
+        guard let root else { return nil }
+        if root.identifier == Self.previewPointerIdentifier { return root }
+        for subview in root.subviews {
+            if let match = previewPointerView(in: subview) { return match }
+        }
+        return nil
     }
 
     private func dockApp(atAXPoint point: CGPoint) -> DockApp? {
@@ -1399,7 +1438,7 @@ private final class FinderDockPreviewController {
                 height: height
             )
         default:
-            let stableTop = max(dockIcon.maxY, screenFrame.minY + maximumIconSize + 12)
+            let stableTop = screenFrame.minY + maximumIconSize + 12
             return CGRect(
                 x: clamp(dockIcon.midX - width / 2, visible.minX + 12, visible.maxX - width - 12),
                 y: stableTop + 8 - pointer,
@@ -1435,14 +1474,14 @@ private final class FinderDockPreviewController {
             return CGRect(
                 x: 0,
                 y: clamp(pointerCenter - base / 2, PreviewMetrics.panelCornerRadius, panelSize.height - PreviewMetrics.panelCornerRadius - base),
-                width: pointer,
+                width: pointer + 1,
                 height: base
             )
         case "right":
             return CGRect(
-                x: panelSize.width - pointer,
+                x: panelSize.width - pointer - 1,
                 y: clamp(pointerCenter - base / 2, PreviewMetrics.panelCornerRadius, panelSize.height - PreviewMetrics.panelCornerRadius - base),
-                width: pointer,
+                width: pointer + 1,
                 height: base
             )
         default:
@@ -1450,7 +1489,7 @@ private final class FinderDockPreviewController {
                 x: clamp(pointerCenter - base / 2, PreviewMetrics.panelCornerRadius, panelSize.width - PreviewMetrics.panelCornerRadius - base),
                 y: 0,
                 width: base,
-                height: pointer
+                height: pointer + 1
             )
         }
     }

@@ -32,6 +32,11 @@ enum ScreenCaptureError: LocalizedError {
     }
 }
 
+struct WindowCaptureResult {
+    let image: NSImage
+    let includesSystemFrame: Bool
+}
+
 // MARK: - 截图格式
 enum ScreenshotFormat: String, CaseIterable {
     case png  = "PNG"
@@ -431,30 +436,39 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
     }
 
     /// 单窗口精确截图（macOS 14+ 优先 SCScreenshotManager）
-    /// 仅截取指定 SCWindow 的内容（不包含其它程序、不包含被遮挡区域之外的内容）
-    /// 返回的图片尺寸与窗口逻辑大小相同（点为单位）
-    func captureSingleWindow(_ window: SCWindow) async throws -> NSImage {
+    /// 仅截取指定 SCWindow，不包含其它程序；优先保留系统 framing 和投影。
+    func captureSingleWindow(
+        _ window: SCWindow,
+        includeSystemFrame requestedSystemFrame: Bool? = nil
+    ) async throws -> WindowCaptureResult {
         let cgID = window.windowID
         let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        let includeSystemFrame = requestedSystemFrame ?? ScreenshotSettings.shared.enableShadow
+        let bestResolutionOptions: CGWindowImageOption = includeSystemFrame ? [.bestResolution] : [.boundsIgnoreFraming, .bestResolution]
+        let nominalResolutionOptions: CGWindowImageOption = includeSystemFrame ? [.nominalResolution] : [.boundsIgnoreFraming, .nominalResolution]
+        let defaultOptions: CGWindowImageOption = includeSystemFrame ? [] : [.boundsIgnoreFraming]
 
-        // 统一捕获无系统投影的窗口内容，最终描边/投影由 applyScreenshotEffects 处理。
+        // 开启投影时不使用 boundsIgnoreFraming，保留真实窗口边缘和系统投影。
         let windowImage: CGImage? = await Task.detached(priority: .userInitiated) {
             CGWindowListCreateImage(
                 .null,
                 .optionIncludingWindow,
                 cgID,
-                [.boundsIgnoreFraming, .bestResolution]
+                bestResolutionOptions
             ) ?? CGWindowListCreateImage(
                 .null,
                 .optionIncludingWindow,
                 cgID,
-                [.boundsIgnoreFraming]
+                defaultOptions
             )
         }.value
         if let img = windowImage {
-            return NSImage(
-                cgImage: img,
-                size: NSSize(width: CGFloat(img.width) / scale, height: CGFloat(img.height) / scale)
+            return WindowCaptureResult(
+                image: NSImage(
+                    cgImage: img,
+                    size: NSSize(width: CGFloat(img.width) / scale, height: CGFloat(img.height) / scale)
+                ),
+                includesSystemFrame: includeSystemFrame
             )
         }
 
@@ -467,7 +481,10 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
             cfg.capturesAudio = false
             if let cg = try? await SCScreenshotManager.captureImage(
                 contentFilter: filter, configuration: cfg) {
-                return NSImage(cgImage: cg, size: window.frame.size)
+                return WindowCaptureResult(
+                    image: NSImage(cgImage: cg, size: window.frame.size),
+                    includesSystemFrame: false
+                )
             }
         }
 
@@ -476,18 +493,21 @@ class ScreenCaptureEngine: NSObject, ObservableObject {
             if let cg = CGWindowListCreateImage(.null,
                                                 .optionIncludingWindow,
                                                 cgID,
-                                                [.boundsIgnoreFraming, .nominalResolution]) {
+                                                nominalResolutionOptions) {
                 return cg
             }
             return CGWindowListCreateImage(.null,
                                            .optionIncludingWindow,
                                            cgID,
-                                           [.boundsIgnoreFraming])
+                                           defaultOptions)
         }.value
         if let img = img {
-            return NSImage(
-                cgImage: img,
-                size: NSSize(width: CGFloat(img.width) / scale, height: CGFloat(img.height) / scale)
+            return WindowCaptureResult(
+                image: NSImage(
+                    cgImage: img,
+                    size: NSSize(width: CGFloat(img.width) / scale, height: CGFloat(img.height) / scale)
+                ),
+                includesSystemFrame: includeSystemFrame
             )
         }
         throw ScreenCaptureError.imageConversionFailed

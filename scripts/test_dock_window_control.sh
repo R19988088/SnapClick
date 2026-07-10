@@ -6,17 +6,20 @@ rg -q 'Dock 窗口控制' SnapClick/UI/MainWindow.swift
 rg -q 'FinderDockPreviewController' SnapClick/App/AppDelegate.swift
 rg -q 'private enum PreviewMetrics' SnapClick/App/AppDelegate.swift
 rg -q 'tileWidth: CGFloat = 179' SnapClick/App/AppDelegate.swift
+rg -q 'tileHeight: CGFloat = 161' SnapClick/App/AppDelegate.swift
 rg -q 'imageHeight: CGFloat = 147' SnapClick/App/AppDelegate.swift
+rg -q 'panelHeight: CGFloat = 177' SnapClick/App/AppDelegate.swift
 rg -q 'override var intrinsicContentSize: NSSize' SnapClick/App/AppDelegate.swift
 rg -q 'widthConstraint = widthAnchor.constraint\(equalToConstant: PreviewMetrics.tileWidth\)' SnapClick/App/AppDelegate.swift
 rg -q 'heightAnchor.constraint\(equalToConstant: PreviewMetrics.tileHeight\).isActive = true' SnapClick/App/AppDelegate.swift
 rg -q 'NSGlassEffectView' SnapClick/App/AppDelegate.swift
 rg -q 'NSGlassEffectContainerView' SnapClick/App/AppDelegate.swift
-! rg -q 'glassView.contentView = contentView' SnapClick/App/AppDelegate.swift
-rg -q 'NSClassFromString\("NSGlassEffectView"\)' SnapClick/App/AppDelegate.swift
-rg -q 'NSClassFromString\("NSGlassEffectContainerView"\)' SnapClick/App/AppDelegate.swift
-rg -q 'glassView.setValue\(scrollView, forKey: "contentView"\)' SnapClick/App/AppDelegate.swift
-rg -q 'container.setValue\(glassView, forKey: "contentView"\)' SnapClick/App/AppDelegate.swift
+rg -Fq 'private final class PreviewPointerView: NSVisualEffectView' SnapClick/App/AppDelegate.swift
+rg -Fq 'let container = NSGlassEffectContainerView(frame:' SnapClick/App/AppDelegate.swift
+rg -Fq 'let bodyGlass = NSGlassEffectView(frame: bodyFrame)' SnapClick/App/AppDelegate.swift
+rg -Fq 'let pointerGlass = NSGlassEffectView(frame: pointerFrame)' SnapClick/App/AppDelegate.swift
+rg -Fq 'container.contentView = contentHost' SnapClick/App/AppDelegate.swift
+rg -Fq 'applyPointerMask(to: pointerGlass' SnapClick/App/AppDelegate.swift
 rg -q 'NSVisualEffectView' SnapClick/App/AppDelegate.swift
 rg -q 'tileCornerRadius: CGFloat = 16' SnapClick/App/AppDelegate.swift
 rg -q 'imageCornerRadius: CGFloat = 14' SnapClick/App/AppDelegate.swift
@@ -99,6 +102,16 @@ rg -Fq 'dockPreferenceNumber("largesize")' SnapClick/App/AppDelegate.swift
 rg -Fq 'panel.setFrame(panelFrame, display: true)' SnapClick/App/AppDelegate.swift
 rg -Fq 'pointerView.frame = pointerFrame(' SnapClick/App/AppDelegate.swift
 rg -Fq 'showPreview(for: currentDockApp)' SnapClick/App/AppDelegate.swift
+rg -Fq 'let stableTop = screenFrame.minY + maximumIconSize + 12' SnapClick/App/AppDelegate.swift
+if rg -Fq 'max(dockIcon.maxY, screenFrame.minY + maximumIconSize + 12)' SnapClick/App/AppDelegate.swift; then
+    exit 1
+fi
+if rg -Fq 'titleField' SnapClick/App/AppDelegate.swift; then
+    exit 1
+fi
+if rg -Fq 'path.close()' SnapClick/App/AppDelegate.swift; then
+    exit 1
+fi
 rg -q 'windowID: CGWindowID\?' SnapClick/App/AppDelegate.swift
 rg -q 'axWindow: AXUIElement\?' SnapClick/App/AppDelegate.swift
 rg -q 'pidValue\(from item: \[String: Any\]\)' SnapClick/App/AppDelegate.swift

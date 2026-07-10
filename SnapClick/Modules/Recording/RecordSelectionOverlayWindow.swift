@@ -408,8 +408,8 @@ final class RecordSelectionOverlayView: NSView {
                 
                 Task { @MainActor in
                     do {
-                        let img = try await ScreenCaptureEngine.shared.captureSingleWindow(win)
-                        self.selectedWindowImage = img
+                        let img = try await ScreenCaptureEngine.shared.captureSingleWindow(win, includeSystemFrame: false)
+                        self.selectedWindowImage = img.image
                         self.needsDisplay = true
                     } catch {
                         print("[RecordSelectionOverlayView] 捕获窗口画面失败: \(error)")

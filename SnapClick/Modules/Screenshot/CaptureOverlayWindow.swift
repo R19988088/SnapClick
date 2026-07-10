@@ -172,6 +172,7 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     fileprivate var canvas: AnnotationCanvas?
     private var editorToolbar: NSView?
     private var nextAnnotationBaseImage: NSImage?
+    private var annotationBaseIncludesSystemFrame = false
     
     // 智能模式：窗口已选中等待确认（点击窗口后进入此状态，可调整选区，按 Enter 或双击确认）
     private var isWindowSelectedPending = false
@@ -856,15 +857,17 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
     /// 窗口截图从全屏背景外扩裁剪，保留系统窗口边框和投影。
     private func enterInPlaceAnnotationMode(forWindow win: SCWindow) {
         Task { [weak self] in
-            let image = try? await ScreenCaptureEngine.shared.captureSingleWindow(win)
+            let capture = try? await ScreenCaptureEngine.shared.captureSingleWindow(win)
             await MainActor.run {
                 guard let self else { return }
-                if let image {
-                    self.selectedRect = self.windowCaptureRect(for: win, imageSize: image.size)
-                    self.nextAnnotationBaseImage = image
+                if let capture {
+                    self.selectedRect = self.windowCaptureRect(for: win, imageSize: capture.image.size)
+                    self.nextAnnotationBaseImage = capture.image
+                    self.annotationBaseIncludesSystemFrame = capture.includesSystemFrame
                 } else {
                     self.selectedRect = self.windowCaptureRect(for: win)
                     self.nextAnnotationBaseImage = self.cropFromBackgroundImage(viewRect: self.selectedRect)
+                    self.annotationBaseIncludesSystemFrame = false
                 }
                 self.enterInPlaceAnnotationMode()
             }
@@ -1672,11 +1675,15 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
         if let win = targetWindow {
             Task { [weak self] in
                 guard let self else { return }
-                let image = (try? await ScreenCaptureEngine.shared.captureSingleWindow(win))
+                let capture = try? await ScreenCaptureEngine.shared.captureSingleWindow(win)
+                let image = capture?.image
                     ?? self.cropFromBackgroundImage(viewRect: self.windowCaptureRect(for: win))
                 await MainActor.run {
                     if let image {
-                        ScreenCaptureEngine.shared.copyToClipboard(ScreenCaptureEngine.shared.applyScreenshotEffects(to: image))
+                        let output = capture?.includesSystemFrame == true
+                            ? image
+                            : ScreenCaptureEngine.shared.applyScreenshotEffects(to: image)
+                        ScreenCaptureEngine.shared.copyToClipboard(output)
                     }
                     self.parentWindow?.onFinished?()
                     self.window?.close()
@@ -1731,7 +1738,10 @@ class CaptureOverlayView: NSView, AnnotationCanvasDelegate {
             }
         }
         guard let image else { return nil }
-        return applyingOutputEffects ? ScreenCaptureEngine.shared.applyScreenshotEffects(to: image) : image
+        if applyingOutputEffects && !annotationBaseIncludesSystemFrame {
+            return ScreenCaptureEngine.shared.applyScreenshotEffects(to: image)
+        }
+        return image
     }
 
     @objc private func pinAction() {
