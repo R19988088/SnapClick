@@ -192,23 +192,18 @@ final class WindowShakeController {
 
     private func restore(_ session: RestoreSession) {
         let liveEntries = session.entries.filter { windowID(for: $0.element) == $0.windowID }
-        for entry in liveEntries {
+        let orderedEntries = liveEntries.sorted(by: { $0.frontToBackRank > $1.frontToBackRank })
+        let connection = CGSMainConnectionID()
+        for entry in orderedEntries {
+            restoreFrame(entry.frame, to: entry.element)
             AXUIElementSetAttributeValue(entry.element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            let connection = CGSMainConnectionID()
-            for entry in liveEntries.sorted(by: { $0.frontToBackRank > $1.frontToBackRank }) {
-                guard self.windowID(for: entry.element) == entry.windowID else { continue }
-                self.restoreFrame(entry.frame, to: entry.element)
-                if CGSOrderWindow(connection, entry.windowID, 1, 0) != 0 {
-                    AXUIElementPerformAction(entry.element, kAXRaiseAction as CFString)
-                }
+            if CGSOrderWindow(connection, entry.windowID, 1, 0) != 0 {
+                AXUIElementPerformAction(entry.element, kAXRaiseAction as CFString)
             }
-            if self.windowID(for: session.keptWindow) == session.keptWindowID {
-                if CGSOrderWindow(connection, session.keptWindowID, 1, 0) != 0 {
-                    AXUIElementPerformAction(session.keptWindow, kAXRaiseAction as CFString)
-                }
+        }
+        if windowID(for: session.keptWindow) == session.keptWindowID {
+            if CGSOrderWindow(connection, session.keptWindowID, 1, 0) != 0 {
+                AXUIElementPerformAction(session.keptWindow, kAXRaiseAction as CFString)
             }
         }
     }

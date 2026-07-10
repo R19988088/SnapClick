@@ -144,6 +144,9 @@ rg -q 'kAXMinimizedAttribute' SnapClick/Core/WindowShakeController.swift
 rg -q 'private var restoreSession: RestoreSession\?' SnapClick/Core/WindowShakeController.swift
 rg -q 'var minimizedEntries: \[RestoreEntry\]' SnapClick/Core/WindowShakeController.swift
 rg -q 'CGSOrderWindow' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'let orderedEntries = liveEntries.sorted(by: { $0.frontToBackRank > $1.frontToBackRank })' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'for entry in orderedEntries {' SnapClick/Core/WindowShakeController.swift
+! rg -q 'DispatchQueue.main.asyncAfter' SnapClick/Core/WindowShakeController.swift
 rg -q 'windowShakeController.start\(\)' SnapClick/App/AppDelegate.swift
 rg -q 'windowShakeController.stop\(\)' SnapClick/App/AppDelegate.swift
 
