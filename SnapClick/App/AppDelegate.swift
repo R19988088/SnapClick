@@ -364,6 +364,43 @@ private final class FinderDockPreviewController {
         static let tileCornerRadius: CGFloat = 16
         static let imageCornerRadius: CGFloat = 14
         static let panelCornerRadius: CGFloat = 22
+        static let pointerSize: CGFloat = 12
+    }
+
+    private final class PreviewPointerView: NSView {
+        let orientation: String
+
+        init(frame: NSRect, orientation: String) {
+            self.orientation = orientation
+            super.init(frame: frame)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { nil }
+
+        override func draw(_ dirtyRect: NSRect) {
+            let path = NSBezierPath()
+            switch orientation {
+            case "left":
+                path.move(to: NSPoint(x: bounds.minX, y: bounds.midY))
+                path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY))
+                path.line(to: NSPoint(x: bounds.maxX, y: bounds.minY))
+            case "right":
+                path.move(to: NSPoint(x: bounds.maxX, y: bounds.midY))
+                path.line(to: NSPoint(x: bounds.minX, y: bounds.minY))
+                path.line(to: NSPoint(x: bounds.minX, y: bounds.maxY))
+            default:
+                path.move(to: NSPoint(x: bounds.midX, y: bounds.minY))
+                path.line(to: NSPoint(x: bounds.minX, y: bounds.maxY))
+                path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY))
+            }
+            path.close()
+            NSColor.windowBackgroundColor.withAlphaComponent(0.94).setFill()
+            path.fill()
+            NSColor.separatorColor.withAlphaComponent(0.35).setStroke()
+            path.lineWidth = 0.5
+            path.stroke()
+        }
     }
 
     private final class PreviewTile: NSControl {
@@ -598,6 +635,7 @@ private final class FinderDockPreviewController {
     private var retryTimer: Timer?
     private var previewPanel: NSPanel?
     private var previewAppPID: pid_t?
+    private var previewOrientation: String?
     private var lastPreviewFingerprint: String?
     private var currentDockApp: DockApp?
     private var pendingDockClick: (app: DockApp, hadVisibleWindow: Bool)?
@@ -785,12 +823,17 @@ private final class FinderDockPreviewController {
         let contentWidth = CGFloat(previews.count) * PreviewMetrics.tileWidth
             + CGFloat(max(previews.count - 1, 0)) * PreviewMetrics.spacing
             + 16
-        let panelWidth = min(contentWidth, visibleFrame(near: dockApp.bounds).width - 24)
+        let orientation = dockOrientation()
+        let sidePointerWidth = orientation == "bottom" ? 0 : PreviewMetrics.pointerSize
+        let panelWidth = min(contentWidth, visibleFrame(near: dockApp.bounds).width - 24 - sidePointerWidth)
         let fingerprint = previewFingerprint(for: previews)
         let panel = previewPanel ?? makePanel()
+        let panelFrame = frame(width: panelWidth, height: PreviewMetrics.panelHeight, near: dockApp.bounds)
         if previewPanel?.isVisible == true,
            previewAppPID == dockApp.app.processIdentifier,
-           lastPreviewFingerprint == fingerprint {
+           lastPreviewFingerprint == fingerprint,
+           previewOrientation == orientation {
+            panel.setFrame(panelFrame, display: true)
             panel.orderFrontRegardless()
             loadThumbnails(
                 for: previews,
@@ -802,7 +845,12 @@ private final class FinderDockPreviewController {
             return
         }
 
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: panelWidth, height: PreviewMetrics.panelHeight))
+        let contentFrame = panelContentFrame(
+            width: panelWidth,
+            height: PreviewMetrics.panelHeight,
+            orientation: orientation
+        )
+        let scrollView = NSScrollView(frame: NSRect(origin: .zero, size: contentFrame.size))
         scrollView.drawsBackground = false
         scrollView.hasHorizontalScroller = contentWidth > panelWidth
         scrollView.hasVerticalScroller = false
@@ -810,14 +858,19 @@ private final class FinderDockPreviewController {
         stack.frame = NSRect(x: 0, y: 0, width: contentWidth, height: PreviewMetrics.panelHeight)
         scrollView.documentView = stack
 
-        panel.contentView = panelGlassView(contentView: scrollView)
-        let keepCurrentFrame = previewPanel?.isVisible == true && previewAppPID == dockApp.app.processIdentifier
-        if !keepCurrentFrame {
-            panel.setFrame(frame(width: panelWidth, height: PreviewMetrics.panelHeight, near: dockApp.bounds), display: true)
-        } else {
-            panel.setContentSize(NSSize(width: panelWidth, height: PreviewMetrics.panelHeight))
-        }
+        let pointerCenter = orientation == "bottom"
+            ? dockApp.bounds.midX - panelFrame.minX
+            : dockApp.bounds.midY - panelFrame.minY
+        panel.contentView = panelGlassView(
+            contentView: scrollView,
+            orientation: orientation,
+            pointerCenter: pointerCenter,
+            panelSize: panelFrame.size,
+            bodyFrame: contentFrame
+        )
+        panel.setFrame(panelFrame, display: true)
         previewAppPID = dockApp.app.processIdentifier
+        previewOrientation = orientation
         lastPreviewFingerprint = fingerprint
         thumbnailTask?.cancel()
         thumbnailTilesByWindowID = tilesByWindowID
@@ -836,6 +889,7 @@ private final class FinderDockPreviewController {
     private func hidePreview() {
         previewPanel?.orderOut(nil)
         previewAppPID = nil
+        previewOrientation = nil
         lastPreviewFingerprint = nil
         currentDockApp = nil
         thumbnailTilesByWindowID = [:]
@@ -850,7 +904,7 @@ private final class FinderDockPreviewController {
             backing: .buffered,
             defer: false
         )
-        panel.level = .statusBar
+        panel.level = .popUpMenu
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -860,13 +914,34 @@ private final class FinderDockPreviewController {
         return panel
     }
 
-    private func panelGlassView(contentView scrollView: NSScrollView) -> NSView {
+    private func panelGlassView(
+        contentView scrollView: NSScrollView,
+        orientation: String,
+        pointerCenter: CGFloat,
+        panelSize: NSSize,
+        bodyFrame: NSRect
+    ) -> NSView {
+        let root = NSView(frame: NSRect(origin: .zero, size: panelSize))
+        root.autoresizingMask = [.width, .height]
+
+        let pointer = PreviewPointerView(
+            frame: pointerFrame(
+                orientation: orientation,
+                pointerCenter: pointerCenter,
+                panelSize: panelSize
+            ),
+            orientation: orientation
+        )
+        root.addSubview(pointer)
+
         if let container = makeLiquidGlassContainer(contentView: scrollView) {
-            return container
+            container.frame = bodyFrame
+            container.autoresizingMask = []
+            root.addSubview(container)
+            return root
         }
 
-        let container = NSView(frame: scrollView.frame)
-        container.autoresizingMask = [.width, .height]
+        let container = NSView(frame: bodyFrame)
         container.wantsLayer = true
         container.layer?.cornerRadius = PreviewMetrics.panelCornerRadius
         container.layer?.cornerCurve = .continuous
@@ -878,8 +953,10 @@ private final class FinderDockPreviewController {
         effectView.state = .active
         effectView.autoresizingMask = [.width, .height]
         container.addSubview(effectView)
+        scrollView.frame = container.bounds
         container.addSubview(scrollView)
-        return container
+        root.addSubview(container)
+        return root
     }
 
     private func makeLiquidGlassContainer(contentView scrollView: NSScrollView) -> NSView? {
@@ -1296,16 +1373,102 @@ private final class FinderDockPreviewController {
     }
 
     private func frame(width: CGFloat, height: CGFloat, near dockIcon: CGRect) -> CGRect {
-        let visible = visibleFrame(near: dockIcon)
+        let screen = NSScreen.screens.first { $0.frame.intersects(dockIcon) } ?? NSScreen.main
+        let visible = screen?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1280, height: 800)
+        let screenFrame = screen?.frame ?? visible
         let orientation = dockOrientation()
+        let maximumIconSize = dockMaximumIconSize()
+        let pointer = PreviewMetrics.pointerSize
         switch orientation {
         case "left":
-            return CGRect(x: dockIcon.maxX + 8, y: clamp(dockIcon.midY - height / 2, visible.minY + 12, visible.maxY - height - 12), width: width, height: height)
+            let stableRight = max(dockIcon.maxX, screenFrame.minX + maximumIconSize + 12)
+            return CGRect(
+                x: stableRight + 8 - pointer,
+                y: clamp(dockIcon.midY - height / 2, visible.minY + 12, visible.maxY - height - 12),
+                width: width + pointer,
+                height: height
+            )
         case "right":
-            return CGRect(x: dockIcon.minX - width - 8, y: clamp(dockIcon.midY - height / 2, visible.minY + 12, visible.maxY - height - 12), width: width, height: height)
+            let stableLeft = min(dockIcon.minX, screenFrame.maxX - maximumIconSize - 12)
+            return CGRect(
+                x: stableLeft - width - 8,
+                y: clamp(dockIcon.midY - height / 2, visible.minY + 12, visible.maxY - height - 12),
+                width: width + pointer,
+                height: height
+            )
         default:
-            return CGRect(x: clamp(dockIcon.midX - width / 2, visible.minX + 12, visible.maxX - width - 12), y: dockIcon.maxY + 8, width: width, height: height)
+            let stableTop = max(dockIcon.maxY, screenFrame.minY + maximumIconSize + 12)
+            return CGRect(
+                x: clamp(dockIcon.midX - width / 2, visible.minX + 12, visible.maxX - width - 12),
+                y: stableTop + 8 - pointer,
+                width: width,
+                height: height + pointer
+            )
         }
+    }
+
+    private func panelContentFrame(width: CGFloat, height: CGFloat, orientation: String) -> CGRect {
+        switch orientation {
+        case "left":
+            return CGRect(x: PreviewMetrics.pointerSize, y: 0, width: width, height: height)
+        default:
+            return CGRect(
+                x: 0,
+                y: orientation == "bottom" ? PreviewMetrics.pointerSize : 0,
+                width: width,
+                height: height
+            )
+        }
+    }
+
+    private func pointerFrame(
+        orientation: String,
+        pointerCenter: CGFloat,
+        panelSize: NSSize
+    ) -> CGRect {
+        let pointer = PreviewMetrics.pointerSize
+        let base = pointer * 2
+        switch orientation {
+        case "left":
+            return CGRect(
+                x: 0,
+                y: clamp(pointerCenter - base / 2, PreviewMetrics.panelCornerRadius, panelSize.height - PreviewMetrics.panelCornerRadius - base),
+                width: pointer,
+                height: base
+            )
+        case "right":
+            return CGRect(
+                x: panelSize.width - pointer,
+                y: clamp(pointerCenter - base / 2, PreviewMetrics.panelCornerRadius, panelSize.height - PreviewMetrics.panelCornerRadius - base),
+                width: pointer,
+                height: base
+            )
+        default:
+            return CGRect(
+                x: clamp(pointerCenter - base / 2, PreviewMetrics.panelCornerRadius, panelSize.width - PreviewMetrics.panelCornerRadius - base),
+                y: 0,
+                width: base,
+                height: pointer
+            )
+        }
+    }
+
+    private func dockMaximumIconSize() -> CGFloat {
+        let tileSize = dockPreferenceNumber("tilesize") ?? 64
+        let largeSize = dockPreferenceNumber("largesize") ?? tileSize
+        let magnification = (CFPreferencesCopyAppValue(
+            "magnification" as CFString,
+            "com.apple.dock" as CFString
+        ) as? NSNumber)?.boolValue ?? false
+        return magnification ? max(tileSize, largeSize) : tileSize
+    }
+
+    private func dockPreferenceNumber(_ key: String) -> CGFloat? {
+        guard let number = CFPreferencesCopyAppValue(
+            key as CFString,
+            "com.apple.dock" as CFString
+        ) as? NSNumber else { return nil }
+        return CGFloat(number.doubleValue)
     }
 
     private func visibleFrame(near rect: CGRect) -> CGRect {

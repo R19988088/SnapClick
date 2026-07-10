@@ -21,6 +21,7 @@ rg -q 'NSVisualEffectView' SnapClick/App/AppDelegate.swift
 rg -q 'tileCornerRadius: CGFloat = 16' SnapClick/App/AppDelegate.swift
 rg -q 'imageCornerRadius: CGFloat = 14' SnapClick/App/AppDelegate.swift
 rg -q 'panelCornerRadius: CGFloat = 22' SnapClick/App/AppDelegate.swift
+rg -q 'pointerSize: CGFloat = 12' SnapClick/App/AppDelegate.swift
 rg -q 'cornerCurve = \.continuous' SnapClick/App/AppDelegate.swift
 ! rg -q 'layer\?\.borderWidth = 1' SnapClick/App/AppDelegate.swift
 rg -q 'private final class ThumbnailView' SnapClick/App/AppDelegate.swift
@@ -91,6 +92,11 @@ rg -q 'loadingThumbnailWindowIDs' SnapClick/App/AppDelegate.swift
 rg -q 'captureThumbnail\(for: screenCaptureWindow, maxSize: maxSize\)' SnapClick/App/AppDelegate.swift
 rg -q 'loadThumbnails\(' SnapClick/App/AppDelegate.swift
 ! rg -q 'thumbnailCache' SnapClick/App/AppDelegate.swift
+rg -Fq 'panel.level = .popUpMenu' SnapClick/App/AppDelegate.swift
+rg -Fq 'private final class PreviewPointerView' SnapClick/App/AppDelegate.swift
+rg -Fq 'private func dockMaximumIconSize() -> CGFloat' SnapClick/App/AppDelegate.swift
+rg -Fq 'dockPreferenceNumber("largesize")' SnapClick/App/AppDelegate.swift
+rg -Fq 'panel.setFrame(panelFrame, display: true)' SnapClick/App/AppDelegate.swift
 rg -q 'windowID: CGWindowID\?' SnapClick/App/AppDelegate.swift
 rg -q 'axWindow: AXUIElement\?' SnapClick/App/AppDelegate.swift
 rg -q 'pidValue\(from item: \[String: Any\]\)' SnapClick/App/AppDelegate.swift
@@ -105,7 +111,8 @@ rg -q 'NSWorkspace.shared.frontmostApplication\?\.processIdentifier == app.proce
 rg -q 'setWindows\(_ previews: \[DockWindowPreview\], minimized: Bool\)' SnapClick/App/AppDelegate.swift
 rg -q 'CGEvent\.tapCreate' SnapClick/App/AppDelegate.swift
 rg -q 'options: \.listenOnly' SnapClick/App/AppDelegate.swift
-rg -q 'previewPanel\?\.isVisible == true && previewAppPID == dockApp.app.processIdentifier' SnapClick/App/AppDelegate.swift
+rg -q 'previewPanel\?\.isVisible == true' SnapClick/App/AppDelegate.swift
+rg -q 'previewAppPID == dockApp.app.processIdentifier' SnapClick/App/AppDelegate.swift
 rg -q 'dockWindowControlDidChange' SnapClick/Core/AppSettings.swift
 ! rg -q 'dockWindowControlEnabled && !showInDock' SnapClick/Core/AppSettings.swift
 ! rg -q 'dockScrollVolume' SnapClick/Core/AppSettings.swift
