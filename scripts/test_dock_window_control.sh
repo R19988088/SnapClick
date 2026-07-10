@@ -155,6 +155,11 @@ rg -q 'CGSOrderWindow' SnapClick/Core/WindowShakeController.swift
 rg -Fq 'let orderedEntries = liveEntries.sorted(by: { $0.frontToBackRank > $1.frontToBackRank })' SnapClick/Core/WindowShakeController.swift
 rg -Fq 'for entry in liveEntries {' SnapClick/Core/WindowShakeController.swift
 rg -Fq 'for entry in orderedEntries {' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'let keepWindowFront = {' SnapClick/Core/WindowShakeController.swift
+rg -Fq 'CGSOrderWindow(connection, entry.windowID, -1, session.keptWindowID)' SnapClick/Core/WindowShakeController.swift
+restore_block="$(sed -n '/private func restore(_ session: RestoreSession)/,/private func visibleRestorableWindows/p' SnapClick/Core/WindowShakeController.swift)"
+test "$(grep -Fc 'keepWindowFront()' <<< "$restore_block")" -ge 3
+! grep -Fq 'CGSOrderWindow(connection, entry.windowID, 1, 0)' <<< "$restore_block"
 ! rg -q 'DispatchQueue.main.asyncAfter' SnapClick/Core/WindowShakeController.swift
 rg -q 'windowShakeController.start\(\)' SnapClick/App/AppDelegate.swift
 rg -q 'windowShakeController.stop\(\)' SnapClick/App/AppDelegate.swift

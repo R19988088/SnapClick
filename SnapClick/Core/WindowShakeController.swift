@@ -193,22 +193,28 @@ final class WindowShakeController {
     private func restore(_ session: RestoreSession) {
         let liveEntries = session.entries.filter { windowID(for: $0.element) == $0.windowID }
         let orderedEntries = liveEntries.sorted(by: { $0.frontToBackRank > $1.frontToBackRank })
-        for entry in liveEntries {
-            restoreFrame(entry.frame, to: entry.element)
-            AXUIElementSetAttributeValue(entry.element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
-        }
-
         let connection = CGSMainConnectionID()
-        for entry in orderedEntries {
-            if CGSOrderWindow(connection, entry.windowID, 1, 0) != 0 {
-                AXUIElementPerformAction(entry.element, kAXRaiseAction as CFString)
-            }
-        }
-        if windowID(for: session.keptWindow) == session.keptWindowID {
+        let keepWindowFront = {
+            guard self.windowID(for: session.keptWindow) == session.keptWindowID else { return }
             if CGSOrderWindow(connection, session.keptWindowID, 1, 0) != 0 {
                 AXUIElementPerformAction(session.keptWindow, kAXRaiseAction as CFString)
             }
         }
+
+        keepWindowFront()
+        for entry in liveEntries {
+            restoreFrame(entry.frame, to: entry.element)
+            AXUIElementSetAttributeValue(entry.element, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            keepWindowFront()
+        }
+
+        for entry in orderedEntries {
+            if CGSOrderWindow(connection, entry.windowID, -1, session.keptWindowID) != 0 {
+                AXUIElementPerformAction(entry.element, kAXRaiseAction as CFString)
+                keepWindowFront()
+            }
+        }
+        keepWindowFront()
     }
 
     private func visibleRestorableWindows(excluding keptWindowID: CGWindowID) -> [RestoreEntry] {
