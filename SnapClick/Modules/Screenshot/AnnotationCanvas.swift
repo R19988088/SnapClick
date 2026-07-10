@@ -60,6 +60,8 @@ class AnnotationCanvas: NSView {
     private var redoStack:      [AnnotationItem] = []  // 重做栈
     private var currentDrawing: AnnotationItem?         // 正在绘制的标注
     private var textEditing:    Bool = false            // 是否正在编辑文字
+    private var inputStabilizer = AnnotationInputStabilizer()
+    private var previousMouseCoalescingEnabled: Bool?
 
     // MARK: - 文字输入框
     private var textField: NSTextField?
@@ -390,9 +392,22 @@ class AnnotationCanvas: NSView {
                 fontSize:   currentFontSize
             )
             if currentTool.isPathBased {
-                item.points = [loc]
                 if currentTool == .pen {
-                    item.pointLineWidths = [pressureLineWidth(for: event)]
+                    inputStabilizer.reset()
+                    previousMouseCoalescingEnabled = NSEvent.isMouseCoalescingEnabled
+                    NSEvent.isMouseCoalescingEnabled = false
+                    let sample = inputStabilizer.filter(
+                        point: loc,
+                        pressure: inputPressure(for: event),
+                        timestamp: event.timestamp
+                    )
+                    item.points.reserveCapacity(256)
+                    item.pointLineWidths.reserveCapacity(256)
+                    item.points.append(sample.point)
+                    item.pointLineWidths.append(lineWidth(forPressure: sample.pressure))
+                } else {
+                    item.points.reserveCapacity(128)
+                    item.points.append(loc)
                 }
             }
             currentDrawing = item
@@ -409,7 +424,12 @@ class AnnotationCanvas: NSView {
         let loc = convert(event.locationInWindow, from: nil)
 
         if drawing.type.isPathBased {
-            appendPathPoint(loc, event: event, to: &drawing)
+            let dirtyRect = appendPathPoint(loc, event: event, to: &drawing)
+            currentDrawing = drawing
+            if let dirtyRect {
+                setNeedsDisplay(dirtyRect)
+            }
+            return
         } else {
             drawing.endPoint = loc
         }
@@ -425,9 +445,15 @@ class AnnotationCanvas: NSView {
 
         guard var drawing = currentDrawing else { return }
         let loc = convert(event.locationInWindow, from: nil)
+        defer {
+            if drawing.type == .pen {
+                restoreMouseCoalescing()
+                inputStabilizer.reset()
+            }
+        }
 
         if drawing.type.isPathBased {
-            appendPathPoint(loc, event: event, to: &drawing)
+            _ = appendPathPoint(loc, event: event, to: &drawing)
         } else {
             drawing.endPoint = loc
         }
@@ -567,6 +593,8 @@ class AnnotationCanvas: NSView {
     }
 
     func clear() {
+        restoreMouseCoalescing()
+        inputStabilizer.reset()
         items.removeAll()
         redoStack.removeAll()
         currentDrawing = nil
@@ -631,34 +659,74 @@ class AnnotationCanvas: NSView {
         window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
     }
 
-    private func pressureLineWidth(for event: NSEvent) -> CGFloat {
+    private func inputPressure(for event: NSEvent) -> CGFloat {
         let pressure = max(0, min(1, CGFloat(event.pressure)))
+        if event.subtype == .tabletPoint || pressure > 0 {
+            return pressure
+        }
+        return 1 / 1.8
+    }
+
+    private func lineWidth(forPressure pressure: CGFloat) -> CGFloat {
         return currentLineWidth * min(1.8, pressure * 1.8)
     }
 
-    private func appendPathPoint(_ point: CGPoint, event: NSEvent, to drawing: inout AnnotationItem) {
+    @discardableResult
+    private func appendPathPoint(
+        _ point: CGPoint,
+        event: NSEvent,
+        to drawing: inout AnnotationItem
+    ) -> CGRect? {
+        let sample: AnnotationInputSample?
+        if drawing.type == .pen {
+            sample = inputStabilizer.filter(
+                point: point,
+                pressure: inputPressure(for: event),
+                timestamp: event.timestamp
+            )
+        } else {
+            sample = nil
+        }
+        let filteredPoint = sample?.point ?? point
         guard let lastPoint = drawing.points.last else {
-            drawing.points.append(point)
+            drawing.points.append(filteredPoint)
             if drawing.type == .pen {
-                drawing.pointLineWidths.append(pressureLineWidth(for: event))
+                drawing.pointLineWidths.append(lineWidth(forPressure: sample?.pressure ?? 1))
             }
-            return
+            return nil
         }
 
-        let nextWidth = drawing.type == .pen ? pressureLineWidth(for: event) : drawing.lineWidth
+        let nextWidth = drawing.type == .pen
+            ? lineWidth(forPressure: sample?.pressure ?? 1)
+            : drawing.lineWidth
         let lastWidth = drawing.pointLineWidths.last ?? nextWidth
-        let distance = hypot(point.x - lastPoint.x, point.y - lastPoint.y)
+        let distance = hypot(filteredPoint.x - lastPoint.x, filteredPoint.y - lastPoint.y)
         let steps = max(1, min(8, Int(ceil(distance / 4))))
 
         for step in 1...steps {
             let t = CGFloat(step) / CGFloat(steps)
             drawing.points.append(CGPoint(
-                x: lastPoint.x + (point.x - lastPoint.x) * t,
-                y: lastPoint.y + (point.y - lastPoint.y) * t
+                x: lastPoint.x + (filteredPoint.x - lastPoint.x) * t,
+                y: lastPoint.y + (filteredPoint.y - lastPoint.y) * t
             ))
             if drawing.type == .pen {
                 drawing.pointLineWidths.append(lastWidth + (nextWidth - lastWidth) * t)
             }
+        }
+
+        let padding = max(lastWidth, nextWidth) / 2 + 3
+        return CGRect(
+            x: min(lastPoint.x, filteredPoint.x),
+            y: min(lastPoint.y, filteredPoint.y),
+            width: abs(filteredPoint.x - lastPoint.x),
+            height: abs(filteredPoint.y - lastPoint.y)
+        ).insetBy(dx: -padding, dy: -padding)
+    }
+
+    private func restoreMouseCoalescing() {
+        if let previousMouseCoalescingEnabled {
+            NSEvent.isMouseCoalescingEnabled = previousMouseCoalescingEnabled
+            self.previousMouseCoalescingEnabled = nil
         }
     }
 }
