@@ -30,6 +30,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let screenCornerOverlayController = ScreenCornerOverlayController()
     private let windowShakeController = WindowShakeController()
     private let inputSourceController = InputSourceController.shared
+    private let finderPreheatQueue = DispatchQueue(
+        label: "com.snapclick.finder-preheat",
+        qos: .utility
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.applicationIconImage = NSImage(named: "AppIcon")
@@ -39,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotkeyManager.shared.registerAll()
         windowShakeController.start()
         inputSourceController.start()
+        SoftwareVolumeController.shared.prepareForLaunch()
         setupFinderCommandObserver()
         handleFinderCommand()
 
@@ -108,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        SoftwareVolumeController.shared.restoreAndStop()
         inputSourceController.stop()
         windowShakeController.stop()
     }
@@ -131,13 +137,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dirPaths = FavoriteDirectoriesManager.shared.favorites.map { $0.path }
         let exts = NewFileTemplateManager.shared.enabledTemplates.map { $0.ext.lowercased() }
 
-        // 同步预热：启动时一次性完成，所有 I/O 都在主进程进行，
-        // 不会在 FinderExtension 沙盒内触发 TCC 弹窗
-        IconCache.preheat(
-            devTools: devTools,
-            favoriteDirectoryPaths: dirPaths,
-            fileTemplateExts: exts
-        )
+        finderPreheatQueue.async {
+            IconCache.preheat(
+                devTools: devTools,
+                favoriteDirectoryPaths: dirPaths,
+                fileTemplateExts: exts
+            )
+        }
     }
 
     @objc private func handleFinderMenuAssetsChanged() {

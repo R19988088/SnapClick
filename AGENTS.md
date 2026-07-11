@@ -31,6 +31,7 @@
   `shasum -a 256 dist/SnapClick.dmg`
 - Unsigned or ad-hoc builds are not valid for testing Accessibility/Input Monitoring authorization because TCC permissions are tied to the app identity. Use `CODE_SIGNING_ALLOWED=NO` only for compile-only verification.
 - Release/installable DMGs must preserve the permission identity: `PRODUCT_BUNDLE_IDENTIFIER=com.snapclick.app`, `TeamIdentifier=HQ6YY6QF8H`, and the bundled Finder extension signed by the same team. Do not ship a DMG signed with the old `4DAY66XCT4` team or an unsigned/ad-hoc identity, because TCC permissions will not inherit.
+- Software volume uses a signed output-only HAL control driver plus the macOS 14.2+ Core Audio Process Tap API. It must never publish an input stream or change the default input device.
 - GitHub Actions downloadable DMGs are installable artifacts, so they must import a real signing certificate from `MACOS_CERTIFICATE_P12`, `MACOS_CERTIFICATE_PASSWORD`, and `KEYCHAIN_PASSWORD` secrets, verify `TeamIdentifier=HQ6YY6QF8H`, and only then upload the DMG.
 - Do not use an Actions artifact DMG for permission testing if the workflow built the app with `CODE_SIGNING_ALLOWED=NO`; that produces a different unsigned/ad-hoc identity. After changing Actions packaging, download the uploaded artifact, run `hdiutil verify`, mount it, and verify the bundled app with `codesign -dv --verbose=4` before calling the downloadable version fixed.
 
@@ -49,5 +50,6 @@
 
 ## Push Checklist
 - Do not push code changes until a signed local Release DMG has been built, code-sign verified, and DMG verified.
+- For software-volume changes, test volume attenuation on a fixed-volume HDMI or DisplayPort output and verify microphone input before pushing.
 - Push to `origin/main` unless a task explicitly asks for another branch.
 - After pushing, check the GitHub Actions `Build` workflow result before calling the task done.

@@ -4,6 +4,7 @@
 
 import Cocoa
 import Carbon
+import IOKit.hidsystem
 
 @MainActor
 final class HotkeyManager: ObservableObject {
@@ -148,6 +149,7 @@ final class HotkeyManager: ObservableObject {
 
         // 同时监听 keyDown 与 EventTap 自身被系统禁用的事件，方便自愈
         let eventMask = (1 << CGEventType.keyDown.rawValue)
+            | (1 << 14) // NX_SYSDEFINED media-key events
             | (1 << CGEventType.tapDisabledByTimeout.rawValue)
             | (1 << CGEventType.tapDisabledByUserInput.rawValue)
 
@@ -159,6 +161,18 @@ final class HotkeyManager: ObservableObject {
                         CGEvent.tapEnable(tap: tap, enable: true)
                         print("CGEventTap 被系统禁用，已自动恢复 (type=\(type.rawValue))")
                     }
+                }
+                return Unmanaged.passUnretained(event)
+            }
+
+            if type.rawValue == 14,
+               let systemEvent = NSEvent(cgEvent: event),
+               systemEvent.subtype.rawValue == 8 {
+                let keyType = Int32((systemEvent.data1 & 0xFFFF0000) >> 16)
+                let keyState = systemEvent.data1 & 0xFFFF
+                guard keyState == 0xA00 else { return Unmanaged.passUnretained(event) }
+                if SoftwareVolumeController.shared.handleMediaKey(keyType) {
+                    return nil
                 }
                 return Unmanaged.passUnretained(event)
             }
@@ -199,7 +213,7 @@ final class HotkeyManager: ObservableObject {
         }
 
         eventTap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
+            tap: .cghidEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: CGEventMask(eventMask),
@@ -220,7 +234,7 @@ final class HotkeyManager: ObservableObject {
             print("全局快捷键监听已启动")
         }
     }
-    
+
     private func stopListening() {
         if let eventTap = eventTap {
             CGEvent.tapEnable(tap: eventTap, enable: false)

@@ -83,7 +83,7 @@ website/
 .release-notes-*.md
 
 # Personal / local-only files
+.worktrees/
 CSDN_POST.md
 snapclick_promotion.png
 xhs_post/
-

@@ -455,10 +455,9 @@ private struct DetailView: View {
             if let dest = selectedDestination {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(alignment: .leading, spacing: 20) {
-                        HStack {
-                            SettingsPageHeader(title: dest.localizedTitle)
-                            Spacer()
-                            if dest == .shortcuts {
+                        if dest == .shortcuts {
+                            HStack {
+                                Spacer()
                                 Button {
                                     settings.resetHotkeys()
                                     HotkeyManager.shared.registerAll()
@@ -747,12 +746,30 @@ private struct GeneralSettingsView: View {
 
 private struct OtherSettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var audioController = SoftwareVolumeController.shared
+    @ObservedObject private var inputSourceController = InputSourceController.shared
+    @State private var driverError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionLabel(title: "其他".localized, icon: "ellipsis.circle", color: .purple)
-
             DesignCard {
+                SoftwareVolumeRow(controller: audioController) {
+                    if audioController.isActive {
+                        audioController.disable()
+                    } else {
+                        audioController.install()
+                    }
+                    driverError = audioController.errorMessage
+                }
+                if let inputMethod = inputSourceController.currentRestartableInputMethod {
+                    CardDivider()
+                    InputMethodRestartRow(
+                        inputMethod: inputMethod,
+                        isRestarting: inputSourceController.isRestartingInputMethod,
+                        action: inputSourceController.restartCurrentInputMethod
+                    )
+                }
+                CardDivider()
                 ToggleRow(
                     title: "屏幕圆角".localized,
                     description: "在屏幕四角叠加圆角遮罩，壁纸和桌面实时生效".localized,
@@ -807,6 +824,121 @@ private struct OtherSettingsView: View {
                 )
             }
         }
+        .alert(
+            "音频兼容输出操作失败".localized,
+            isPresented: Binding(
+                get: { driverError != nil },
+                set: { if !$0 { driverError = nil } }
+            )
+        ) {
+            Button("好".localized) { driverError = nil }
+        } message: {
+            Text(driverError ?? "")
+        }
+        .alert(
+            "输入法重启失败".localized,
+            isPresented: Binding(
+                get: { inputSourceController.inputMethodRestartError != nil },
+                set: { if !$0 { inputSourceController.clearInputMethodRestartError() } }
+            )
+        ) {
+            Button("好".localized) { inputSourceController.clearInputMethodRestartError() }
+        } message: {
+            Text(inputSourceController.inputMethodRestartError ?? "")
+        }
+    }
+}
+
+private struct InputMethodRestartRow: View {
+    let inputMethod: RestartableInputMethod
+    let isRestarting: Bool
+    let action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(DT.accent.opacity(0.12))
+                    .frame(width: 34, height: 34)
+                Image(systemName: "keyboard")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(DT.accent)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("当前输入法".localized)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.customPrimaryText)
+                Text(inputMethod.name)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button("重启输入法".localized, action: action)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .tint(DT.accent)
+                .disabled(isRestarting)
+        }
+        .padding(.horizontal, DT.rowPadH)
+        .padding(.vertical, DT.rowPadV)
+    }
+}
+
+private struct SoftwareVolumeRow: View {
+    @ObservedObject var controller: SoftwareVolumeController
+    let action: () -> Void
+
+    private var isBusy: Bool {
+        switch controller.state {
+        case .installing, .uninstalling, .starting, .recovering:
+            return true
+        case .notInstalled, .disabled, .active, .failed:
+            return false
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(DT.accent.opacity(0.12))
+                    .frame(width: 34, height: 34)
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(DT.accent)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("音频兼容输出".localized)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.customPrimaryText)
+                Text("使用系统音量键控制内建扬声器和外接显示器".localized)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                if !controller.isSupported {
+                    Text("需要 macOS 14.2 或更高版本".localized)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            Text((controller.isActive ? "已启用" : "未启用").localized)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(controller.isActive ? DT.successGreen : DT.warningOrange)
+
+            Button((controller.isActive ? "停用" : "启用").localized, action: action)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .tint(controller.isActive ? .red : DT.accent)
+                .disabled(isBusy || !controller.isSupported)
+        }
+        .padding(.horizontal, DT.rowPadH)
+        .padding(.vertical, DT.rowPadV)
     }
 }
 

@@ -101,6 +101,12 @@ struct InputSourceException: Identifiable {
     var id: String { bundleID }
 }
 
+struct RestartableInputMethod: Equatable {
+    let bundleID: String
+    let name: String
+    let applicationURL: URL
+}
+
 final class InputSourceController: ObservableObject {
     static let shared = InputSourceController()
 
@@ -118,6 +124,9 @@ final class InputSourceController: ObservableObject {
         }
     }
     @Published private(set) var exceptions: [InputSourceException]
+    @Published private(set) var currentRestartableInputMethod: RestartableInputMethod?
+    @Published private(set) var isRestartingInputMethod = false
+    @Published private(set) var inputMethodRestartError: String?
 
     private static let preferredSourceKey = "preferredInputSourceID"
     private static let retainSelectionKey = "retainUserInputSourceSelection"
@@ -157,6 +166,7 @@ final class InputSourceController: ObservableObject {
 
         exceptionBundleIDs = Set(defaults.stringArray(forKey: Self.exceptionBundleIDsKey) ?? [])
         exceptions = Self.makeExceptions(from: exceptionBundleIDs)
+        currentRestartableInputMethod = Self.currentThirdPartyInputMethod()
         defaults.set(preferredInputSourceID, forKey: Self.preferredSourceKey)
         defaults.set(retainUserSelection, forKey: Self.retainSelectionKey)
     }
@@ -319,6 +329,7 @@ final class InputSourceController: ObservableObject {
     }
 
     private func handleInputSourceNotification(named name: String?) {
+        currentRestartableInputMethod = Self.currentThirdPartyInputMethod()
         if name == (kTISNotifyEnabledKeyboardInputSourcesChanged as String) {
             refreshAvailableSources()
             return
@@ -340,6 +351,48 @@ final class InputSourceController: ObservableObject {
                 isProgrammatic: isProgrammatic
             )
         )
+    }
+
+    func restartCurrentInputMethod() {
+        guard !isRestartingInputMethod, let inputMethod = currentRestartableInputMethod else {
+            return
+        }
+        isRestartingInputMethod = true
+        inputMethodRestartError = nil
+
+        for application in NSRunningApplication.runningApplications(
+            withBundleIdentifier: inputMethod.bundleID
+        ) {
+            application.terminate()
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            Thread.sleep(forTimeInterval: 0.25)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+            process.arguments = ["imklaunchagent"]
+            try? process.run()
+            process.waitUntilExit()
+
+            DispatchQueue.main.async {
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = false
+                NSWorkspace.shared.openApplication(
+                    at: inputMethod.applicationURL,
+                    configuration: configuration
+                ) { _, error in
+                    DispatchQueue.main.async {
+                        self?.inputMethodRestartError = error?.localizedDescription
+                        self?.isRestartingInputMethod = false
+                        self?.currentRestartableInputMethod = Self.currentThirdPartyInputMethod()
+                    }
+                }
+            }
+        }
+    }
+
+    func clearInputMethodRestartError() {
+        inputMethodRestartError = nil
     }
 
     private func refreshAvailableSources() {
@@ -424,6 +477,26 @@ final class InputSourceController: ObservableObject {
     private static func currentInputSourceID() -> String? {
         let source = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
         return property(source, key: kTISPropertyInputSourceID, as: CFString.self) as String?
+    }
+
+    private static func currentThirdPartyInputMethod() -> RestartableInputMethod? {
+        let source = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
+        guard let bundleID = property(source, key: kTISPropertyBundleID, as: CFString.self)
+                as String?,
+              let name = property(source, key: kTISPropertyLocalizedName, as: CFString.self)
+                as String?,
+              let applicationURL = NSWorkspace.shared.urlForApplication(
+                withBundleIdentifier: bundleID
+              ) else {
+            return nil
+        }
+        let path = applicationURL.standardizedFileURL.path
+        guard path.contains("/Library/Input Methods/") else { return nil }
+        return RestartableInputMethod(
+            bundleID: bundleID,
+            name: name,
+            applicationURL: applicationURL
+        )
     }
 
     private static func inputSource(id: String) -> TISInputSource? {

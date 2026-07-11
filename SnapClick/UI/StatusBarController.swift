@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 // MARK: - StatusBarController
 
@@ -14,6 +15,7 @@ final class StatusBarController: NSObject {
     
     private var recordingTimer: Timer?
     private var flashState: Bool = false
+    private var isMenuOpen = false
 
     // MARK: 初始化
 
@@ -37,6 +39,7 @@ final class StatusBarController: NSObject {
     }
     
     @objc private func defaultsChanged() {
+        guard !isMenuOpen else { return }
         setupMenu()
     }
 
@@ -168,8 +171,6 @@ final class StatusBarController: NSObject {
         menu.addItem(recWindowItem)
 
         menu.addItem(.separator())
-
-
 
         // ── 取色 & 贴图 ─────────────────────────────────────────
         let colorT = parse(settings.hotkeyColorPicker)
@@ -547,8 +548,13 @@ final class StatusBarController: NSObject {
 
 extension StatusBarController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
+        isMenuOpen = true
         if ScreenRecordingEngine.shared.isRecording {
             setupRecordingMenu()
         }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        isMenuOpen = false
     }
 }

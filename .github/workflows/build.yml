@@ -48,11 +48,16 @@ jobs:
       - name: Verify app signing
         if: github.event_name != 'pull_request'
         run: |
+          AUDIO_DRIVER=build/DerivedData/Build/Products/Release/SnapClick.app/Contents/Resources/SnapClickAudio.driver
           codesign --verify --deep --strict build/DerivedData/Build/Products/Release/SnapClick.app
           codesign --verify --deep --strict build/DerivedData/Build/Products/Release/SnapClick.app/Contents/PlugIns/FinderExtension.appex
+          codesign --verify --deep --strict "$AUDIO_DRIVER"
           codesign -dv --verbose=4 build/DerivedData/Build/Products/Release/SnapClick.app 2>&1 | tee app-signing.txt
+          codesign -dv --verbose=4 "$AUDIO_DRIVER" 2>&1 | tee audio-driver-signing.txt
           grep 'Identifier=com.snapclick.app' app-signing.txt
           grep 'TeamIdentifier=HQ6YY6QF8H' app-signing.txt
+          grep 'Identifier=com.snapclick.audio.driver' audio-driver-signing.txt
+          grep 'TeamIdentifier=HQ6YY6QF8H' audio-driver-signing.txt
 
       - name: Install DMG tooling
         if: github.event_name != 'pull_request'

@@ -7,6 +7,8 @@ struct SnapClickApp: App {
     var body: some Scene {
         Settings {
             MainWindow()
+                .environmentObject(ColorPickerEngine.shared)
+                .environmentObject(PinWindowManager.shared)
         }
     }
 }
